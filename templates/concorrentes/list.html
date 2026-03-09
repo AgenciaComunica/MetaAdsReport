@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block page_title %}Concorrentes{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <p class="text-muted mb-0">Base observável/importada de anúncios públicos dos concorrentes.</p>
+    <div class="d-flex gap-2">
+        <a href="{% url 'concorrentes:import' %}" class="btn btn-outline-dark">Importar arquivo</a>
+        <a href="{% url 'concorrentes:create' %}" class="btn btn-dark">Novo anúncio</a>
+    </div>
+</div>
+<div class="panel mb-4 form-panel">
+    <form method="get" class="row g-3">
+        <div class="col-md-4"><label class="form-label">Concorrente</label><input class="form-control" type="text" name="concorrente_nome" value="{{ request.GET.concorrente_nome }}"></div>
+        <div class="col-md-4"><label class="form-label">Categoria</label><input class="form-control" type="text" name="categoria" value="{{ request.GET.categoria }}"></div>
+        <div class="col-md-3"><label class="form-label">CTA</label><input class="form-control" type="text" name="cta" value="{{ request.GET.cta }}"></div>
+        <div class="col-md-1 d-flex align-items-end"><button class="btn btn-dark w-100" type="submit">Filtrar</button></div>
+    </form>
+</div>
+<div class="panel">
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Empresa</th><th>Concorrente</th><th>Título</th><th>CTA</th><th>Categoria</th><th>Plataforma</th></tr></thead>
+            <tbody>
+            {% for ad in ads %}
+                <tr>
+                    <td>{{ ad.empresa.nome }}</td>
+                    <td>{{ ad.concorrente_nome }}</td>
+                    <td>{{ ad.titulo|default:'-' }}</td>
+                    <td>{{ ad.cta|default:'-' }}</td>
+                    <td>{{ ad.categoria|default:'-' }}</td>
+                    <td>{{ ad.plataforma }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6">Nenhum anúncio concorrente cadastrado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="text-muted mt-3">A análise competitiva deste sistema não estima métricas privadas reais dos concorrentes.</p>
+{% endblock %}
+

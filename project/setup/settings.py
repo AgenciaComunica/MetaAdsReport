@@ -2,10 +2,16 @@ from pathlib import Path
 
 from decouple import Csv, config
 from dj_database_url import parse as db_url
+from dotenv import load_dotenv
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent  # -> .../project
 REPO_ROOT = BASE_DIR.parent  # -> repo root
+ENV_FILE = REPO_ROOT / '.env'
+
+# Sempre prioriza o .env do projeto sobre variaveis herdadas do shell.
+if ENV_FILE.exists():
+    load_dotenv(ENV_FILE, override=True)
 
 # Segurança
 SECRET_KEY = config('SECRET_KEY', default='change-me')   # evita crash sem .env
@@ -27,8 +33,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # exemplo de apps futuros:
-    # 'apps.core',
+    'core',
+    'empresas',
+    'campanhas',
+    'concorrentes',
+    'relatorios',
+    'ia',
 ]
 
 # Middlewares
@@ -55,6 +65,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.active_company',
             ],
         },
     },

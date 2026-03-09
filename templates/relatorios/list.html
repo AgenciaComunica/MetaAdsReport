@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block page_title %}Relatórios{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <p class="text-muted mb-0">Relatórios consolidados com KPIs, leitura competitiva e insights da IA.</p>
+    <a href="{% url 'relatorios:generate' %}" class="btn btn-dark">Gerar relatório</a>
+</div>
+<div class="panel">
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Título</th><th>Empresa</th><th>Período</th><th>Criado em</th><th></th></tr></thead>
+            <tbody>
+            {% for relatorio in relatorios %}
+                <tr>
+                    <td>{{ relatorio.titulo }}</td>
+                    <td>{{ relatorio.empresa.nome }}</td>
+                    <td>{{ relatorio.periodo_inicio|date:'d/m/Y' }} - {{ relatorio.periodo_fim|date:'d/m/Y' }}</td>
+                    <td>{{ relatorio.criado_em|date:'d/m/Y H:i' }}</td>
+                    <td><a class="btn btn-sm btn-outline-dark" href="{% url 'relatorios:detail' relatorio.pk %}">Abrir</a></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Nenhum relatório gerado ainda.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+

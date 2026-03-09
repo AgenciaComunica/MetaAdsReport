@@ -1,0 +1,170 @@
+:root {
+    --bg: #f4f1ea;
+    --panel: #fffdf8;
+    --text: #231f20;
+    --muted: #6f6a63;
+    --accent: #cb5f2c;
+    --accent-dark: #9e451d;
+    --line: #e6dccf;
+}
+
+body {
+    background: radial-gradient(circle at top left, #fff3e5, transparent 30%), linear-gradient(180deg, #f7f3ec 0%, #efe7db 100%);
+    color: var(--text);
+    font-family: Georgia, "Times New Roman", serif;
+}
+
+.app-shell {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+}
+
+.sidebar {
+    background: #1f1a17;
+    color: #f8efe2;
+    padding: 2rem 1.5rem;
+}
+
+.brand {
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.brand-subtitle {
+    color: #d3c4b5;
+    margin-top: .4rem;
+    margin-bottom: 2rem;
+}
+
+.sidebar .nav-link {
+    color: #efe4d7;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: .8rem 1rem;
+}
+
+.sidebar .nav-link:hover {
+    background: rgba(255,255,255,.06);
+}
+
+.content {
+    padding: 2rem;
+}
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: end;
+}
+
+.page-title {
+    font-size: 2rem;
+    margin-bottom: .25rem;
+}
+
+.company-switcher {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+}
+
+.hero-card,
+.panel,
+.kpi-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(35, 31, 32, 0.06);
+}
+
+.hero-card {
+    padding: 2rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: end;
+}
+
+.hero-card h2,
+.panel h3 {
+    margin-bottom: .5rem;
+}
+
+.hero-stats {
+    display: flex;
+    gap: 1rem;
+}
+
+.hero-stats div,
+.kpi-card {
+    min-width: 120px;
+}
+
+.eyebrow,
+.kpi-card span,
+.hero-stats span {
+    color: var(--muted);
+    display: block;
+    text-transform: uppercase;
+    font-size: .74rem;
+    letter-spacing: .08em;
+}
+
+.hero-stats strong,
+.kpi-card strong {
+    font-size: 1.4rem;
+}
+
+.panel {
+    padding: 1.5rem;
+}
+
+.form-panel label {
+    font-weight: 600;
+    margin-bottom: .35rem;
+}
+
+.kpi-card {
+    padding: 1rem 1.1rem;
+}
+
+.metric-slider-panel {
+    overflow: hidden;
+}
+
+.metric-slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.metric-select {
+    max-width: 240px;
+}
+
+.report-export table,
+.table {
+    --bs-table-bg: transparent;
+}
+
+@media (max-width: 992px) {
+    .app-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        padding-bottom: 1rem;
+    }
+
+    .topbar,
+    .hero-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

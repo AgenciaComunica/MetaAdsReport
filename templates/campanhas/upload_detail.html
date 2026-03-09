@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ upload.nome_referencia }}{% endblock %}
+{% block content %}
+<div class="mt-4">
+    {% include 'partials/kpi_cards.html' %}
+</div>
+<div class="panel mt-4">
+    <div class="d-flex justify-content-between align-items-start">
+        <h3>Resumo do upload</h3>
+        <a href="{% url 'campanhas:upload_delete' upload.pk %}" class="btn btn-outline-danger btn-sm">Excluir import</a>
+    </div>
+    <p class="text-muted mb-1">Empresa: {{ upload.empresa.nome }}</p>
+    <p class="text-muted mb-1">Período: {{ upload.data_inicio|date:'d/m/Y' }} até {{ upload.data_fim|date:'d/m/Y' }}</p>
+    <p class="text-muted mb-0">Mapeamento salvo: {{ upload.colunas_mapeadas_json }}</p>
+</div>
+<div class="panel mt-4">
+    <h3>Campanhas</h3>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Campanha</th><th>Investimento</th><th>CTR</th><th>CPC</th><th>CPM</th><th>Resultados</th><th>CPL</th><th></th></tr></thead>
+            <tbody>
+            {% for row in campaign_rows %}
+                <tr>
+                    <td>{{ row.campanha }}</td>
+                    <td>R$ {{ row.investimento|floatformat:2 }}</td>
+                    <td>{{ row.ctr|floatformat:2 }}%</td>
+                    <td>R$ {{ row.cpc|floatformat:2 }}</td>
+                    <td>R$ {{ row.cpm|floatformat:2 }}</td>
+                    <td>{{ row.resultados|floatformat:2 }}</td>
+                    <td>R$ {{ row.cpl|floatformat:2 }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'campanhas:upload_campaign_delete' upload.pk %}?campaign={{ row.campanha|urlencode }}" class="btn btn-sm btn-outline-danger">Excluir campanha</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8">Nenhuma linha importada.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

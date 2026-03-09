@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ relatorio.titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <div>
+        <p class="text-muted mb-1">{{ relatorio.empresa.nome }}</p>
+        <p class="text-muted mb-0">{{ relatorio.periodo_inicio|date:'d/m/Y' }} - {{ relatorio.periodo_fim|date:'d/m/Y' }}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-dark" href="{% url 'relatorios:html_export' relatorio.pk %}">Exportar HTML</a>
+        <a class="btn btn-dark" href="{% url 'relatorios:pdf_export' relatorio.pk %}">Exportar PDF</a>
+    </div>
+</div>
+<div class="panel">
+    {{ relatorio.html_renderizado|safe }}
+</div>
+{% endblock %}
+

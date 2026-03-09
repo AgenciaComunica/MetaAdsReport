@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ empresa.nome }}{% endblock %}
+{% block content %}
+<div class="panel mt-4">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h2 class="mb-1">{{ empresa.nome }}</h2>
+            <p class="text-muted">{{ empresa.segmento|default:'Sem segmento informado' }}</p>
+        </div>
+        <a href="{% url 'empresas:update' empresa.pk %}" class="btn btn-outline-dark">Editar</a>
+    </div>
+    <p>{{ empresa.observacoes|default:'Sem observações.' }}</p>
+    <p class="text-muted mb-0">Criado em {{ empresa.criado_em|date:'d/m/Y H:i' }}.</p>
+</div>
+{% endblock %}
+

@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Meta Competitive Report{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div>
+                <a href="{% url 'core:home' %}" class="brand">Meta Competitive Report</a>
+                <p class="brand-subtitle">Meta Ads + inteligência competitiva</p>
+            </div>
+            <nav class="nav flex-column gap-2">
+                <a class="nav-link" href="{% url 'core:home' %}">Visão geral</a>
+                <a class="nav-link" href="{% url 'campanhas:dashboard' %}">Dashboard</a>
+                <a class="nav-link" href="{% url 'campanhas:upload_list' %}">Uploads Meta Ads</a>
+                <a class="nav-link" href="{% url 'concorrentes:list' %}">Concorrentes</a>
+                <a class="nav-link" href="{% url 'relatorios:list' %}">Relatórios</a>
+            </nav>
+        </aside>
+        <main class="content">
+            <header class="topbar">
+                <div>
+                    <h1 class="page-title">{% block page_title %}Meta Competitive Report{% endblock %}</h1>
+                    <p class="text-muted mb-0">Fluxo local estruturado para evoluir depois para produção.</p>
+                </div>
+                <form method="post" action="{% url 'core:set_active_company' %}" class="company-switcher">
+                    {% csrf_token %}
+                    {{ active_company_form.empresa }}
+                    <button class="btn btn-sm btn-dark" type="submit">Aplicar</button>
+                </form>
+            </header>
+            {% if messages %}
+                <div class="mt-3">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="{% static 'js/app.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

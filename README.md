@@ -1,109 +1,125 @@
-# 🐍 DjangoTemplate
+# Meta Competitive Report
 
-Este repositório serve como **boilerplate** para iniciar novos projetos Django de forma rápida, limpa e padronizada.  
-Ele já vem configurado com suporte a `.env`, MariaDB/MySQL/Postgres, e ajustes para `templates`, `static` e `media`.
+Sistema web em Django para leitura de campanhas Meta Ads, análise competitiva de concorrentes e geração de relatórios estratégicos com apoio de IA.
 
----
+## O que já está implementado
 
-## ✨ Recursos incluídos
-- Estrutura de projeto já organizada (`project/setup`)
-- Configuração de variáveis de ambiente com **python-decouple**
-- Suporte a `DATABASE_URL` com **dj-database-url**
-- Pastas padrão para **templates**, **static** e **media**
-- Configuração de **upload seguro**, limites e logs
-- Ajustes de segurança prontos para produção (HSTS, cookies seguros, SSL redirect)
-- `.env.example` pronto para copiar
-- `.gitignore` otimizado
-- **Configurações do VS Code** incluídas (`.vscode/`):
-  - Debug do Django com F5
-  - Python da venv selecionado automaticamente
-  - Auto-format ao salvar
+- cadastro completo de empresas/clientes
+- seleção de empresa ativa no layout
+- upload de CSVs do Meta Ads Manager
+- normalização automática de colunas com fallback para mapeamento manual
+- KPIs e dashboard por período
+- comparativo entre períodos
+- cadastro e importação de concorrentes via CSV/JSON
+- integração com OpenRouter para insights estratégicos
+- geração de relatório consolidado em HTML
+- exportação PDF com WeasyPrint quando a dependência do sistema estiver disponível
 
----
+## Estrutura do projeto
 
-## 🚀 Como usar
-
-1. **Clonar este template**
-   ```bash
-   git clone git@github.com:AgenciaComunica/DjangoTemplate.git
-   cd DjangoTemplate
-   ```
-
-2. **Criar ambiente virtual**
-   ```bash
-   python3.12 -m venv .venv
-   source .venv/bin/activate
-   ```
-
-3. **Instalar dependências**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configurar variáveis de ambiente**
-   ```bash
-   cp .env.example .env
-   ```
-   Edite o `.env` e defina sua `SECRET_KEY`, `DATABASE_URL`, etc.
-
-5. **Rodar migrações e servidor**
-   ```bash
-   python manage.py migrate
-   python manage.py runserver
-   ```
-
-Acesse: http://127.0.0.1:8000
-
----
-
-## 📂 Estrutura
-
-```
-DjangoTemplate/
-│ manage.py
-│ requirements.txt
-│ .env.example
-│ INSTALL.md
-│
-├── project/
-│   └── setup/
-│       ├── settings.py
-│       ├── urls.py
-│       ├── asgi.py
-│       └── wsgi.py
-│
-├── templates/
+```text
+MetaAdsReport/
+├── .env.example
+├── README.md
+├── requirements.txt
+├── scripts/
+│   └── run_local_windows.bat
 ├── static/
-├── media/
-└── .vscode/
-    ├── settings.json
-    └── launch.json
+├── templates/
+└── project/
+    ├── manage.py
+    ├── core/
+    ├── empresas/
+    ├── campanhas/
+    ├── concorrentes/
+    ├── relatorios/
+    ├── ia/
+    └── setup/
 ```
 
----
+## Setup local no Windows
 
-## 🛠️ Tecnologias
-- [Django 5.2.x](https://www.djangoproject.com/)
-- [python-decouple](https://pypi.org/project/python-decouple/)
-- [dj-database-url](https://pypi.org/project/dj-database-url/)
+1. Criar e ativar a virtualenv:
 
----
-
-## 🔒 Produção (resumo)
-Quando `DEBUG=False`, algumas proteções são ativadas automaticamente, como `SECURE_SSL_REDIRECT`,
-cookies seguros e HSTS. Você pode ajustar via `.env`:
-
-```
-SECURE_SSL_REDIRECT=True
-SESSION_COOKIE_SECURE=True
-CSRF_COOKIE_SECURE=True
-SECURE_HSTS_SECONDS=3600
-SECURE_HSTS_INCLUDE_SUBDOMAINS=True
-SECURE_HSTS_PRELOAD=True
-SECURE_CONTENT_TYPE_NOSNIFF=True
-SECURE_REFERRER_POLICY=same-origin
+```bat
+py -3.12 -m venv .venv
+.venv\Scripts\activate
 ```
 
----
+2. Instalar dependências:
 
-✅ Agora é só usar este repositório como base e começar a criar seus apps!
+```bat
+pip install -r requirements.txt
+```
+
+3. Copiar o arquivo de ambiente:
+
+```bat
+copy .env.example .env
+```
+
+4. Ajustar o `.env`:
+
+- para ambiente local simples, deixe SQLite
+- para MariaDB, troque `DATABASE_URL`
+- para IA, configure `OPENROUTER_API_KEY`
+
+5. Rodar migrações:
+
+```bat
+python project\manage.py makemigrations
+python project\manage.py migrate
+```
+
+6. Criar superusuário:
+
+```bat
+python project\manage.py createsuperuser
+```
+
+7. Subir o servidor:
+
+```bat
+python project\manage.py runserver
+```
+
+Abra `http://127.0.0.1:8000`.
+
+## Fluxo recomendado de uso
+
+1. cadastrar uma empresa
+2. selecionar a empresa ativa no topo
+3. importar um CSV do Meta Ads
+4. revisar o dashboard e o comparativo de períodos
+5. cadastrar ou importar anúncios de concorrentes
+6. gerar um relatório estratégico consolidado
+
+## Variáveis de ambiente principais
+
+```env
+SECRET_KEY=troque-esta-chave
+DEBUG=True
+DATABASE_URL=sqlite:///db.sqlite3
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+## Observações técnicas
+
+- o parser tenta detectar separador, encoding e sinônimos comuns de colunas
+- se a coluna de campanha não for identificada, a tela de mapeamento manual é exibida
+- a análise competitiva usa apenas dados observáveis/importados dos concorrentes
+- o sistema não infere métricas privadas reais como CPC, CTR, leads ou ROAS dos concorrentes
+- o PDF depende do WeasyPrint e das libs nativas do sistema operacional
+
+## Ambientes futuros
+
+O projeto já está modularizado para crescer com:
+
+- autenticação por usuário/equipe
+- jobs assíncronos para importação
+- cache
+- storage remoto
+- banco relacional de produção
+- observabilidade e deploy
+

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block page_title %}Novo anúncio concorrente{% endblock %}
+{% block content %}
+<div class="panel mt-4 form-panel">
+    <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+            {% for field in form %}
+                <div class="col-md-6">{{ field.label_tag }}{{ field }}</div>
+            {% endfor %}
+        </div>
+        <button class="btn btn-dark mt-4" type="submit">Salvar</button>
+    </form>
+</div>
+{% endblock %}
+

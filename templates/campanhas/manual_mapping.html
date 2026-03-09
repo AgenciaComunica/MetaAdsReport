@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block page_title %}Mapeamento manual de colunas{% endblock %}
+{% block content %}
+<div class="panel mt-4">
+    <h2>Arquivo: {{ upload.nome_referencia }}</h2>
+    <p class="text-muted">Use esta tela quando a detecção automática não encontrar todas as colunas necessárias.</p>
+    <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+            {% for field in form %}
+                <div class="col-md-6">{{ field.label_tag }}{{ field }}</div>
+            {% endfor %}
+        </div>
+        <button class="btn btn-dark mt-4" type="submit">Aplicar mapeamento</button>
+    </form>
+    <hr>
+    <h3>Colunas detectadas</h3>
+    <p>{{ detected_columns|join:', ' }}</p>
+    <h3>Sinônimos aceitos</h3>
+    <ul class="mb-0">
+        {% for key, value in alias_help.items %}
+            <li><strong>{{ key }}</strong>: {{ value }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
+

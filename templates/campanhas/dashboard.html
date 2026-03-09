@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% block page_title %}Dashboard de campanhas{% endblock %}
+{% block content %}
+<div class="panel mt-4 form-panel">
+    <form method="get" class="row g-3" id="dashboardFiltersForm">
+        <div class="col-md-4">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
+        <div class="col-md-4">{{ form.periodo_atual.label_tag }}{{ form.periodo_atual }}{{ form.data_inicio }}{{ form.data_fim }}</div>
+        <div class="col-md-4">{{ form.periodo_anterior.label_tag }}{{ form.periodo_anterior }}{{ form.data_inicio_anterior }}{{ form.data_fim_anterior }}</div>
+    </form>
+</div>
+<div class="mt-4">
+    {% include 'partials/kpi_cards.html' %}
+</div>
+<div class="row g-4 mt-1">
+    <div class="col-lg-7">
+        <div class="panel metric-slider-panel">
+            <div class="metric-slider-header">
+                <h3 id="metricChartTitle">Resultados por campanha</h3>
+                <select id="metricChartSelect" class="form-select metric-select">
+                    {% for chart in stacked_campaign_charts %}
+                        <option value="{{ forloop.counter0 }}">{{ chart.metric_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="stackedCampaignChart" style="min-height: 320px;"></div>
+            {{ stacked_campaign_charts|json_script:"stacked-campaign-charts-data" }}
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="panel">
+            <h3>Comparativo entre períodos</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Métrica</th><th>Atual</th><th>Anterior</th><th>Variação</th></tr></thead>
+                    <tbody>
+                    {% for row in comparison_rows %}
+                        <tr>
+                            <td>{{ row.label }}</td>
+                            <td>{{ row.atual|floatformat:2 }}</td>
+                            <td>{{ row.anterior|floatformat:2 }}</td>
+                            <td class="{% if row.variacao_absoluta >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ row.variacao_absoluta|floatformat:2 }}
+                                {% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4">Informe também um período anterior para comparar.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="panel mt-4">
+    <h3>Tabela por campanha</h3>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Campanha</th><th>Investimento</th><th>Impressões</th><th>Alcance</th><th>Cliques</th><th>CTR</th><th>CPC</th><th>CPM</th><th>Resultados</th><th>CPL</th></tr></thead>
+            <tbody>
+            {% for row in campaign_rows %}
+                <tr>
+                    <td>{{ row.campanha }}</td>
+                    <td>R$ {{ row.investimento|floatformat:2 }}</td>
+                    <td>{{ row.impressoes }}</td>
+                    <td>{{ row.alcance }}</td>
+                    <td>{{ row.cliques }}</td>
+                    <td>{{ row.ctr|floatformat:2 }}%</td>
+                    <td>R$ {{ row.cpc|floatformat:2 }}</td>
+                    <td>R$ {{ row.cpm|floatformat:2 }}</td>
+                    <td>{{ row.resultados|floatformat:2 }}</td>
+                    <td>R$ {{ row.cpl|floatformat:2 }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="10">Nenhum dado para o filtro selecionado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const filterForm = document.getElementById('dashboardFiltersForm');
+    const companySelect = document.getElementById('id_empresa');
+
+    if (companySelect && filterForm) {
+      companySelect.addEventListener('change', () => filterForm.submit());
+    }
+
+    document.querySelectorAll('.js-date-range').forEach((element) => {
+      const startTarget = document.querySelector(`#${element.dataset.startTarget}`);
+      const endTarget = document.querySelector(`#${element.dataset.endTarget}`);
+      if (!element.value && startTarget.value && endTarget.value) {
+        const formatPt = (value) => {
+          const [year, month, day] = value.split('-');
+          return `${day}-${month}-${year}`;
+        };
+        element.value = `${formatPt(startTarget.value)} até ${formatPt(endTarget.value)}`;
+      }
+      flatpickr(element, {
+        mode: 'range',
+        dateFormat: 'Y-m-d',
+        altInput: false,
+        locale: {
+          rangeSeparator: ' até ',
+          firstDayOfWeek: 1
+        },
+        defaultDate: startTarget.value && endTarget.value ? [startTarget.value, endTarget.value] : [],
+        formatDate(dateObj) {
+          return flatpickr.formatDate(dateObj, 'd-m-Y');
+        },
+        onClose(selectedDates) {
+          startTarget.value = selectedDates[0] ? flatpickr.formatDate(selectedDates[0], 'Y-m-d') : '';
+          endTarget.value = selectedDates[1] ? flatpickr.formatDate(selectedDates[1], 'Y-m-d') : '';
+          if (selectedDates[0] && selectedDates[1]) {
+            element.value = `${flatpickr.formatDate(selectedDates[0], 'd-m-Y')} até ${flatpickr.formatDate(selectedDates[1], 'd-m-Y')}`;
+          }
+          if (selectedDates.length === 2 && filterForm) {
+            filterForm.submit();
+          }
+        }
+      });
+    });
+
+    const chartNode = document.getElementById('stackedCampaignChart');
+    const payloadNode = document.getElementById('stacked-campaign-charts-data');
+    if (!chartNode || !payloadNode) return;
+
+    const chartPayloads = JSON.parse(payloadNode.textContent);
+    if (!chartPayloads.length) return;
+
+    const titleNode = document.getElementById('metricChartTitle');
+    const metricSelect = document.getElementById('metricChartSelect');
+    let activeIndex = 0;
+
+    const apexChart = new ApexCharts(chartNode, {
+      chart: {
+        type: 'bar',
+        stacked: true,
+        height: 320,
+        toolbar: { show: false }
+      },
+      series: [],
+      xaxis: { categories: [] },
+      yaxis: { title: { text: 'Métrica' } },
+      legend: { position: 'bottom' },
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          columnWidth: '55%'
+        }
+      },
+      dataLabels: { enabled: false },
+      tooltip: {
+        y: {
+          formatter: (value) => value.toFixed(2)
+        }
+      }
+    });
+
+    const renderMetric = (index) => {
+      activeIndex = (index + chartPayloads.length) % chartPayloads.length;
+      const payload = chartPayloads[activeIndex];
+      titleNode.textContent = `${payload.metric_label} por campanha`;
+      metricSelect.value = String(activeIndex);
+      apexChart.updateOptions({
+        colors: payload.series.map((item) => item.color),
+        xaxis: { categories: payload.categories || [] },
+        yaxis: { title: { text: payload.metric_label || 'Métrica' } }
+      }, false, true);
+      apexChart.updateSeries(payload.series.map((item) => ({
+        name: item.name,
+        data: item.data
+      })), true);
+    };
+
+    apexChart.render().then(() => renderMetric(0));
+
+    metricSelect.addEventListener('change', () => renderMetric(Number(metricSelect.value)));
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block page_title %}Excluir campanha do upload{% endblock %}
+{% block content %}
+<div class="panel mt-4">
+    <h3>Excluir campanha</h3>
+    <p>Você está prestes a excluir a campanha <strong>{{ campaign_name }}</strong> do upload <strong>{{ upload.nome_referencia }}</strong>.</p>
+    <p class="text-danger mb-4">Isso remove {{ records_count }} registro(s) importado(s) desta campanha e impacta os KPIs e relatórios.</p>
+    <form method="post" class="d-flex gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="campaign_name" value="{{ campaign_name }}">
+        <a href="{% url 'campanhas:upload_detail' upload.pk %}" class="btn btn-outline-dark">Cancelar</a>
+        <button type="submit" class="btn btn-danger">Confirmar exclusão</button>
+    </form>
+</div>
+{% endblock %}

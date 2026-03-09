@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block page_title %}Visão geral{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <p class="text-muted mb-0">Empresas cadastradas no sistema.</p>
+    <a href="{% url 'empresas:create' %}" class="btn btn-dark">Nova empresa</a>
+</div>
+<div class="panel">
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Nome</th><th>Segmento</th><th>Status</th><th>Criado em</th><th class="text-end">Ações</th></tr></thead>
+            <tbody>
+            {% for empresa in empresas %}
+                <tr>
+                    <td>{{ empresa.nome }}</td>
+                    <td>{{ empresa.segmento|default:'-' }}</td>
+                    <td>{% if empresa.ativo %}Ativa{% else %}Inativa{% endif %}</td>
+                    <td>{{ empresa.criado_em|date:'d/m/Y H:i' }}</td>
+                    <td class="text-end d-flex gap-2 justify-content-end">
+                        <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}" class="btn btn-sm btn-outline-dark">Ver relatório</a>
+                        <a href="{% url 'empresas:update' empresa.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                        <a href="{% url 'empresas:delete' empresa.pk %}" class="btn btn-sm btn-outline-danger">Excluir</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Nenhuma empresa cadastrada.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

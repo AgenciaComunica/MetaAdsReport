@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block page_title %}Uploads Meta Ads{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <p class="text-muted mb-0">Importe CSVs exportados do Meta Ads Manager e normalize automaticamente as colunas.</p>
+    <a href="{% url 'campanhas:upload_create' %}" class="btn btn-dark">Novo upload</a>
+</div>
+<div class="panel">
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Empresa</th><th>Referência</th><th>Período</th><th>Criado em</th><th></th></tr></thead>
+            <tbody>
+            {% for upload in uploads %}
+                <tr>
+                    <td>{{ upload.empresa.nome }}</td>
+                    <td>{{ upload.nome_referencia }}</td>
+                    <td>{{ upload.get_periodo_tipo_display }}</td>
+                    <td>{{ upload.criado_em|date:'d/m/Y H:i' }}</td>
+                    <td class="d-flex gap-2">
+                        <a class="btn btn-sm btn-outline-dark" href="{% url 'campanhas:upload_detail' upload.pk %}">Abrir</a>
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'campanhas:upload_delete' upload.pk %}">Excluir</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Nenhum upload encontrado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

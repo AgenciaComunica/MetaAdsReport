@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block page_title %}Excluir import{% endblock %}
+{% block content %}
+<div class="panel mt-4">
+    <h3>Excluir upload</h3>
+    <p>Você está prestes a excluir o upload <strong>{{ upload.nome_referencia }}</strong> da empresa <strong>{{ upload.empresa.nome }}</strong>.</p>
+    <p class="text-danger mb-4">Isso apaga também todas as métricas importadas deste arquivo.</p>
+    <form method="post" class="d-flex gap-2">
+        {% csrf_token %}
+        <a href="{% url 'campanhas:upload_detail' upload.pk %}" class="btn btn-outline-dark">Cancelar</a>
+        <button type="submit" class="btn btn-danger">Confirmar exclusão</button>
+    </form>
+</div>
+{% endblock %}

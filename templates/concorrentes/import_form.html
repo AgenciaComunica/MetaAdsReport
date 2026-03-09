@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block page_title %}Importar concorrentes{% endblock %}
+{% block content %}
+<div class="panel mt-4 form-panel">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-md-6">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
+            <div class="col-md-6">{{ form.arquivo.label_tag }}{{ form.arquivo }}</div>
+        </div>
+        <button class="btn btn-dark mt-4" type="submit">Importar</button>
+    </form>
+</div>
+{% endblock %}
+

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block page_title %}Novo upload Meta Ads{% endblock %}
+{% block content %}
+<div class="panel mt-4 form-panel">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-md-6">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
+            <div class="col-md-6">{{ form.nome_referencia.label_tag }}{{ form.nome_referencia }}</div>
+            <div class="col-12">{{ form.arquivo.label_tag }}{{ form.arquivo }}</div>
+            <div class="col-md-4">{{ form.periodo_tipo.label_tag }}{{ form.periodo_tipo }}</div>
+            <div class="col-md-4">{{ form.data_inicio.label_tag }}{{ form.data_inicio }}</div>
+            <div class="col-md-4">{{ form.data_fim.label_tag }}{{ form.data_fim }}</div>
+        </div>
+        <button class="btn btn-dark mt-4" type="submit">Importar arquivo</button>
+    </form>
+</div>
+{% endblock %}
+
