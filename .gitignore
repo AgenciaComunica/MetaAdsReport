@@ -1,0 +1,34 @@
+# Ambiente virtual
+.venv/
+venv/
+
+# Configuração local
+.env
+*.local
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Banco SQLite local
+*.sqlite3
+
+# Arquivos de migração compilados
+*/migrations/*.pyc
+*/migrations/*.pyo
+
+# Static/Media coletados
+staticfiles/
+media/*
+!media/.gitkeep
+
+# Logs
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
