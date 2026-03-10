@@ -1,11 +1,10 @@
 <div class="row g-3">
-    <div class="col-md-3"><div class="kpi-card"><span>Investimento</span><strong>R$ {{ kpis.investimento|default:0|floatformat:2 }}</strong></div></div>
-    <div class="col-md-3"><div class="kpi-card"><span>Impressões</span><strong>{{ kpis.impressoes|default:0 }}</strong></div></div>
-    <div class="col-md-3"><div class="kpi-card"><span>Cliques</span><strong>{{ kpis.cliques|default:0 }}</strong></div></div>
-    <div class="col-md-3"><div class="kpi-card"><span>Resultados</span><strong>{{ kpis.resultados|default:0|floatformat:2 }}</strong></div></div>
-    <div class="col-md-3"><div class="kpi-card"><span>CTR</span><strong>{{ kpis.ctr|default:0|floatformat:2 }}%</strong></div></div>
-    <div class="col-md-3"><div class="kpi-card"><span>CPC</span><strong>R$ {{ kpis.cpc|default:0|floatformat:2 }}</strong></div></div>
-    <div class="col-md-3"><div class="kpi-card"><span>CPM</span><strong>R$ {{ kpis.cpm|default:0|floatformat:2 }}</strong></div></div>
-    <div class="col-md-3"><div class="kpi-card"><span>CPL</span><strong>R$ {{ kpis.cpl|default:0|floatformat:2 }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">Investimento <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Total investido em anúncios no período selecionado.">?</button></span><strong>R$ {{ kpis.investimento|default:0|floatformat:2 }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">Impressões <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Quantidade total de vezes que os anúncios foram exibidos.">?</button></span><strong>{{ kpis.impressoes|default:0 }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">Cliques <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Total de cliques recebidos nos links dos anúncios.">?</button></span><strong>{{ kpis.cliques|default:0 }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">Resultados <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Total de resultados gerados, como leads, conversões ou outro objetivo configurado.">?</button></span><strong>{{ kpis.resultados|default:0|floatformat:2 }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">CTR <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Taxa de cliques em relação ao volume de impressões do período.">?</button></span><strong>{{ kpis.ctr|default:0|floatformat:2 }}%</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">CPC <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Custo médio pago por clique no período selecionado.">?</button></span><strong>R$ {{ kpis.cpc|default:0|floatformat:2 }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">CPM <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Custo médio para cada mil impressões dos anúncios.">?</button></span><strong>R$ {{ kpis.cpm|default:0|floatformat:2 }}</strong></div></div>
+    <div class="col-md-3"><div class="kpi-card"><span class="kpi-label">CPL <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Custo médio por resultado gerado no período.">?</button></span><strong>R$ {{ kpis.cpl|default:0|floatformat:2 }}</strong></div></div>
 </div>
-

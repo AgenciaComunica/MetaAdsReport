@@ -40,3 +40,15 @@ class ConcorrenteImportForm(forms.Form):
     empresa = forms.ModelChoiceField(queryset=Empresa.objects.order_by('nome'), widget=forms.Select(attrs={'class': 'form-select'}))
     arquivo = forms.FileField(widget=forms.ClearableFileInput(attrs={'class': 'form-control'}))
 
+
+class InstagramProfileImportForm(forms.Form):
+    empresa = forms.ModelChoiceField(queryset=Empresa.objects.order_by('nome'), widget=forms.Select(attrs={'class': 'form-select'}))
+    instagram_profile_url = forms.URLField(
+        label='URL do perfil do Instagram',
+        widget=forms.URLInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'https://www.instagram.com/nome_do_perfil/',
+            }
+        ),
+    )

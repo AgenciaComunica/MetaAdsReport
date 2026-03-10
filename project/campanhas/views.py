@@ -4,6 +4,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from core.utils import last_complete_month_ranges
 from empresas.models import Empresa
+from concorrentes.models import ConcorrenteAd
+from concorrentes.services import competitor_summary
+from ia.models import AnaliseConcorrencial
 
 from .forms import ComparePeriodForm, UploadCampanhaForm
 from .models import UploadCampanha
@@ -160,6 +163,11 @@ def dashboard(request):
     company_id = request.session.get('active_company_id')
     if company_id:
         empresa = Empresa.objects.filter(pk=company_id).first()
+    if empresa is None:
+        empresa = Empresa.objects.order_by('nome', 'pk').first()
+        if empresa:
+            request.session['active_company_id'] = empresa.pk
+    if empresa:
         initial['empresa'] = empresa
     form = ComparePeriodForm(request.GET or None, initial=initial)
     queryset = metrics_queryset(
@@ -175,6 +183,8 @@ def dashboard(request):
 
     if form.is_valid():
         empresa = form.cleaned_data.get('empresa') or empresa
+        if empresa:
+            request.session['active_company_id'] = empresa.pk
         current_start = form.cleaned_data.get('data_inicio') or default_ranges['current_start']
         current_end = form.cleaned_data.get('data_fim') or default_ranges['current_end']
         previous_start = form.cleaned_data.get('data_inicio_anterior') or default_ranges['previous_start']
@@ -190,6 +200,9 @@ def dashboard(request):
             data_fim=previous_end,
         )
 
+    competitor_analyses = AnaliseConcorrencial.objects.filter(empresa=empresa).exclude(concorrente_nome='') if empresa else AnaliseConcorrencial.objects.none()
+    selected_competitor_name = request.GET.get('competitor_analysis') or (competitor_analyses.first().concorrente_nome if competitor_analyses.exists() else '')
+    selected_competitor_analysis = competitor_analyses.filter(concorrente_nome=selected_competitor_name).first() if selected_competitor_name else None
     context = {
         'form': form,
         'empresa': empresa,
@@ -201,5 +214,21 @@ def dashboard(request):
             for metric_key in chart_metrics
         ],
         'comparison_rows': comparison_summary(queryset, previous_qs) if previous_qs.exists() else [],
+        'latest_competitor_analysis': selected_competitor_analysis,
+        'competitor_analyses': competitor_analyses,
+        'selected_competitor_name': selected_competitor_name,
+        'competitor_summary': (
+            competitor_summary(ConcorrenteAd.objects.filter(empresa=empresa)) if empresa else {'competitors': []}
+        ),
     }
+    if context['competitor_summary'].get('competitors') and selected_competitor_name:
+        context['selected_competitor_profile'] = next(
+            (
+                item for item in context['competitor_summary']['competitors']
+                if item['nome'] == selected_competitor_name
+            ),
+            None,
+        )
+    else:
+        context['selected_competitor_profile'] = None
     return render(request, 'campanhas/dashboard.html', context)

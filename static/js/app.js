@@ -1,4 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((node) => {
+    new bootstrap.Tooltip(node);
+  });
+
   const chart = document.getElementById('timelineChart');
   if (!chart) {
     return;

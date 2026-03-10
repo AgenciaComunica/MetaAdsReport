@@ -4,39 +4,73 @@
 <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
     <p class="text-muted mb-0">Base observável/importada de anúncios públicos dos concorrentes.</p>
     <div class="d-flex gap-2">
-        <a href="{% url 'concorrentes:import' %}" class="btn btn-outline-dark">Importar arquivo</a>
-        <a href="{% url 'concorrentes:create' %}" class="btn btn-dark">Novo anúncio</a>
+        <a href="{% url 'concorrentes:instagram_import' %}" class="btn btn-dark">Novo Concorrente</a>
+        <a href="{% url 'concorrentes:import' %}" class="btn btn-outline-dark">Importar Concorrentes</a>
     </div>
 </div>
 <div class="panel mb-4 form-panel">
-    <form method="get" class="row g-3">
-        <div class="col-md-4"><label class="form-label">Concorrente</label><input class="form-control" type="text" name="concorrente_nome" value="{{ request.GET.concorrente_nome }}"></div>
-        <div class="col-md-4"><label class="form-label">Categoria</label><input class="form-control" type="text" name="categoria" value="{{ request.GET.categoria }}"></div>
-        <div class="col-md-3"><label class="form-label">CTA</label><input class="form-control" type="text" name="cta" value="{{ request.GET.cta }}"></div>
-        <div class="col-md-1 d-flex align-items-end"><button class="btn btn-dark w-100" type="submit">Filtrar</button></div>
-    </form>
+    <label class="form-label" for="concorrentesSearchInput">Buscar concorrente ou empresa</label>
+    <input
+        class="form-control"
+        id="concorrentesSearchInput"
+        type="search"
+        placeholder="Digite o nome da empresa ou do concorrente"
+    >
 </div>
 <div class="panel">
     <div class="table-responsive">
         <table class="table align-middle">
-            <thead><tr><th>Empresa</th><th>Concorrente</th><th>Título</th><th>CTA</th><th>Categoria</th><th>Plataforma</th></tr></thead>
-            <tbody>
+            <thead><tr><th>Concorrente</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th></th></tr></thead>
+            <tbody id="concorrentesTableBody">
             {% for ad in ads %}
-                <tr>
-                    <td>{{ ad.empresa.nome }}</td>
-                    <td>{{ ad.concorrente_nome }}</td>
-                    <td>{{ ad.titulo|default:'-' }}</td>
-                    <td>{{ ad.cta|default:'-' }}</td>
-                    <td>{{ ad.categoria|default:'-' }}</td>
+                <tr data-search="{{ ad.empresa.nome|lower }} {{ ad.concorrente_nome|lower }}">
+                    <td>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="js-search-competitor">{{ ad.concorrente_nome }}</span>
+                            <span class="activity-pill {{ ad.activity_class }}">{{ ad.activity_label }}</span>
+                        </div>
+                    </td>
+                    <td class="js-search-company">{{ ad.empresa.nome }}</td>
+                    <td>
+                        {% if ad.analysis %}
+                            {{ ad.analysis.criado_em|date:'d/m/Y H:i' }}
+                        {% elif ad.activity_label == 'Sem Avaliação Feita' %}
+                            -
+                        {% elif ad.data_referencia %}
+                            {{ ad.data_referencia|date:'d/m/Y' }} {{ ad.criado_em|date:'H:i' }}
+                        {% else %}
+                            {{ ad.criado_em|date:'d/m/Y H:i' }}
+                        {% endif %}
+                    </td>
                     <td>{{ ad.plataforma }}</td>
+                    <td>
+                        {% if ad.has_analysis %}
+                            <a class="btn btn-sm btn-outline-dark" href="{% url 'campanhas:dashboard' %}?empresa={{ ad.empresa.id }}&competitor_analysis={{ ad.concorrente_nome|urlencode }}#analise-concorrentes">Ver análise</a>
+                        {% endif %}
+                    </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="6">Nenhum anúncio concorrente cadastrado.</td></tr>
+                <tr><td colspan="5">Nenhum anúncio concorrente cadastrado.</td></tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
-<p class="text-muted mt-3">A análise competitiva deste sistema não estima métricas privadas reais dos concorrentes.</p>
+<p class="text-muted mt-3">A análise competitiva deste sistema não estima métricas privadas reais dos concorrentes. No fluxo por Instagram, o sistema tenta captar apenas o que for publicamente observável e já deixa o link da Meta Ad Library para consulta.</p>
 {% endblock %}
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('concorrentesSearchInput');
+    const rows = Array.from(document.querySelectorAll('#concorrentesTableBody tr[data-search]'));
+    if (!searchInput || !rows.length) return;
 
+    searchInput.addEventListener('input', () => {
+      const term = searchInput.value.trim().toLowerCase();
+      rows.forEach((row) => {
+        row.style.display = !term || row.dataset.search.includes(term) ? '' : 'none';
+      });
+    });
+  });
+</script>
+{% endblock %}

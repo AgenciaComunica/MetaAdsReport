@@ -1,6 +1,22 @@
 {% extends 'base.html' %}
+{% load ia_formatting %}
 {% block page_title %}Dashboard de campanhas{% endblock %}
 {% block content %}
+<div class="d-flex justify-content-end mt-4">
+    {% if empresa %}
+        <form method="post" action="{% url 'relatorios:generate' %}">
+            {% csrf_token %}
+            <input type="hidden" name="empresa" value="{{ empresa.id }}">
+            <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
+            <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
+            <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
+            <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
+            <input type="hidden" name="competitor_analysis" value="{{ selected_competitor_name }}">
+            <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ form.data_inicio.value|default:'' }} a {{ form.data_fim.value|default:'' }}">
+            <button type="submit" class="btn btn-dark">Gerar Relatório</button>
+        </form>
+    {% endif %}
+</div>
 <div class="panel mt-4 form-panel">
     <form method="get" class="row g-3" id="dashboardFiltersForm">
         <div class="col-md-4">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
@@ -77,6 +93,53 @@
             </tbody>
         </table>
     </div>
+</div>
+<div class="panel mt-4" id="analise-concorrentes">
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <h3 class="mb-0">Análise dos Concorrentes</h3>
+        <div class="d-flex gap-2">
+        {% if competitor_analyses %}
+            <select class="form-select" id="competitorAnalysisSelect">
+                {% for analysis in competitor_analyses %}
+                    <option value="{{ analysis.concorrente_nome }}" {% if analysis.concorrente_nome == selected_competitor_name %}selected{% endif %}>
+                        {{ analysis.concorrente_nome }}
+                    </option>
+                {% endfor %}
+            </select>
+        {% endif %}
+        {% if empresa %}
+            <form method="post" action="{% url 'concorrentes:evaluate_now' %}">
+                {% csrf_token %}
+                <input type="hidden" name="empresa" value="{{ empresa.id }}">
+                <button type="submit" class="btn btn-dark">Avaliar agora</button>
+            </form>
+        {% endif %}
+        </div>
+    </div>
+    {% if latest_competitor_analysis %}
+        <p class="text-muted mb-2">
+            {{ latest_competitor_analysis.concorrente_nome }}
+            {% if selected_competitor_profile %}
+                <span class="activity-pill {{ selected_competitor_profile.activity_class }}">{{ selected_competitor_profile.activity_label }}</span>
+            {% endif %}
+            · última atualização em {{ latest_competitor_analysis.criado_em|date:'d/m/Y H:i' }}
+            com {{ latest_competitor_analysis.total_anuncios }} anúncio(s) observável(is).
+        </p>
+        {% if selected_competitor_profile %}
+            <div class="panel mb-3">
+                <div class="row g-3">
+                    <div class="col-md-3"><strong>Posts visíveis no feed</strong><br>{{ selected_competitor_profile.feed_posts_visiveis }}</div>
+                    <div class="col-md-4"><strong>Cadência recente</strong><br>{{ selected_competitor_profile.feed_cadencia|default:'-' }}</div>
+                    <div class="col-md-5"><strong>Datas recentes</strong><br>{{ selected_competitor_profile.feed_datas_publicadas|slice:':6'|join:', '|default:'-' }}</div>
+                </div>
+            </div>
+        {% endif %}
+        <div>{{ latest_competitor_analysis.conteudo|render_analysis_markdown }}</div>
+    {% else %}
+        <p class="text-muted mb-0">
+            Cadastre os concorrentes da empresa e use <strong>Avaliar agora</strong> aqui para gerar a leitura subjetiva da IA.
+        </p>
+    {% endif %}
 </div>
 {% endblock %}
 {% block extra_js %}
@@ -179,6 +242,15 @@
     apexChart.render().then(() => renderMetric(0));
 
     metricSelect.addEventListener('change', () => renderMetric(Number(metricSelect.value)));
+
+    const competitorSelect = document.getElementById('competitorAnalysisSelect');
+    if (competitorSelect) {
+      competitorSelect.addEventListener('change', () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('competitor_analysis', competitorSelect.value);
+        window.location.href = `${url.toString().split('#')[0]}#analise-concorrentes`;
+      });
+    }
   });
 </script>
 {% endblock %}

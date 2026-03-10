@@ -1,42 +1,163 @@
+{% load ia_formatting %}
+<style>
+  .report-export {
+    color: #231f20;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  .report-export h1,
+  .report-export h2,
+  .report-export h3 {
+    margin: 0 0 12px;
+  }
+  .report-export .muted {
+    color: #6f6a63;
+  }
+  .report-export .kpi-grid,
+  .report-export .chart-grid {
+    display: grid;
+    gap: 16px;
+  }
+  .report-export .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 18px 0 28px;
+  }
+  .report-export .chart-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 20px 0 28px;
+  }
+  .report-export .kpi-card,
+  .report-export .chart-card {
+    background: #fffdf8;
+    border: 1px solid #e6dccf;
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .report-export .eyebrow {
+    color: #6f6a63;
+    display: block;
+    font-size: 11px;
+    letter-spacing: .08em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .report-export .kpi-value {
+    font-size: 26px;
+    font-weight: 700;
+  }
+  .report-export table {
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    width: 100%;
+  }
+  .report-export th,
+  .report-export td {
+    border-bottom: 1px solid #e6dccf;
+    padding: 10px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .report-export .chart-stack {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .report-export .chart-row {
+    align-items: center;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 64px 1fr 70px;
+  }
+  .report-export .stack-bar {
+    background: #f2ece2;
+    border-radius: 999px;
+    display: flex;
+    min-height: 14px;
+    overflow: hidden;
+  }
+  .report-export .stack-segment {
+    min-width: 0;
+  }
+  .report-export .activity-list {
+    margin: 0 0 18px;
+    padding-left: 18px;
+  }
+</style>
 <section class="report-export">
     <h1>{{ titulo }}</h1>
-    <p><strong>Empresa:</strong> {{ empresa.nome }}</p>
-    <p><strong>Período:</strong> {{ periodo_inicio|date:'d/m/Y' }} até {{ periodo_fim|date:'d/m/Y' }}</p>
-    <h2>KPIs</h2>
-    <ul>
-        <li>Investimento total: R$ {{ kpis.investimento|floatformat:2 }}</li>
-        <li>Impressões: {{ kpis.impressoes }}</li>
-        <li>Alcance: {{ kpis.alcance }}</li>
-        <li>Cliques: {{ kpis.cliques }}</li>
-        <li>CTR: {{ kpis.ctr|floatformat:2 }}%</li>
-        <li>CPC: R$ {{ kpis.cpc|floatformat:2 }}</li>
-        <li>CPM: R$ {{ kpis.cpm|floatformat:2 }}</li>
-        <li>Resultados: {{ kpis.resultados|floatformat:2 }}</li>
-        <li>CPL: R$ {{ kpis.cpl|floatformat:2 }}</li>
-    </ul>
-    <h2>Campanhas</h2>
+    <p class="muted"><strong>Empresa:</strong> {{ empresa.nome }}</p>
+    <p class="muted"><strong>Período atual:</strong> {{ periodo_inicio|date:'d/m/Y' }} até {{ periodo_fim|date:'d/m/Y' }}</p>
+    <p class="muted"><strong>Período anterior:</strong> {{ periodo_inicio_anterior|date:'d/m/Y' }} até {{ periodo_fim_anterior|date:'d/m/Y' }}</p>
+
+    <div class="kpi-grid">
+        <div class="kpi-card"><span class="eyebrow">Investimento</span><div class="kpi-value">R$ {{ kpis.investimento|floatformat:2 }}</div></div>
+        <div class="kpi-card"><span class="eyebrow">Impressões</span><div class="kpi-value">{{ kpis.impressoes }}</div></div>
+        <div class="kpi-card"><span class="eyebrow">Cliques</span><div class="kpi-value">{{ kpis.cliques }}</div></div>
+        <div class="kpi-card"><span class="eyebrow">Resultados</span><div class="kpi-value">{{ kpis.resultados|floatformat:2 }}</div></div>
+        <div class="kpi-card"><span class="eyebrow">CTR</span><div class="kpi-value">{{ kpis.ctr|floatformat:2 }}%</div></div>
+        <div class="kpi-card"><span class="eyebrow">CPC</span><div class="kpi-value">R$ {{ kpis.cpc|floatformat:2 }}</div></div>
+        <div class="kpi-card"><span class="eyebrow">CPM</span><div class="kpi-value">R$ {{ kpis.cpm|floatformat:2 }}</div></div>
+        <div class="kpi-card"><span class="eyebrow">CPL</span><div class="kpi-value">R$ {{ kpis.cpl|floatformat:2 }}</div></div>
+    </div>
+
+    <h2>Comparativo entre períodos</h2>
     <table>
-        <thead><tr><th>Campanha</th><th>Investimento</th><th>CTR</th><th>Resultados</th><th>CPL</th></tr></thead>
+        <thead>
+            <tr><th>Métrica</th><th>Atual</th><th>Anterior</th><th>Variação</th></tr>
+        </thead>
+        <tbody>
+        {% for row in comparison_rows %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.atual|floatformat:2 }}</td>
+                <td>{{ row.anterior|floatformat:2 }}</td>
+                <td>{{ row.variacao_absoluta|floatformat:2 }}{% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4">Sem período anterior para comparar.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Tabela por campanha</h2>
+    <table>
+        <thead><tr><th>Campanha</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>Resultados</th><th>CPL</th></tr></thead>
         <tbody>
         {% for row in campaign_rows %}
             <tr>
                 <td>{{ row.campanha }}</td>
                 <td>R$ {{ row.investimento|floatformat:2 }}</td>
+                <td>{{ row.impressoes }}</td>
+                <td>{{ row.cliques }}</td>
                 <td>{{ row.ctr|floatformat:2 }}%</td>
                 <td>{{ row.resultados|floatformat:2 }}</td>
                 <td>R$ {{ row.cpl|floatformat:2 }}</td>
             </tr>
         {% empty %}
-            <tr><td colspan="5">Sem campanhas no período.</td></tr>
+            <tr><td colspan="7">Sem campanhas no período.</td></tr>
         {% endfor %}
         </tbody>
     </table>
-    <h2>Leitura competitiva</h2>
-    <p>{{ competitor_summary.observacao_limite }}</p>
-    <p><strong>Total de anúncios observados:</strong> {{ competitor_summary.total_anuncios }}</p>
-    <p><strong>CTAs recorrentes:</strong> {{ competitor_summary.ctas|join:', '|default:'-' }}</p>
-    <p><strong>Categorias:</strong> {{ competitor_summary.categorias|join:', '|default:'-' }}</p>
-    <h2>Insights da IA</h2>
-    <div style="white-space: pre-line;">{{ insight_text }}</div>
-</section>
 
+    <h2>Análise dos Concorrentes</h2>
+    {% if selected_competitor_name %}
+        <p><strong>Concorrente em foco:</strong> {{ selected_competitor_name }}</p>
+    {% endif %}
+    {% if selected_competitor_profile %}
+        <p><strong>Posts visíveis no feed:</strong> {{ selected_competitor_profile.feed_posts_visiveis }}</p>
+        <p><strong>Cadência recente:</strong> {{ selected_competitor_profile.feed_cadencia|default:'-' }}</p>
+        <p><strong>Datas recentes do feed:</strong> {{ selected_competitor_profile.feed_datas_publicadas|slice:':6'|join:', '|default:'-' }}</p>
+    {% endif %}
+    {% if competitor_summary.competitors %}
+        <ul class="activity-list">
+            {% for competitor in competitor_summary.competitors|slice:":3" %}
+                <li>{{ competitor.nome }} - {{ competitor.activity_label }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    {% if latest_competitor_analysis %}
+        <p><strong>Última leitura competitiva salva:</strong> {{ latest_competitor_analysis.criado_em|date:'d/m/Y H:i' }}</p>
+    {% endif %}
+
+    <h2>Leitura estratégica final</h2>
+    <div>{{ insight_text|render_analysis_markdown }}</div>
+</section>

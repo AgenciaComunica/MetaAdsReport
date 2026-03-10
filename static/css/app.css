@@ -132,6 +132,25 @@ body {
     padding: 1rem 1.1rem;
 }
 
+.kpi-label {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+
+.kpi-help {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .82rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+}
+
 .metric-slider-panel {
     overflow: hidden;
 }
@@ -146,6 +165,42 @@ body {
 
 .metric-select {
     max-width: 240px;
+}
+
+.activity-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+}
+
+.activity-pill {
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    font-size: .82rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: .55rem .8rem;
+}
+
+.activity-pill.is-high {
+    background: #fee4e2;
+    color: #b42318;
+}
+
+.activity-pill.is-medium {
+    background: #fef0c7;
+    color: #b54708;
+}
+
+.activity-pill.is-low {
+    background: #dbeafe;
+    color: #175cd3;
+}
+
+.activity-pill.is-none {
+    background: #eaecf0;
+    color: #667085;
 }
 
 .report-export table,

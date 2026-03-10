@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block page_title %}Importar por perfil do Instagram{% endblock %}
+{% block content %}
+<div class="panel mt-4 form-panel">
+    <p class="text-muted">Cole a URL do perfil do Instagram. O sistema tenta captar metadados publicos do perfil e cria uma base inicial do concorrente, com link direto para a Meta Ad Library.</p>
+    <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-md-4">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
+            <div class="col-md-8">{{ form.instagram_profile_url.label_tag }}{{ form.instagram_profile_url }}</div>
+        </div>
+        <button class="btn btn-dark mt-4" type="submit">Importar perfil</button>
+    </form>
+</div>
+{% endblock %}

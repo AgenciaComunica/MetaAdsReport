@@ -12,6 +12,10 @@ class ConcorrenteAd(models.Model):
     link = models.URLField(blank=True)
     data_referencia = models.DateField(null=True, blank=True)
     categoria = models.CharField(max_length=100, blank=True)
+    feed_posts_visiveis = models.PositiveIntegerField(default=0)
+    feed_datas_publicadas = models.JSONField(default=list, blank=True)
+    feed_cadencia = models.CharField(max_length=100, blank=True)
+    feed_formatos = models.JSONField(default=dict, blank=True)
     observacoes = models.TextField(blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
@@ -22,4 +26,3 @@ class ConcorrenteAd(models.Model):
 
     def __str__(self):
         return f'{self.concorrente_nome} - {self.empresa.nome}'
-

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block page_title %}Excluir relatório{% endblock %}
+{% block content %}
+<div class="panel mt-4">
+    <h3>Excluir relatório</h3>
+    <p class="mb-1"><strong>{{ relatorio.titulo }}</strong></p>
+    <p class="text-muted">{{ relatorio.empresa.nome }} · {{ relatorio.periodo_inicio|date:'d/m/Y' }} - {{ relatorio.periodo_fim|date:'d/m/Y' }}</p>
+    <p class="text-danger mb-4">Essa ação remove o HTML salvo e o PDF gerado para este relatório.</p>
+    <form method="post" class="d-flex gap-2">
+        {% csrf_token %}
+        <a class="btn btn-outline-dark" href="{% url 'relatorios:detail' relatorio.pk %}">Cancelar</a>
+        <button class="btn btn-danger" type="submit">Excluir relatório</button>
+    </form>
+</div>
+{% endblock %}
