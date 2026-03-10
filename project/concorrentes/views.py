@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_date
 
 from empresas.models import Empresa
 from ia.models import AnaliseConcorrencial
@@ -7,7 +8,14 @@ from ia.services import save_competitor_analysis
 
 from .forms import ConcorrenteAdForm, ConcorrenteImportForm, InstagramProfileImportForm
 from .models import ConcorrenteAd
-from .services import competitor_profiles, competitor_summary_for_name, import_competitor_file, import_instagram_profile
+from .services import (
+    competitor_profiles,
+    competitor_summary_for_name_in_period,
+    facebook_ads_library_session,
+    import_competitor_file,
+    import_instagram_profile,
+    refresh_instagram_profile_record,
+)
 
 
 def concorrente_list(request):
@@ -78,16 +86,29 @@ def concorrente_instagram_import(request):
 def concorrente_avaliar_agora(request):
     empresa_id = request.POST.get('empresa') or request.GET.get('empresa') or request.session.get('active_company_id')
     empresa = get_object_or_404(Empresa, pk=empresa_id)
+    period_start = parse_date(request.POST.get('data_inicio') or request.GET.get('data_inicio') or '')
+    period_end = parse_date(request.POST.get('data_fim') or request.GET.get('data_fim') or '')
     queryset = ConcorrenteAd.objects.filter(empresa=empresa)
     profiles = competitor_profiles(queryset)
     if not profiles:
         messages.error(request, 'Cadastre ao menos um concorrente antes de rodar a análise.')
         return redirect('concorrentes:list')
 
+    refresh_warnings = []
+    ads_session = facebook_ads_library_session()
+    for ad in queryset.filter(categoria='Perfil importado').exclude(link=''):
+        try:
+            refreshed_ad, warnings = refresh_instagram_profile_record(ad, ads_session=ads_session)
+            refresh_warnings.extend([f'{refreshed_ad.concorrente_nome}: {warning}' for warning in warnings])
+        except Exception:
+            refresh_warnings.append(f'{ad.concorrente_nome}: nao foi possivel atualizar os dados publicos do perfil agora.')
+
+    queryset = ConcorrenteAd.objects.filter(empresa=empresa)
+    profiles = competitor_profiles(queryset)
     analysis_count = 0
     total_ads = 0
     for profile in profiles:
-        summary = competitor_summary_for_name(queryset, profile['nome'])
+        summary = competitor_summary_for_name_in_period(queryset, profile['nome'], period_start, period_end)
         analysis = save_competitor_analysis(empresa, profile['nome'], summary)
         analysis_count += 1
         total_ads += analysis.total_anuncios
@@ -95,4 +116,6 @@ def concorrente_avaliar_agora(request):
         request,
         f'Análises atualizadas para {empresa.nome}. {analysis_count} concorrente(s) processado(s) com base em {total_ads} anúncio(s) observável(is).',
     )
+    for warning in refresh_warnings:
+        messages.warning(request, warning)
     return redirect('campanhas:dashboard')

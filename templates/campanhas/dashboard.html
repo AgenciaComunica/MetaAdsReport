@@ -4,7 +4,7 @@
 {% block content %}
 <div class="d-flex justify-content-end mt-4">
     {% if empresa %}
-        <form method="post" action="{% url 'relatorios:generate' %}">
+        <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
             {% csrf_token %}
             <input type="hidden" name="empresa" value="{{ empresa.id }}">
             <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
@@ -47,13 +47,38 @@
             <h3>Comparativo entre períodos</h3>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead><tr><th>Métrica</th><th>Atual</th><th>Anterior</th><th>Variação</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Métrica</th>
+                            <th>
+                                Anterior
+                                <div class="comparison-period-label">
+                                    {% if form.data_inicio_anterior.value and form.data_fim_anterior.value %}
+                                        {{ form.data_inicio_anterior.value|date:'d-m-y' }} até {{ form.data_fim_anterior.value|date:'d-m-y' }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </div>
+                            </th>
+                            <th>
+                                Atual
+                                <div class="comparison-period-label">
+                                    {% if form.data_inicio.value and form.data_fim.value %}
+                                        {{ form.data_inicio.value|date:'d-m-y' }} até {{ form.data_fim.value|date:'d-m-y' }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </div>
+                            </th>
+                            <th>Variação</th>
+                        </tr>
+                    </thead>
                     <tbody>
                     {% for row in comparison_rows %}
                         <tr>
                             <td>{{ row.label }}</td>
-                            <td>{{ row.atual|floatformat:2 }}</td>
                             <td>{{ row.anterior|floatformat:2 }}</td>
+                            <td>{{ row.atual|floatformat:2 }}</td>
                             <td class="{% if row.variacao_absoluta >= 0 %}text-success{% else %}text-danger{% endif %}">
                                 {{ row.variacao_absoluta|floatformat:2 }}
                                 {% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}
@@ -95,49 +120,68 @@
     </div>
 </div>
 <div class="panel mt-4" id="analise-concorrentes">
-    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
-        <h3 class="mb-0">Análise dos Concorrentes</h3>
-        <div class="d-flex gap-2">
-        {% if competitor_analyses %}
-            <select class="form-select" id="competitorAnalysisSelect">
-                {% for analysis in competitor_analyses %}
-                    <option value="{{ analysis.concorrente_nome }}" {% if analysis.concorrente_nome == selected_competitor_name %}selected{% endif %}>
-                        {{ analysis.concorrente_nome }}
-                    </option>
-                {% endfor %}
-            </select>
-        {% endif %}
-        {% if empresa %}
-            <form method="post" action="{% url 'concorrentes:evaluate_now' %}">
-                {% csrf_token %}
-                <input type="hidden" name="empresa" value="{{ empresa.id }}">
-                <button type="submit" class="btn btn-dark">Avaliar agora</button>
-            </form>
-        {% endif %}
+    <div class="competitor-analysis-header">
+        <div>
+            <h3 class="mb-1">Análise do Concorrente</h3>
+            {% if latest_competitor_analysis %}
+                <div class="competitor-analysis-title-row">
+                    <h2 class="competitor-analysis-name">{{ latest_competitor_analysis.concorrente_nome }}</h2>
+                    {% if selected_competitor_profile %}
+                        <span class="activity-pill {{ selected_competitor_profile.activity_class }}">{{ selected_competitor_profile.activity_label }}</span>
+                    {% endif %}
+                    {% if selected_competitor_feed %}
+                        <span class="activity-pill {{ selected_competitor_feed.digital_score_class }}">{{ selected_competitor_feed.digital_score_label }}</span>
+                    {% endif %}
+                </div>
+                <p class="text-muted mb-0">
+                    Última análise em {{ latest_competitor_analysis.criado_em|date:'d/m/Y H:i' }} ·
+                    Período analisado: {{ periodo_atual_resumo }}
+                </p>
+            {% endif %}
+        </div>
+        <div class="competitor-analysis-actions">
+            {% if competitor_analysis_options %}
+                <div class="competitor-select-wrap">
+                    <label class="form-label" for="competitorAnalysisSelect">Concorrente avaliado</label>
+                    <select class="form-select" id="competitorAnalysisSelect">
+                        {% for option in competitor_analysis_options %}
+                            <option value="{{ option.analysis.concorrente_nome }}" {% if option.analysis.concorrente_nome == selected_competitor_name %}selected{% endif %}>
+                                {{ option.analysis.concorrente_nome }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% endif %}
+            {% if empresa %}
+                <form method="post" action="{% url 'concorrentes:evaluate_now' %}" data-loading-title="Avaliando Concorrentes" data-loading-text="Aguarde enquanto o sistema atualiza os dados públicos e roda a análise de IA.">
+                    {% csrf_token %}
+                    <input type="hidden" name="empresa" value="{{ empresa.id }}">
+                    <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
+                    <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
+                    <button type="submit" class="btn btn-dark competitor-evaluate-btn">Avaliar Concorrentes</button>
+                </form>
+            {% endif %}
         </div>
     </div>
     {% if latest_competitor_analysis %}
-        <p class="text-muted mb-2">
-            {{ latest_competitor_analysis.concorrente_nome }}
-            {% if selected_competitor_profile %}
-                <span class="activity-pill {{ selected_competitor_profile.activity_class }}">{{ selected_competitor_profile.activity_label }}</span>
-            {% endif %}
-            · última atualização em {{ latest_competitor_analysis.criado_em|date:'d/m/Y H:i' }}
-            com {{ latest_competitor_analysis.total_anuncios }} anúncio(s) observável(is).
-        </p>
         {% if selected_competitor_profile %}
             <div class="panel mb-3">
                 <div class="row g-3">
-                    <div class="col-md-3"><strong>Posts visíveis no feed</strong><br>{{ selected_competitor_profile.feed_posts_visiveis }}</div>
-                    <div class="col-md-4"><strong>Cadência recente</strong><br>{{ selected_competitor_profile.feed_cadencia|default:'-' }}</div>
-                    <div class="col-md-5"><strong>Datas recentes</strong><br>{{ selected_competitor_profile.feed_datas_publicadas|slice:':6'|join:', '|default:'-' }}</div>
+                    <div class="col-md-3"><strong>Posts no período</strong><br>{{ selected_competitor_feed.posts_visiveis_periodo|default:0 }}</div>
+                    <div class="col-md-3"><strong>Interações no período</strong><br>{{ selected_competitor_feed.interacoes_periodo|default:0 }}</div>
+                    <div class="col-md-3"><strong>Comentários no período</strong><br>{{ selected_competitor_feed.comments_periodo|default:0 }}</div>
+                    <div class="col-md-3"><strong>Média de Engajamento por Post</strong><br>{% if selected_competitor_feed.media_engajamento_por_post is not None %}{{ selected_competitor_feed.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</div>
+                    <div class="col-md-3"><strong>Ads ativos na Meta Ads Library</strong><br>{{ selected_competitor_profile.ads_biblioteca_sinal|default:0 }}</div>
+                    <div class="col-md-3"><strong>Busca usada na biblioteca</strong><br>{{ selected_competitor_profile.ads_biblioteca_query|default:'-' }}</div>
+                    <div class="col-md-6"><strong>Taxa de Atualização</strong><br><span class="activity-pill {{ selected_competitor_feed.taxa_atualizacao_class }}">{{ selected_competitor_feed.taxa_atualizacao_label }}</span></div>
+                    <div class="col-md-6"><strong>Formatos no período</strong><br>{% if selected_competitor_feed.formatos_periodo %}{% for formato, total in selected_competitor_feed.formatos_periodo.items %}{{ formato }}: {{ total }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}-{% endif %}</div>
                 </div>
             </div>
         {% endif %}
         <div>{{ latest_competitor_analysis.conteudo|render_analysis_markdown }}</div>
     {% else %}
         <p class="text-muted mb-0">
-            Cadastre os concorrentes da empresa e use <strong>Avaliar agora</strong> aqui para gerar a leitura subjetiva da IA.
+            Cadastre os Concorrentes da empresa e use <strong>Avaliar Concorrentes</strong> aqui para gerar a leitura subjetiva da IA.
         </p>
     {% endif %}
 </div>
@@ -247,6 +291,26 @@
     if (competitorSelect) {
       competitorSelect.addEventListener('change', () => {
         const url = new URL(window.location.href);
+        const empresaInput = document.getElementById('id_empresa');
+        const dataInicioInput = document.getElementById('id_data_inicio');
+        const dataFimInput = document.getElementById('id_data_fim');
+        const dataInicioAnteriorInput = document.getElementById('id_data_inicio_anterior');
+        const dataFimAnteriorInput = document.getElementById('id_data_fim_anterior');
+        if (empresaInput && empresaInput.value) {
+          url.searchParams.set('empresa', empresaInput.value);
+        }
+        if (dataInicioInput && dataInicioInput.value) {
+          url.searchParams.set('data_inicio', dataInicioInput.value);
+        }
+        if (dataFimInput && dataFimInput.value) {
+          url.searchParams.set('data_fim', dataFimInput.value);
+        }
+        if (dataInicioAnteriorInput && dataInicioAnteriorInput.value) {
+          url.searchParams.set('data_inicio_anterior', dataInicioAnteriorInput.value);
+        }
+        if (dataFimAnteriorInput && dataFimAnteriorInput.value) {
+          url.searchParams.set('data_fim_anterior', dataFimAnteriorInput.value);
+        }
         url.searchParams.set('competitor_analysis', competitorSelect.value);
         window.location.href = `${url.toString().split('#')[0]}#analise-concorrentes`;
       });

@@ -1,8 +1,13 @@
 {% load ia_formatting %}
 <style>
+  @page {
+    size: A4 landscape;
+    margin: 14mm;
+  }
   .report-export {
     color: #231f20;
     font-family: Georgia, "Times New Roman", serif;
+    width: 100%;
   }
   .report-export h1,
   .report-export h2,
@@ -18,8 +23,8 @@
     gap: 16px;
   }
   .report-export .kpi-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin: 18px 0 28px;
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+    margin: 14px 0 24px;
   }
   .report-export .chart-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -30,7 +35,8 @@
     background: #fffdf8;
     border: 1px solid #e6dccf;
     border-radius: 16px;
-    padding: 14px;
+    min-height: 96px;
+    padding: 12px 14px;
   }
   .report-export .eyebrow {
     color: #6f6a63;
@@ -41,8 +47,9 @@
     text-transform: uppercase;
   }
   .report-export .kpi-value {
-    font-size: 26px;
+    font-size: 22px;
     font-weight: 700;
+    line-height: 1.1;
   }
   .report-export table {
     border-collapse: collapse;
@@ -81,6 +88,13 @@
     margin: 0 0 18px;
     padding-left: 18px;
   }
+  .report-export .comparison-period-label {
+    color: #6f6a63;
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    margin-top: 4px;
+  }
 </style>
 <section class="report-export">
     <h1>{{ titulo }}</h1>
@@ -102,14 +116,25 @@
     <h2>Comparativo entre períodos</h2>
     <table>
         <thead>
-            <tr><th>Métrica</th><th>Atual</th><th>Anterior</th><th>Variação</th></tr>
+            <tr>
+                <th>Métrica</th>
+                <th>
+                    Anterior
+                    <span class="comparison-period-label">{{ periodo_inicio_anterior|date:'d-m-y' }} até {{ periodo_fim_anterior|date:'d-m-y' }}</span>
+                </th>
+                <th>
+                    Atual
+                    <span class="comparison-period-label">{{ periodo_inicio|date:'d-m-y' }} até {{ periodo_fim|date:'d-m-y' }}</span>
+                </th>
+                <th>Variação</th>
+            </tr>
         </thead>
         <tbody>
         {% for row in comparison_rows %}
             <tr>
                 <td>{{ row.label }}</td>
-                <td>{{ row.atual|floatformat:2 }}</td>
                 <td>{{ row.anterior|floatformat:2 }}</td>
+                <td>{{ row.atual|floatformat:2 }}</td>
                 <td>{{ row.variacao_absoluta|floatformat:2 }}{% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}</td>
             </tr>
         {% empty %}
@@ -143,9 +168,13 @@
         <p><strong>Concorrente em foco:</strong> {{ selected_competitor_name }}</p>
     {% endif %}
     {% if selected_competitor_profile %}
-        <p><strong>Posts visíveis no feed:</strong> {{ selected_competitor_profile.feed_posts_visiveis }}</p>
-        <p><strong>Cadência recente:</strong> {{ selected_competitor_profile.feed_cadencia|default:'-' }}</p>
-        <p><strong>Datas recentes do feed:</strong> {{ selected_competitor_profile.feed_datas_publicadas|slice:':6'|join:', '|default:'-' }}</p>
+        <p><strong>Posts no período:</strong> {{ selected_competitor_feed.posts_visiveis_periodo|default:0 }}</p>
+        <p><strong>Interações no período:</strong> {{ selected_competitor_feed.interacoes_periodo|default:0 }}</p>
+        <p><strong>Comentários no período:</strong> {{ selected_competitor_feed.comments_periodo|default:0 }}</p>
+        <p><strong>Média de Engajamento por Post:</strong> {% if selected_competitor_feed.media_engajamento_por_post is not None %}{{ selected_competitor_feed.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</p>
+        <p><strong>Ads ativos na Meta Ads Library:</strong> {{ selected_competitor_profile.ads_biblioteca_sinal|default:0 }}</p>
+        <p><strong>Busca usada na biblioteca:</strong> {{ selected_competitor_profile.ads_biblioteca_query|default:'-' }}</p>
+        <p><strong>Taxa de Atualização:</strong> {{ selected_competitor_feed.taxa_atualizacao_label|default:'-' }}</p>
     {% endif %}
     {% if competitor_summary.competitors %}
         <ul class="activity-list">

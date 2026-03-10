@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date, datetime
 
 import requests
 from decouple import config
@@ -9,6 +10,18 @@ from .models import AnaliseConcorrencial
 
 
 OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+
+
+def json_safe(value):
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [json_safe(item) for item in value]
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return value
 
 
 def build_analysis_payload(kpis, campaign_rows):
@@ -113,7 +126,7 @@ def call_openrouter(prompt, payload):
                 },
                 {
                     'role': 'user',
-                    'content': f'{prompt}\n\nDados estruturados:\n{json.dumps(payload, ensure_ascii=False)}',
+                    'content': f'{prompt}\n\nDados estruturados:\n{json.dumps(json_safe(payload), ensure_ascii=False)}',
                 },
             ],
         },
@@ -138,9 +151,18 @@ def generate_strategic_insights(my_data_payload, competitor_payload):
 
 def generate_competitor_analysis(competitor_payload):
     prompt = (
-        'Analise apenas os dados observáveis/importados do concorrente informado e gere uma leitura subjetiva e estratégica. '
+        'Analise apenas os dados observáveis/importados do concorrente informado, respeitando o recorte de período enviado, e gere uma leitura subjetiva e estratégica. '
+        'Use como fonte principal os campos do período em feed_insights, especialmente posts_visiveis_periodo, interacoes_periodo, comments_periodo, '
+        'media_engajamento_por_post e taxa_atualizacao_label. '
+        'Se competidor.ads_biblioteca_sinal for maior que zero, trate isso como evidência pública de anúncios ativos na Meta Ads Library e cite isso com objetividade. '
+        'Se competidor.ads_biblioteca_sinal for zero, diga que nao houve sinal público de ads ativos na Meta Ads Library no momento da consulta. '
+        'Nao use posts_total_publicos ou cadencia_total para classificar o comportamento do período analisado; esses campos servem apenas como contexto secundário. '
+        'Se taxa_atualizacao_label estiver presente, repita essa classificação de forma coerente no texto. '
+        'Se houver 4 posts ou menos no período, nao descreva a presença como forte, notável, robusta ou dominante; trate como presença limitada ou moderada. '
+        'Se o concorrente nao tiver anuncios ativos observáveis nem sinal público de ads ativos na Meta Ads Library, diga isso claramente e evite superestimar sua pressão competitiva. '
+        'Se a média de engajamento por post for moderada, use linguagem contida, sem adjetivos otimistas demais. '
         'Estruture a resposta em 4 blocos curtos: 1) visão geral do movimento do concorrente, '
-        '2) padrão de copy e oferta, 3) CTAs, posicionamento, presença no feed, constância de postagem e sinais de estratégia digital, '
+        '2) padrão de copy e oferta, 3) CTAs, posicionamento, presença no feed, constância de postagem e engajamento observável no período, '
         '4) oportunidades e alertas frente ao anunciante analisado. '
         'Nunca atribua métricas privadas reais aos concorrentes.'
     )
@@ -149,13 +171,19 @@ def generate_competitor_analysis(competitor_payload):
 
 def save_competitor_analysis(empresa, competitor_name, competitor_payload):
     analysis_text = generate_competitor_analysis(competitor_payload)
+    competitor = competitor_payload.get('competidor') or {}
+    total_ads = max(
+        int(competitor_payload.get('total_anuncios') or 0),
+        int(competitor.get('ads_biblioteca_sinal') or 0),
+        int(competitor.get('real_ads_count') or 0),
+    )
     AnaliseConcorrencial.objects.filter(empresa=empresa, concorrente_nome__iexact=competitor_name).delete()
     return AnaliseConcorrencial.objects.create(
         empresa=empresa,
         concorrente_nome=competitor_name,
         titulo=f'Análise do Concorrente - {competitor_name}',
         conteudo=analysis_text,
-        total_anuncios=int(competitor_payload.get('total_anuncios') or 0),
+        total_anuncios=total_ads,
     )
 
 
