@@ -3,6 +3,26 @@ document.addEventListener('DOMContentLoaded', () => {
     new bootstrap.Tooltip(node);
   });
 
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const loadingTitle = document.getElementById('loadingOverlayTitle');
+  const loadingText = document.getElementById('loadingOverlayText');
+
+  const showLoadingOverlay = (title, text) => {
+    if (!loadingOverlay) {
+      return;
+    }
+    loadingTitle.textContent = title || 'Processando';
+    loadingText.textContent = text || 'Aguarde enquanto o sistema conclui esta etapa.';
+    loadingOverlay.classList.add('is-visible');
+    loadingOverlay.setAttribute('aria-hidden', 'false');
+  };
+
+  document.querySelectorAll('form[data-loading-title]').forEach((form) => {
+    form.addEventListener('submit', () => {
+      showLoadingOverlay(form.dataset.loadingTitle, form.dataset.loadingText);
+    });
+  });
+
   const chart = document.getElementById('timelineChart');
   if (!chart) {
     return;

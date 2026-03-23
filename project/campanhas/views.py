@@ -3,9 +3,10 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
 from core.utils import last_complete_month_ranges
+from empresas.services import empresa_digital_summary
 from empresas.models import Empresa
 from concorrentes.models import ConcorrenteAd
-from concorrentes.services import competitor_summary
+from concorrentes.services import competitor_summary, competitor_summary_for_name_in_period
 from ia.models import AnaliseConcorrencial
 
 from .forms import ComparePeriodForm, UploadCampanhaForm
@@ -175,6 +176,10 @@ def dashboard(request):
         data_inicio=default_ranges['current_start'],
         data_fim=default_ranges['current_end'],
     )
+    current_start = default_ranges['current_start']
+    current_end = default_ranges['current_end']
+    previous_start = default_ranges['previous_start']
+    previous_end = default_ranges['previous_end']
     previous_qs = metrics_queryset(
         empresa=empresa,
         data_inicio=default_ranges['previous_start'],
@@ -199,13 +204,53 @@ def dashboard(request):
             data_inicio=previous_start,
             data_fim=previous_end,
         )
+    else:
+        current_start = default_ranges['current_start']
+        current_end = default_ranges['current_end']
 
-    competitor_analyses = AnaliseConcorrencial.objects.filter(empresa=empresa).exclude(concorrente_nome='') if empresa else AnaliseConcorrencial.objects.none()
-    selected_competitor_name = request.GET.get('competitor_analysis') or (competitor_analyses.first().concorrente_nome if competitor_analyses.exists() else '')
-    selected_competitor_analysis = competitor_analyses.filter(concorrente_nome=selected_competitor_name).first() if selected_competitor_name else None
+    competitor_qs = ConcorrenteAd.objects.filter(empresa=empresa) if empresa else ConcorrenteAd.objects.none()
+    competitor_analyses = (
+        AnaliseConcorrencial.objects.filter(empresa=empresa).exclude(concorrente_nome='')
+        if empresa
+        else AnaliseConcorrencial.objects.none()
+    )
+    if empresa:
+        competitor_analyses = competitor_analyses.filter(concorrente_nome__in=[name for name in competitor_qs.values_list('concorrente_nome', flat=True)])
+    competitor_analysis_panels = []
+    company_digital = empresa_digital_summary(empresa, current_start, current_end) if empresa and empresa.instagram_profile_url else None
+    if empresa:
+        for analysis in competitor_analyses:
+            summary = competitor_summary_for_name_in_period(competitor_qs, analysis.concorrente_nome, current_start, current_end)
+            profile = summary['competidor']
+            if profile.get('activity_label') == 'Sem Avaliação Feita':
+                profile['activity_label'] = 'Sem Ads'
+            competitor_analysis_panels.append(
+                {
+                    'analysis': analysis,
+                    'competidor': profile,
+                    'feed_insights': summary['feed_insights'],
+                }
+            )
+        competitor_analysis_panels.sort(
+            key=lambda item: (
+                -(item['feed_insights'].get('digital_score') or 0),
+                item['analysis'].concorrente_nome.lower(),
+            )
+        )
+    open_analysis = request.GET.get('open_analysis') or (competitor_analysis_panels[0]['analysis'].concorrente_nome if competitor_analysis_panels else '')
+    overall_competitor_summary = (
+        competitor_summary(ConcorrenteAd.objects.filter(empresa=empresa)) if empresa else {'competitors': []}
+    )
+    analysis_names = set(competitor_analyses.values_list('concorrente_nome', flat=True)) if empresa else set()
+    for competitor in overall_competitor_summary.get('competitors', []):
+        if competitor['nome'] in analysis_names and competitor.get('activity_label') == 'Sem Avaliação Feita':
+            competitor['activity_label'] = 'Sem Ads'
+
     context = {
         'form': form,
         'empresa': empresa,
+        'periodo_atual_resumo': f'{current_start:%d-%m-%y} até {current_end:%d-%m-%y}',
+        'periodo_anterior_resumo': f'{previous_start:%d-%m-%y} até {previous_end:%d-%m-%y}',
         'kpis': summarize_metrics(queryset),
         'campaign_rows': campaign_table(queryset),
         'campaign_comparison_rows': campaign_comparison_table(queryset, previous_qs),
@@ -214,21 +259,10 @@ def dashboard(request):
             for metric_key in chart_metrics
         ],
         'comparison_rows': comparison_summary(queryset, previous_qs) if previous_qs.exists() else [],
-        'latest_competitor_analysis': selected_competitor_analysis,
+        'company_digital': company_digital,
         'competitor_analyses': competitor_analyses,
-        'selected_competitor_name': selected_competitor_name,
-        'competitor_summary': (
-            competitor_summary(ConcorrenteAd.objects.filter(empresa=empresa)) if empresa else {'competitors': []}
-        ),
+        'competitor_analysis_panels': competitor_analysis_panels,
+        'open_analysis': open_analysis,
+        'competitor_summary': overall_competitor_summary,
     }
-    if context['competitor_summary'].get('competitors') and selected_competitor_name:
-        context['selected_competitor_profile'] = next(
-            (
-                item for item in context['competitor_summary']['competitors']
-                if item['nome'] == selected_competitor_name
-            ),
-            None,
-        )
-    else:
-        context['selected_competitor_profile'] = None
     return render(request, 'campanhas/dashboard.html', context)

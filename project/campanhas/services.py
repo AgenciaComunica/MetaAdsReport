@@ -44,6 +44,9 @@ DISPLAY_LABELS = {
     'cpl': 'CPL',
 }
 
+POSITIVE_WHEN_HIGHER = {'alcance', 'impressoes', 'cliques', 'ctr', 'resultados'}
+POSITIVE_WHEN_LOWER = {'investimento', 'cpc', 'cpm', 'cpl'}
+
 
 @dataclass
 class ImportResult:
@@ -398,8 +401,8 @@ def stacked_campaign_comparison_chart(current_qs, previous_qs, metric_key='resul
             {
                 'name': f'{campaign} - Atual',
                 'data': [
-                    float(current_rows.get(campaign, Decimal('0'))),
                     0,
+                    float(current_rows.get(campaign, Decimal('0'))),
                 ],
                 'color': current_palette[index % len(current_palette)],
             }
@@ -408,15 +411,15 @@ def stacked_campaign_comparison_chart(current_qs, previous_qs, metric_key='resul
             {
                 'name': f'{campaign} - Anterior',
                 'data': [
-                    0,
                     float(previous_rows.get(campaign, Decimal('0'))),
+                    0,
                 ],
                 'color': previous_palette[index % len(previous_palette)],
             }
         )
 
     return {
-        'categories': ['Período atual', 'Período anterior'],
+        'categories': ['Período anterior', 'Período atual'],
         'series': series,
         'metric_label': DISPLAY_LABELS.get(metric_key, metric_key.upper()),
         'metric_key': metric_key,
@@ -426,13 +429,19 @@ def stacked_campaign_comparison_chart(current_qs, previous_qs, metric_key='resul
 def comparison_summary(current_qs, previous_qs):
     current = summarize_metrics(current_qs)
     previous = summarize_metrics(previous_qs)
-    keys = ['investimento', 'ctr', 'cpc', 'cpm', 'resultados', 'cpl']
+    keys = ['investimento', 'alcance', 'ctr', 'cpc', 'cpm', 'resultados', 'cpl']
     comparison = []
     for key in keys:
-        atual = current.get(key) or Decimal('0')
-        anterior = previous.get(key) or Decimal('0')
+        atual = Decimal(str(current.get(key) or 0))
+        anterior = Decimal(str(previous.get(key) or 0))
         variacao_absoluta = atual - anterior
         variacao_percentual = (variacao_absoluta / anterior * Decimal('100')) if anterior else None
+        is_positive = None
+        if variacao_absoluta != 0:
+            if key in POSITIVE_WHEN_HIGHER:
+                is_positive = variacao_absoluta > 0
+            elif key in POSITIVE_WHEN_LOWER:
+                is_positive = variacao_absoluta < 0
         comparison.append(
             {
                 'label': DISPLAY_LABELS.get(key, key.upper()),
@@ -441,6 +450,7 @@ def comparison_summary(current_qs, previous_qs):
                 'anterior': anterior,
                 'variacao_absoluta': variacao_absoluta,
                 'variacao_percentual': variacao_percentual,
+                'variation_class': 'text-success' if is_positive is True else 'text-danger' if is_positive is False else 'text-muted',
             }
         )
     return comparison

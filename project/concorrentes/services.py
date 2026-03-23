@@ -529,13 +529,15 @@ def classify_update_rate(total_posts, period_start=None, period_end=None):
         return UPDATE_META['none']
 
     total_days = ((period_end - period_start).days + 1) if period_start and period_end else 30
-    if total_posts >= total_days:
+    days_per_post = total_days / total_posts if total_posts else total_days
+
+    if days_per_post <= 2:
         return UPDATE_META['always']
-    if total_posts > 12:
+    if days_per_post <= 5:
         return UPDATE_META['very']
-    if total_posts >= 4:
+    if days_per_post <= 15:
         return UPDATE_META['updated']
-    if total_posts >= 1:
+    if days_per_post <= 30:
         return UPDATE_META['little']
     return UPDATE_META['none']
 

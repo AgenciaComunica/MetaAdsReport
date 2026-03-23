@@ -52,3 +52,19 @@ class InstagramProfileImportForm(forms.Form):
             }
         ),
     )
+
+
+class ConcorrentePerfilForm(forms.ModelForm):
+    class Meta:
+        model = ConcorrenteAd
+        fields = ['empresa', 'concorrente_nome', 'link']
+        widgets = {
+            'empresa': forms.Select(attrs={'class': 'form-select'}),
+            'concorrente_nome': forms.TextInput(attrs={'class': 'form-control'}),
+            'link': forms.URLInput(
+                attrs={
+                    'class': 'form-control',
+                    'placeholder': 'https://www.instagram.com/nome_do_perfil/',
+                }
+            ),
+        }

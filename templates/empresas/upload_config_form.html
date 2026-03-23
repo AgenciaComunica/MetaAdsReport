@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load empresas_extras %}
+{% block page_title %}Configurar Upload{% endblock %}
+{% block content %}
+<div class="panel mt-4">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+            <span class="eyebrow">Empresa</span>
+            <h2 class="mb-1">{{ empresa.nome }}</h2>
+            <p class="text-muted mb-0">Configuração reutilizável para uploads do tipo {{ configuracao.get_tipo_documento_display }}.</p>
+        </div>
+        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Voltar</a>
+    </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="panel mt-4 form-panel" data-loading-title="Lendo arquivo" data-loading-text="Aguarde enquanto o arquivo é analisado e o mapeamento é salvo.">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors|join:', ' }}</div>
+    {% endif %}
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <h3 class="mb-3">Documento</h3>
+            <div class="mb-3">
+                {{ form.nome.label_tag }}{{ form.nome }}
+                {% if form.nome.errors %}<div class="text-danger small mt-1">{{ form.nome.errors|join:', ' }}</div>{% endif %}
+            </div>
+            <div class="mb-3">
+                {{ form.tipo_documento.label_tag }}{{ form.tipo_documento }}
+                {% if form.tipo_documento.errors %}<div class="text-danger small mt-1">{{ form.tipo_documento.errors|join:', ' }}</div>{% endif %}
+            </div>
+            <div class="mb-3">
+                {{ form.arquivo_exemplo.label_tag }}{{ form.arquivo_exemplo }}
+                {% if form.arquivo_exemplo.errors %}<div class="text-danger small mt-1">{{ form.arquivo_exemplo.errors|join:', ' }}</div>{% endif %}
+            </div>
+            {% if configuracao.nome_arquivo_exemplo %}
+                <p class="text-muted small mb-0">Último arquivo lido: {{ configuracao.nome_arquivo_exemplo }}</p>
+            {% endif %}
+        </div>
+        <div class="col-lg-8">
+            <h3 class="mb-3">Mapeamento do sistema</h3>
+            <div class="table-responsive">
+                <table class="table align-middle upload-mapping-table">
+                    <thead>
+                        <tr>
+                            <th>Campo do sistema</th>
+                            <th>Campo do arquivo</th>
+                            <th class="text-center">Principal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in mapping_rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ row.label }}</strong>
+                                    {% if row.required %}
+                                        <span class="badge text-bg-dark ms-2">Obrigatório</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ row.map_field }}
+                                    {% if row.map_field.errors %}
+                                        <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="form-check d-inline-flex justify-content-center">
+                                        {{ row.primary_field }}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn btn-dark mt-3" type="submit">Salvar configuração</button>
+        </div>
+    </div>
+</form>
+
+<div class="panel mt-4">
+    <h3 class="mb-3">Leitura prévia do arquivo</h3>
+    {% if preview_columns %}
+        <p class="text-muted mb-2">Colunas detectadas: {{ preview_columns|join:', ' }}</p>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        {% for column in preview_columns %}
+                            <th>{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_rows %}
+                        <tr>
+                            {% for column in preview_columns %}
+                                <td>{{ row|get_item:column }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="text-muted mb-0">Envie um arquivo de exemplo para detectar colunas e montar o mapeamento.</p>
+    {% endif %}
+</div>
+{% endblock %}

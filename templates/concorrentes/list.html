@@ -20,7 +20,7 @@
 <div class="panel">
     <div class="table-responsive">
         <table class="table align-middle">
-            <thead><tr><th>Concorrente</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th></th></tr></thead>
+            <thead><tr><th>Concorrente</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th class="text-end">Ações</th></tr></thead>
             <tbody id="concorrentesTableBody">
             {% for ad in ads %}
                 <tr data-search="{{ ad.empresa.nome|lower }} {{ ad.concorrente_nome|lower }}">
@@ -43,9 +43,11 @@
                         {% endif %}
                     </td>
                     <td>{{ ad.plataforma }}</td>
-                    <td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'concorrentes:update' ad.pk %}">Editar</a>
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'concorrentes:delete' ad.pk %}">Excluir</a>
                         {% if ad.has_analysis %}
-                            <a class="btn btn-sm btn-outline-dark" href="{% url 'campanhas:dashboard' %}?empresa={{ ad.empresa.id }}&competitor_analysis={{ ad.concorrente_nome|urlencode }}#analise-concorrentes">Ver análise</a>
+                            <a class="btn btn-sm btn-outline-dark" href="{{ ad.open_analysis_url }}">Ver análise</a>
                         {% endif %}
                     </td>
                 </tr>

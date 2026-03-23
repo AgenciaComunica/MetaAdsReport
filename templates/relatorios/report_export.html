@@ -14,6 +14,10 @@
   .report-export h3 {
     margin: 0 0 12px;
   }
+  .report-export h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
   .report-export .muted {
     color: #6f6a63;
   }
@@ -95,22 +99,73 @@
     font-weight: 400;
     margin-top: 4px;
   }
+  .report-export .digital-block {
+    border-top: 1px solid #e6dccf;
+    margin-top: 20px;
+    padding-top: 18px;
+  }
+  .report-export .digital-block:first-of-type {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 0;
+  }
+  .report-export .digital-title {
+    margin-bottom: 10px;
+  }
+  .report-export .digital-meta {
+    color: #6f6a63;
+    margin-bottom: 12px;
+  }
+  .report-export .final-reading {
+    border-top: 1px solid #e6dccf;
+    margin-top: 28px;
+    padding-top: 22px;
+  }
+  .report-export .conclusion-section + .conclusion-section {
+    margin-top: 18px;
+  }
+  .report-export .conclusion-section h3 {
+    margin-bottom: 10px;
+  }
+  .report-export .conclusion-section div {
+    line-height: 1.6;
+  }
+  .report-export .intro-section + .intro-section {
+    margin-top: 20px;
+  }
+  .report-export .text-success {
+    color: #157347;
+  }
+  .report-export .text-danger {
+    color: #b42318;
+  }
+  .report-export .text-muted {
+    color: #6f6a63;
+  }
 </style>
 <section class="report-export">
     <h1>{{ titulo }}</h1>
     <p class="muted"><strong>Empresa:</strong> {{ empresa.nome }}</p>
     <p class="muted"><strong>Período atual:</strong> {{ periodo_inicio|date:'d/m/Y' }} até {{ periodo_fim|date:'d/m/Y' }}</p>
     <p class="muted"><strong>Período anterior:</strong> {{ periodo_inicio_anterior|date:'d/m/Y' }} até {{ periodo_fim_anterior|date:'d/m/Y' }}</p>
+    <p class="muted"><strong>Períodos comparados:</strong> atual de {{ periodo_inicio|date:'d/m/Y' }} até {{ periodo_fim|date:'d/m/Y' }} versus anterior de {{ periodo_inicio_anterior|date:'d/m/Y' }} até {{ periodo_fim_anterior|date:'d/m/Y' }}</p>
+
+    {% if intro_sections %}
+        <section class="final-reading">
+            {% for section in intro_sections %}
+                <div class="intro-section">
+                    <h2>{{ section.title }}</h2>
+                    <div>{{ section.content|render_analysis_markdown }}</div>
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
 
     <div class="kpi-grid">
         <div class="kpi-card"><span class="eyebrow">Investimento</span><div class="kpi-value">R$ {{ kpis.investimento|floatformat:2 }}</div></div>
         <div class="kpi-card"><span class="eyebrow">Impressões</span><div class="kpi-value">{{ kpis.impressoes }}</div></div>
-        <div class="kpi-card"><span class="eyebrow">Cliques</span><div class="kpi-value">{{ kpis.cliques }}</div></div>
+        <div class="kpi-card"><span class="eyebrow">Alcance</span><div class="kpi-value">{{ kpis.alcance }}</div></div>
         <div class="kpi-card"><span class="eyebrow">Resultados</span><div class="kpi-value">{{ kpis.resultados|floatformat:2 }}</div></div>
-        <div class="kpi-card"><span class="eyebrow">CTR</span><div class="kpi-value">{{ kpis.ctr|floatformat:2 }}%</div></div>
-        <div class="kpi-card"><span class="eyebrow">CPC</span><div class="kpi-value">R$ {{ kpis.cpc|floatformat:2 }}</div></div>
-        <div class="kpi-card"><span class="eyebrow">CPM</span><div class="kpi-value">R$ {{ kpis.cpm|floatformat:2 }}</div></div>
-        <div class="kpi-card"><span class="eyebrow">CPL</span><div class="kpi-value">R$ {{ kpis.cpl|floatformat:2 }}</div></div>
     </div>
 
     <h2>Comparativo entre períodos</h2>
@@ -135,7 +190,7 @@
                 <td>{{ row.label }}</td>
                 <td>{{ row.anterior|floatformat:2 }}</td>
                 <td>{{ row.atual|floatformat:2 }}</td>
-                <td>{{ row.variacao_absoluta|floatformat:2 }}{% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}</td>
+                <td class="{{ row.variation_class }}">{{ row.variacao_absoluta|floatformat:2 }}{% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}</td>
             </tr>
         {% empty %}
             <tr><td colspan="4">Sem período anterior para comparar.</td></tr>
@@ -145,48 +200,68 @@
 
     <h2>Tabela por campanha</h2>
     <table>
-        <thead><tr><th>Campanha</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>Resultados</th><th>CPL</th></tr></thead>
+        <thead><tr><th>Campanha</th><th>Investimento</th><th>Impressões</th><th>Alcance</th><th>Cliques</th><th>CTR</th><th>Resultados</th><th>CPL</th></tr></thead>
         <tbody>
         {% for row in campaign_rows %}
             <tr>
                 <td>{{ row.campanha }}</td>
                 <td>R$ {{ row.investimento|floatformat:2 }}</td>
                 <td>{{ row.impressoes }}</td>
+                <td>{{ row.alcance }}</td>
                 <td>{{ row.cliques }}</td>
                 <td>{{ row.ctr|floatformat:2 }}%</td>
                 <td>{{ row.resultados|floatformat:2 }}</td>
                 <td>R$ {{ row.cpl|floatformat:2 }}</td>
             </tr>
         {% empty %}
-            <tr><td colspan="7">Sem campanhas no período.</td></tr>
+            <tr><td colspan="8">Sem campanhas no período.</td></tr>
         {% endfor %}
         </tbody>
     </table>
 
-    <h2>Análise dos Concorrentes</h2>
-    {% if selected_competitor_name %}
-        <p><strong>Concorrente em foco:</strong> {{ selected_competitor_name }}</p>
+    <h2>Análise Digital</h2>
+    {% if company_digital %}
+        <div class="digital-block">
+            <h3 class="digital-title">Empresa analisada: {{ empresa.nome }}</h3>
+            <p class="digital-meta"><strong>{{ company_digital.digital_score_label }}</strong></p>
+            <p><strong>Ads ativos na Meta Ads Library:</strong> {{ company_digital.ads_biblioteca_sinal|default:0 }}</p>
+            <p><strong>Busca usada na biblioteca:</strong> {{ company_digital.ads_biblioteca_query|default:'-' }}</p>
+            <p><strong>Feed no período:</strong> {{ company_digital.feed_insights.posts_visiveis_periodo|default:0 }}</p>
+            <p><strong>Interações no período:</strong> {{ company_digital.feed_insights.interacoes_periodo|default:0 }}</p>
+            <p><strong>Comentários no período:</strong> {{ company_digital.feed_insights.comments_periodo|default:0 }}</p>
+            <p><strong>Média de Engajamento por Post:</strong> {% if company_digital.feed_insights.media_engajamento_por_post is not None %}{{ company_digital.feed_insights.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</p>
+            <p><strong>Taxa de Atualização:</strong> {{ company_digital.feed_insights.taxa_atualizacao_label|default:'-' }}</p>
+        </div>
     {% endif %}
-    {% if selected_competitor_profile %}
-        <p><strong>Posts no período:</strong> {{ selected_competitor_feed.posts_visiveis_periodo|default:0 }}</p>
-        <p><strong>Interações no período:</strong> {{ selected_competitor_feed.interacoes_periodo|default:0 }}</p>
-        <p><strong>Comentários no período:</strong> {{ selected_competitor_feed.comments_periodo|default:0 }}</p>
-        <p><strong>Média de Engajamento por Post:</strong> {% if selected_competitor_feed.media_engajamento_por_post is not None %}{{ selected_competitor_feed.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</p>
-        <p><strong>Ads ativos na Meta Ads Library:</strong> {{ selected_competitor_profile.ads_biblioteca_sinal|default:0 }}</p>
-        <p><strong>Busca usada na biblioteca:</strong> {{ selected_competitor_profile.ads_biblioteca_query|default:'-' }}</p>
-        <p><strong>Taxa de Atualização:</strong> {{ selected_competitor_feed.taxa_atualizacao_label|default:'-' }}</p>
-    {% endif %}
-    {% if competitor_summary.competitors %}
-        <ul class="activity-list">
-            {% for competitor in competitor_summary.competitors|slice:":3" %}
-                <li>{{ competitor.nome }} - {{ competitor.activity_label }}</li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-    {% if latest_competitor_analysis %}
-        <p><strong>Última leitura competitiva salva:</strong> {{ latest_competitor_analysis.criado_em|date:'d/m/Y H:i' }}</p>
-    {% endif %}
+    {% for panel in competitor_analysis_panels %}
+        <div class="digital-block">
+            <h3 class="digital-title">{{ panel.analysis.concorrente_nome }}</h3>
+            <p class="digital-meta"><strong>Status:</strong> {{ panel.competidor.activity_label }} | <strong>{{ panel.feed_insights.digital_score_label }}</strong></p>
+            <p><strong>Ads ativos na Meta Ads Library:</strong> {{ panel.competidor.ads_biblioteca_sinal|default:0 }}</p>
+            <p><strong>Busca usada na biblioteca:</strong> {{ panel.competidor.ads_biblioteca_query|default:'-' }}</p>
+            <p><strong>Feed no período:</strong> {{ panel.feed_insights.posts_visiveis_periodo|default:0 }}</p>
+            <p><strong>Interações no período:</strong> {{ panel.feed_insights.interacoes_periodo|default:0 }}</p>
+            <p><strong>Comentários no período:</strong> {{ panel.feed_insights.comments_periodo|default:0 }}</p>
+            <p><strong>Média de Engajamento por Post:</strong> {% if panel.feed_insights.media_engajamento_por_post is not None %}{{ panel.feed_insights.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</p>
+            <p><strong>Taxa de Atualização:</strong> {{ panel.feed_insights.taxa_atualizacao_label|default:'-' }}</p>
+            {% if company_digital %}
+                <p><strong>Comparativo com a empresa:</strong> score {{ panel.feed_insights.digital_score }} vs {{ company_digital.feed_insights.digital_score }}, posts {{ panel.feed_insights.posts_visiveis_periodo|default:0 }} vs {{ company_digital.feed_insights.posts_visiveis_periodo|default:0 }}, interações {{ panel.feed_insights.interacoes_periodo|default:0 }} vs {{ company_digital.feed_insights.interacoes_periodo|default:0 }}.</p>
+            {% endif %}
+            <div>{{ panel.analysis.conteudo|render_analysis_markdown }}</div>
+        </div>
+    {% empty %}
+        <p>Sem análises digitais salvas para os concorrentes.</p>
+    {% endfor %}
 
-    <h2>Leitura estratégica final</h2>
-    <div>{{ insight_text|render_analysis_markdown }}</div>
+    {% if conclusion_sections %}
+        <section class="final-reading">
+            <h2>Conclusão</h2>
+            {% for section in conclusion_sections %}
+                <div class="conclusion-section">
+                    <h3>{{ section.title }}</h3>
+                    <div>{{ section.content|render_analysis_markdown }}</div>
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
 </section>

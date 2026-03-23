@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block page_title %}Excluir Concorrente{% endblock %}
+{% block content %}
+<div class="panel mt-4 form-panel">
+    <h3 class="mb-3">Excluir concorrente</h3>
+    <p>Tem certeza que deseja excluir <strong>{{ concorrente.concorrente_nome }}</strong>?</p>
+    <form method="post" class="d-flex gap-2">
+        {% csrf_token %}
+        <button class="btn btn-danger" type="submit">Excluir</button>
+        <a class="btn btn-outline-dark" href="{% url 'concorrentes:list' %}">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

@@ -41,6 +41,13 @@
             {% block content %}{% endblock %}
         </main>
 </div>
+    <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
+        <div class="loading-modal-card">
+            <div class="spinner-border text-light" role="status" aria-hidden="true"></div>
+            <h3 class="loading-title" id="loadingOverlayTitle">Processando</h3>
+            <p class="loading-text mb-0" id="loadingOverlayText">Aguarde enquanto o sistema conclui esta etapa.</p>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

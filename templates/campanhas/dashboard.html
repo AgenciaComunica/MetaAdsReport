@@ -11,7 +11,6 @@
             <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
             <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
             <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
-            <input type="hidden" name="competitor_analysis" value="{{ selected_competitor_name }}">
             <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ form.data_inicio.value|default:'' }} a {{ form.data_fim.value|default:'' }}">
             <button type="submit" class="btn btn-dark">Gerar Relatório</button>
         </form>
@@ -20,8 +19,8 @@
 <div class="panel mt-4 form-panel">
     <form method="get" class="row g-3" id="dashboardFiltersForm">
         <div class="col-md-4">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
-        <div class="col-md-4">{{ form.periodo_atual.label_tag }}{{ form.periodo_atual }}{{ form.data_inicio }}{{ form.data_fim }}</div>
         <div class="col-md-4">{{ form.periodo_anterior.label_tag }}{{ form.periodo_anterior }}{{ form.data_inicio_anterior }}{{ form.data_fim_anterior }}</div>
+        <div class="col-md-4">{{ form.periodo_atual.label_tag }}{{ form.periodo_atual }}{{ form.data_inicio }}{{ form.data_fim }}</div>
     </form>
 </div>
 <div class="mt-4">
@@ -79,7 +78,7 @@
                             <td>{{ row.label }}</td>
                             <td>{{ row.anterior|floatformat:2 }}</td>
                             <td>{{ row.atual|floatformat:2 }}</td>
-                            <td class="{% if row.variacao_absoluta >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            <td class="{{ row.variation_class }}">
                                 {{ row.variacao_absoluta|floatformat:2 }}
                                 {% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}
                             </td>
@@ -119,69 +118,98 @@
         </table>
     </div>
 </div>
-<div class="panel mt-4" id="analise-concorrentes">
+<div class="panel mt-4" id="analise-digital">
     <div class="competitor-analysis-header">
         <div>
-            <h3 class="mb-1">Análise do Concorrente</h3>
-            {% if latest_competitor_analysis %}
-                <div class="competitor-analysis-title-row">
-                    <h2 class="competitor-analysis-name">{{ latest_competitor_analysis.concorrente_nome }}</h2>
-                    {% if selected_competitor_profile %}
-                        <span class="activity-pill {{ selected_competitor_profile.activity_class }}">{{ selected_competitor_profile.activity_label }}</span>
-                    {% endif %}
-                    {% if selected_competitor_feed %}
-                        <span class="activity-pill {{ selected_competitor_feed.digital_score_class }}">{{ selected_competitor_feed.digital_score_label }}</span>
-                    {% endif %}
-                </div>
-                <p class="text-muted mb-0">
-                    Última análise em {{ latest_competitor_analysis.criado_em|date:'d/m/Y H:i' }} ·
-                    Período analisado: {{ periodo_atual_resumo }}
-                </p>
-            {% endif %}
+            <h3 class="mb-1">Análise Digital</h3>
+            <p class="text-muted mb-0">Primeiro a leitura da empresa; abaixo, cada concorrente comparado contra ela no mesmo período.</p>
         </div>
         <div class="competitor-analysis-actions">
-            {% if competitor_analysis_options %}
-                <div class="competitor-select-wrap">
-                    <label class="form-label" for="competitorAnalysisSelect">Concorrente avaliado</label>
-                    <select class="form-select" id="competitorAnalysisSelect">
-                        {% for option in competitor_analysis_options %}
-                            <option value="{{ option.analysis.concorrente_nome }}" {% if option.analysis.concorrente_nome == selected_competitor_name %}selected{% endif %}>
-                                {{ option.analysis.concorrente_nome }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-            {% endif %}
             {% if empresa %}
-                <form method="post" action="{% url 'concorrentes:evaluate_now' %}" data-loading-title="Avaliando Concorrentes" data-loading-text="Aguarde enquanto o sistema atualiza os dados públicos e roda a análise de IA.">
+                <form method="post" action="{% url 'concorrentes:evaluate_now' %}" data-loading-title="Avaliando Redes Sociais" data-loading-text="Aguarde enquanto o sistema atualiza os dados públicos e roda a análise de IA.">
                     {% csrf_token %}
                     <input type="hidden" name="empresa" value="{{ empresa.id }}">
                     <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
                     <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
-                    <button type="submit" class="btn btn-dark competitor-evaluate-btn">Avaliar Concorrentes</button>
+                    <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
+                    <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
+                    <button type="submit" class="btn btn-dark competitor-evaluate-btn">Avaliar Redes Sociais</button>
                 </form>
             {% endif %}
         </div>
     </div>
-    {% if latest_competitor_analysis %}
-        {% if selected_competitor_profile %}
-            <div class="panel mb-3">
-                <div class="row g-3">
-                    <div class="col-md-3"><strong>Posts no período</strong><br>{{ selected_competitor_feed.posts_visiveis_periodo|default:0 }}</div>
-                    <div class="col-md-3"><strong>Interações no período</strong><br>{{ selected_competitor_feed.interacoes_periodo|default:0 }}</div>
-                    <div class="col-md-3"><strong>Comentários no período</strong><br>{{ selected_competitor_feed.comments_periodo|default:0 }}</div>
-                    <div class="col-md-3"><strong>Média de Engajamento por Post</strong><br>{% if selected_competitor_feed.media_engajamento_por_post is not None %}{{ selected_competitor_feed.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</div>
-                    <div class="col-md-3"><strong>Ads ativos na Meta Ads Library</strong><br>{{ selected_competitor_profile.ads_biblioteca_sinal|default:0 }}</div>
-                    <div class="col-md-3"><strong>Busca usada na biblioteca</strong><br>{{ selected_competitor_profile.ads_biblioteca_query|default:'-' }}</div>
-                    <div class="col-md-6"><strong>Taxa de Atualização</strong><br><span class="activity-pill {{ selected_competitor_feed.taxa_atualizacao_class }}">{{ selected_competitor_feed.taxa_atualizacao_label }}</span></div>
-                    <div class="col-md-6"><strong>Formatos no período</strong><br>{% if selected_competitor_feed.formatos_periodo %}{% for formato, total in selected_competitor_feed.formatos_periodo.items %}{{ formato }}: {{ total }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}-{% endif %}</div>
-                </div>
+    {% if company_digital %}
+        <div class="panel mb-4">
+            <div class="competitor-analysis-title-row">
+                <h2 class="competitor-analysis-name">{{ empresa.nome }}</h2>
+                <span class="activity-pill {% if company_digital.ads_biblioteca_sinal %}is-high{% else %}is-none{% endif %}">
+                    {% if company_digital.ads_biblioteca_sinal %}Ads ativos{% else %}Sem Ads ativos{% endif %}
+                </span>
+                <span class="activity-pill {{ company_digital.digital_score_class }}">{{ company_digital.digital_score_label }}</span>
             </div>
-        {% endif %}
-        <div>{{ latest_competitor_analysis.conteudo|render_analysis_markdown }}</div>
+            <p class="text-muted mb-3">
+                {% if company_digital.ads_biblioteca_consultado_em %}Última análise em {{ company_digital.ads_biblioteca_consultado_em|date:'d/m/Y H:i' }} · {% endif %}
+                Período analisado: {{ periodo_atual_resumo }}
+            </p>
+            <div class="row g-3">
+                <div class="col-md-3"><strong>Ads ativos na Meta Ads Library</strong><br>{{ company_digital.ads_biblioteca_sinal|default:0 }}</div>
+                <div class="col-md-3"><strong>Busca usada na biblioteca</strong><br>{{ company_digital.ads_biblioteca_query|default:'-' }}</div>
+                <div class="col-md-3"><strong>Feed no período</strong><br>{{ company_digital.feed_insights.posts_visiveis_periodo|default:0 }}</div>
+                <div class="col-md-3"><strong>Interações no período</strong><br>{{ company_digital.feed_insights.interacoes_periodo|default:0 }}</div>
+                <div class="col-md-3"><strong>Comentários no período</strong><br>{{ company_digital.feed_insights.comments_periodo|default:0 }}</div>
+                <div class="col-md-3"><strong>Média de Engajamento por Post</strong><br>{% if company_digital.feed_insights.media_engajamento_por_post is not None %}{{ company_digital.feed_insights.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</div>
+                <div class="col-md-6"><strong>Taxa de Atualização</strong><br><span class="activity-pill {{ company_digital.feed_insights.taxa_atualizacao_class }}">{{ company_digital.feed_insights.taxa_atualizacao_label }}</span></div>
+            </div>
+        </div>
+    {% elif empresa.instagram_profile_url %}
+        <p class="text-muted">O Instagram da empresa será analisado ao rodar <strong>Avaliar Redes Sociais</strong>.</p>
+    {% else %}
+        <p class="text-muted">Cadastre o Instagram da empresa em <strong>Editar empresa</strong> para habilitar a análise digital própria.</p>
+    {% endif %}
+    {% if competitor_analysis_panels %}
+        <div class="accordion" id="digitalAnalysisAccordion">
+            {% for panel in competitor_analysis_panels %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading-{{ forloop.counter }}">
+                        <button class="accordion-button {% if open_analysis != panel.analysis.concorrente_nome %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ forloop.counter }}" aria-expanded="{% if open_analysis == panel.analysis.concorrente_nome %}true{% else %}false{% endif %}" aria-controls="collapse-{{ forloop.counter }}">
+                            <span class="me-2">{{ panel.analysis.concorrente_nome }}</span>
+                            <span class="activity-pill {{ panel.competidor.activity_class }} me-2">{{ panel.competidor.activity_label }}</span>
+                            <span class="activity-pill {{ panel.feed_insights.digital_score_class }}">{{ panel.feed_insights.digital_score_label }}</span>
+                        </button>
+                    </h2>
+                    <div id="collapse-{{ forloop.counter }}" class="accordion-collapse collapse {% if open_analysis == panel.analysis.concorrente_nome %}show{% endif %}" aria-labelledby="heading-{{ forloop.counter }}" data-bs-parent="#digitalAnalysisAccordion">
+                        <div class="accordion-body">
+                            <p class="text-muted mb-3">
+                                Última análise em {{ panel.analysis.criado_em|date:'d/m/Y H:i' }} ·
+                                Período analisado: {{ periodo_atual_resumo }}
+                            </p>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3"><strong>Ads ativos na Meta Ads Library</strong><br>{{ panel.competidor.ads_biblioteca_sinal|default:0 }}</div>
+                                <div class="col-md-3"><strong>Busca usada na biblioteca</strong><br>{{ panel.competidor.ads_biblioteca_query|default:'-' }}</div>
+                                <div class="col-md-3"><strong>Feed no período</strong><br>{{ panel.feed_insights.posts_visiveis_periodo|default:0 }}</div>
+                                <div class="col-md-3"><strong>Interações no período</strong><br>{{ panel.feed_insights.interacoes_periodo|default:0 }}</div>
+                                <div class="col-md-3"><strong>Comentários no período</strong><br>{{ panel.feed_insights.comments_periodo|default:0 }}</div>
+                                <div class="col-md-3"><strong>Média de Engajamento por Post</strong><br>{% if panel.feed_insights.media_engajamento_por_post is not None %}{{ panel.feed_insights.media_engajamento_por_post|floatformat:2 }}{% else %}-{% endif %}</div>
+                                <div class="col-md-6"><strong>Taxa de Atualização</strong><br><span class="activity-pill {{ panel.feed_insights.taxa_atualizacao_class }}">{{ panel.feed_insights.taxa_atualizacao_label }}</span></div>
+                                <div class="col-md-6"><strong>Formatos no período</strong><br>{% if panel.feed_insights.formatos_periodo %}{% for formato, total in panel.feed_insights.formatos_periodo.items %}{{ formato }}: {{ total }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}-{% endif %}</div>
+                            </div>
+                            {% if company_digital %}
+                                <p class="text-muted">
+                                    Comparativo com a empresa:
+                                    score {{ panel.feed_insights.digital_score }} vs {{ company_digital.feed_insights.digital_score }},
+                                    posts {{ panel.feed_insights.posts_visiveis_periodo|default:0 }} vs {{ company_digital.feed_insights.posts_visiveis_periodo|default:0 }},
+                                    interações {{ panel.feed_insights.interacoes_periodo|default:0 }} vs {{ company_digital.feed_insights.interacoes_periodo|default:0 }}.
+                                </p>
+                            {% endif %}
+                            <div>{{ panel.analysis.conteudo|render_analysis_markdown }}</div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
     {% else %}
         <p class="text-muted mb-0">
-            Cadastre os Concorrentes da empresa e use <strong>Avaliar Concorrentes</strong> aqui para gerar a leitura subjetiva da IA.
+            Cadastre os Concorrentes da empresa e use <strong>Avaliar Redes Sociais</strong> aqui para gerar a leitura subjetiva da IA.
         </p>
     {% endif %}
 </div>
@@ -286,35 +314,6 @@
     apexChart.render().then(() => renderMetric(0));
 
     metricSelect.addEventListener('change', () => renderMetric(Number(metricSelect.value)));
-
-    const competitorSelect = document.getElementById('competitorAnalysisSelect');
-    if (competitorSelect) {
-      competitorSelect.addEventListener('change', () => {
-        const url = new URL(window.location.href);
-        const empresaInput = document.getElementById('id_empresa');
-        const dataInicioInput = document.getElementById('id_data_inicio');
-        const dataFimInput = document.getElementById('id_data_fim');
-        const dataInicioAnteriorInput = document.getElementById('id_data_inicio_anterior');
-        const dataFimAnteriorInput = document.getElementById('id_data_fim_anterior');
-        if (empresaInput && empresaInput.value) {
-          url.searchParams.set('empresa', empresaInput.value);
-        }
-        if (dataInicioInput && dataInicioInput.value) {
-          url.searchParams.set('data_inicio', dataInicioInput.value);
-        }
-        if (dataFimInput && dataFimInput.value) {
-          url.searchParams.set('data_fim', dataFimInput.value);
-        }
-        if (dataInicioAnteriorInput && dataInicioAnteriorInput.value) {
-          url.searchParams.set('data_inicio_anterior', dataInicioAnteriorInput.value);
-        }
-        if (dataFimAnteriorInput && dataFimAnteriorInput.value) {
-          url.searchParams.set('data_fim_anterior', dataFimAnteriorInput.value);
-        }
-        url.searchParams.set('competitor_analysis', competitorSelect.value);
-        window.location.href = `${url.toString().split('#')[0]}#analise-concorrentes`;
-      });
-    }
   });
 </script>
 {% endblock %}
