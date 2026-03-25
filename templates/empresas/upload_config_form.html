@@ -7,7 +7,13 @@
         <div>
             <span class="eyebrow">Empresa</span>
             <h2 class="mb-1">{{ empresa.nome }}</h2>
-            <p class="text-muted mb-0">Configuração reutilizável para uploads do tipo {{ configuracao.get_tipo_documento_display }}.</p>
+            <p class="text-muted mb-0">
+                {% if configuracao.tipo_documento %}
+                    Configuração reutilizável para uploads do tipo {{ configuracao.get_tipo_documento_display }}.
+                {% else %}
+                    Defina o tipo do documento, envie o arquivo e clique em Mapear para abrir o mapeamento.
+                {% endif %}
+            </p>
         </div>
         <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Voltar</a>
     </div>
@@ -33,49 +39,61 @@
                 {{ form.arquivo_exemplo.label_tag }}{{ form.arquivo_exemplo }}
                 {% if form.arquivo_exemplo.errors %}<div class="text-danger small mt-1">{{ form.arquivo_exemplo.errors|join:', ' }}</div>{% endif %}
             </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <button class="btn btn-outline-dark" type="submit" name="action" value="mapear">Mapear</button>
+                {% if has_example_file %}
+                    <button class="btn btn-outline-secondary" type="submit" name="action" value="limpar_arquivo">Limpar planilha exemplo</button>
+                {% endif %}
+            </div>
             {% if configuracao.nome_arquivo_exemplo %}
-                <p class="text-muted small mb-0">Último arquivo lido: {{ configuracao.nome_arquivo_exemplo }}</p>
+                <p class="text-muted small mb-0">Arquivo de exemplo: {{ configuracao.nome_arquivo_exemplo }}</p>
             {% else %}
-                <p class="text-muted small mb-0">Defina o tipo do documento e envie um arquivo de exemplo para concluir esta configuração.</p>
+                <p class="text-muted small mb-0">Selecione o tipo, envie o arquivo e clique em Mapear.</p>
             {% endif %}
         </div>
         <div class="col-lg-8">
             <h3 class="mb-3">Mapeamento do sistema</h3>
-            <div class="table-responsive">
-                <table class="table align-middle upload-mapping-table">
-                    <thead>
-                        <tr>
-                            <th>Campo do sistema</th>
-                            <th>Campo do arquivo</th>
-                            <th class="text-center">Principal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in mapping_rows %}
+            {% if show_mapping %}
+                <div class="table-responsive">
+                    <table class="table align-middle upload-mapping-table">
+                        <thead>
                             <tr>
-                                <td>
-                                    <strong>{{ row.label }}</strong>
-                                    {% if row.required %}
-                                        <span class="badge text-bg-dark ms-2">Obrigatório</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {{ row.map_field }}
-                                    {% if row.map_field.errors %}
-                                        <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <div class="form-check d-inline-flex justify-content-center">
-                                        {{ row.primary_field }}
-                                    </div>
-                                </td>
+                                <th>Campo do sistema</th>
+                                <th>Campo do arquivo</th>
+                                <th class="text-center">Principal</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <button class="btn btn-dark mt-3" type="submit">Salvar configuração</button>
+                        </thead>
+                        <tbody>
+                            {% for row in mapping_rows %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ row.label }}</strong>
+                                        {% if row.required %}
+                                            <span class="badge text-bg-dark ms-2">Obrigatório</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ row.map_field }}
+                                        {% if row.map_field.errors %}
+                                            <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check d-inline-flex justify-content-center">
+                                            {{ row.primary_field }}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-dark mt-3" type="submit" name="action" value="salvar">Salvar configuração</button>
+            {% else %}
+                <div class="upload-config-empty-state">
+                    <p class="mb-0 text-muted">O mapeamento do sistema aparece depois que você envia o arquivo e clica em <strong>Mapear</strong>.</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 </form>
@@ -105,7 +123,7 @@
             </table>
         </div>
     {% else %}
-        <p class="text-muted mb-0">Envie um arquivo de exemplo para detectar colunas e montar o mapeamento.</p>
+        <p class="text-muted mb-0">O preview do arquivo aparece depois da ação Mapear.</p>
     {% endif %}
 </div>
 {% endblock %}

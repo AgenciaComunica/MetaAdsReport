@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib.util
 from io import BytesIO
 from pathlib import Path
 
@@ -11,56 +12,57 @@ from .models import ConfiguracaoUploadEmpresa
 
 UPLOAD_FIELD_SCHEMAS = {
     ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO: [
-        {'key': 'data', 'label': 'Data', 'required': True},
-        {'key': 'campanha', 'label': 'Campanha', 'required': True},
-        {'key': 'conjunto', 'label': 'Conjunto', 'required': False},
-        {'key': 'anuncio', 'label': 'Anúncio', 'required': False},
-        {'key': 'origem', 'label': 'Origem', 'required': False},
-        {'key': 'investimento', 'label': 'Investimento', 'required': False},
+        {'key': 'nome_campanha', 'label': 'Nome da campanha', 'required': True},
+        {'key': 'anuncios', 'label': 'Anúncios', 'required': False},
+        {'key': 'alcance', 'label': 'Alcance', 'required': False},
         {'key': 'impressoes', 'label': 'Impressões', 'required': False},
-        {'key': 'cliques', 'label': 'Cliques', 'required': False},
+        {'key': 'tipo_resultado', 'label': 'Tipo de resultado', 'required': False},
         {'key': 'resultados', 'label': 'Resultados', 'required': False},
+        {'key': 'valor_usado_brl', 'label': 'Valor usado (BRL)', 'required': True},
+        {'key': 'custo_por_resultado', 'label': 'Custo por resultado', 'required': False},
+        {'key': 'cliques_link', 'label': 'Cliques no link', 'required': False},
+        {'key': 'cpc_link', 'label': 'CPC (custo por clique no link)', 'required': False},
+        {'key': 'cpm', 'label': 'CPM (custo por 1.000 impressões)', 'required': False},
+        {'key': 'ctr_todos', 'label': 'CTR (todos)', 'required': False},
+        {'key': 'visualizacoes', 'label': 'Visualizações', 'required': False},
     ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.EVENTOS: [
+    ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS: [
+        {'key': 'id', 'label': 'ID', 'required': True},
+        {'key': 'data_contato', 'label': 'Data do Contato', 'required': True},
+        {'key': 'nome_lead', 'label': 'Nome do Lead', 'required': True},
+        {'key': 'informacao_contato', 'label': 'Informação do Contato', 'required': False},
+        {'key': 'canal', 'label': 'Canal', 'required': False},
+        {'key': 'valor_venda', 'label': 'Valor da Venda', 'required': False},
+        {'key': 'vendedor', 'label': 'Vendedor', 'required': False},
+        {'key': 'tag_lead', 'label': 'Tag Lead', 'required': False},
+        {'key': 'status_fechamento', 'label': 'Status Fechamento', 'required': False},
+        {'key': 'origem_lead', 'label': 'Origem do Lead', 'required': False},
+    ],
+    ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS: [
         {'key': 'evento', 'label': 'Evento', 'required': True},
+        {'key': 'local_evento', 'label': 'Local do Evento', 'required': False},
         {'key': 'data_evento', 'label': 'Data do Evento', 'required': True},
-        {'key': 'origem', 'label': 'Origem', 'required': False},
-        {'key': 'canal', 'label': 'Canal', 'required': False},
-        {'key': 'responsavel', 'label': 'Responsável', 'required': False},
-        {'key': 'status', 'label': 'Status', 'required': False},
-        {'key': 'valor', 'label': 'Valor', 'required': False},
+        {'key': 'nome_lead', 'label': 'Nome do Lead', 'required': True},
+        {'key': 'instagram', 'label': 'Instagram', 'required': False},
+        {'key': 'telefone_contato', 'label': 'Telefone de Contato', 'required': False},
+        {'key': 'idade', 'label': 'Idade', 'required': False},
     ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.VENDAS: [
-        {'key': 'pedido_id', 'label': 'Pedido / ID', 'required': True},
-        {'key': 'data_venda', 'label': 'Data da Venda', 'required': True},
-        {'key': 'cliente', 'label': 'Cliente', 'required': False},
-        {'key': 'produto', 'label': 'Produto', 'required': False},
-        {'key': 'quantidade', 'label': 'Quantidade', 'required': False},
-        {'key': 'valor_total', 'label': 'Valor Total', 'required': True},
-        {'key': 'canal', 'label': 'Canal', 'required': False},
-        {'key': 'status', 'label': 'Status', 'required': False},
-    ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.LEADS: [
-        {'key': 'lead_id', 'label': 'Lead / ID', 'required': True},
-        {'key': 'data_captura', 'label': 'Data de Captura', 'required': True},
-        {'key': 'nome_contato', 'label': 'Nome', 'required': False},
-        {'key': 'email', 'label': 'E-mail', 'required': False},
-        {'key': 'telefone', 'label': 'Telefone', 'required': False},
-        {'key': 'origem', 'label': 'Origem', 'required': False},
-        {'key': 'campanha', 'label': 'Campanha', 'required': False},
-        {'key': 'status', 'label': 'Status', 'required': False},
-    ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.CRM: [
-        {'key': 'contato_id', 'label': 'Contato / ID', 'required': True},
-        {'key': 'nome_contato', 'label': 'Nome do Contato', 'required': False},
-        {'key': 'origem', 'label': 'Origem', 'required': False},
-        {'key': 'etapa_funil', 'label': 'Etapa do Funil', 'required': True},
-        {'key': 'responsavel', 'label': 'Responsável', 'required': False},
-        {'key': 'ultima_interacao', 'label': 'Última Interação', 'required': False},
-        {'key': 'valor_oportunidade', 'label': 'Valor da Oportunidade', 'required': False},
-        {'key': 'status', 'label': 'Status', 'required': False},
-    ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.FINANCEIRO: [
+}
+
+LEGACY_TYPE_MAP = {
+    'crm': ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS,
+    'vendas': ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS,
+    'leads': ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS,
+    'eventos': ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS,
+}
+
+
+LEGACY_FIELD_SCHEMAS = {
+    'crm': UPLOAD_FIELD_SCHEMAS[ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS],
+    'vendas': UPLOAD_FIELD_SCHEMAS[ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS],
+    'leads': UPLOAD_FIELD_SCHEMAS[ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS],
+    'eventos': UPLOAD_FIELD_SCHEMAS[ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS],
+    'financeiro': [
         {'key': 'lancamento_id', 'label': 'Lançamento / ID', 'required': True},
         {'key': 'data_competencia', 'label': 'Data de Competência', 'required': True},
         {'key': 'categoria', 'label': 'Categoria', 'required': True},
@@ -69,7 +71,7 @@ UPLOAD_FIELD_SCHEMAS = {
         {'key': 'valor', 'label': 'Valor', 'required': True},
         {'key': 'status', 'label': 'Status', 'required': False},
     ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.ESTOQUE: [
+    'estoque': [
         {'key': 'sku', 'label': 'SKU', 'required': True},
         {'key': 'produto', 'label': 'Produto', 'required': True},
         {'key': 'categoria', 'label': 'Categoria', 'required': False},
@@ -78,7 +80,7 @@ UPLOAD_FIELD_SCHEMAS = {
         {'key': 'custo_unitario', 'label': 'Custo Unitário', 'required': False},
         {'key': 'atualizado_em', 'label': 'Atualizado em', 'required': False},
     ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.ATENDIMENTO: [
+    'atendimento': [
         {'key': 'protocolo', 'label': 'Protocolo', 'required': True},
         {'key': 'cliente', 'label': 'Cliente', 'required': False},
         {'key': 'canal', 'label': 'Canal', 'required': False},
@@ -101,7 +103,9 @@ class UploadPreview:
 
 
 def get_field_schema(tipo_documento):
-    return UPLOAD_FIELD_SCHEMAS.get(tipo_documento, [])
+    if tipo_documento in UPLOAD_FIELD_SCHEMAS:
+        return UPLOAD_FIELD_SCHEMAS[tipo_documento]
+    return LEGACY_FIELD_SCHEMAS.get(tipo_documento, [])
 
 
 def get_type_label(tipo_documento):
@@ -137,8 +141,12 @@ def _read_csv(file_obj_or_path):
 
 
 def _read_excel(file_obj_or_path):
+    suffix = Path(getattr(file_obj_or_path, 'name', '') or str(file_obj_or_path)).suffix.lower()
+    engine = 'xlrd' if suffix == '.xls' else 'openpyxl'
+    if importlib.util.find_spec(engine) is None:
+        raise ValueError(f'Leitura de planilhas {suffix or "Excel"} indisponível. Instale a dependência "{engine}".')
     try:
-        return pd.read_excel(_resettable_source(file_obj_or_path))
+        return pd.read_excel(_resettable_source(file_obj_or_path), engine=engine)
     except Exception as exc:  # pragma: no cover - defensive I/O fallback
         raise ValueError('Falha ao ler a planilha enviada.') from exc
 

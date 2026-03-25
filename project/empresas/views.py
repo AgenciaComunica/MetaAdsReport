@@ -72,8 +72,9 @@ def upload_config_update(request, empresa_pk, config_pk):
         empresa=empresa,
     )
 
-    preview = None
+    action = request.POST.get('action', 'salvar') if request.method == 'POST' else ''
     uploaded_file = request.FILES.get('arquivo_exemplo')
+    preview = None
     preview_error = None
     if uploaded_file:
         try:
@@ -87,31 +88,54 @@ def upload_config_update(request, empresa_pk, config_pk):
             file_name=configuracao.nome_arquivo_exemplo,
         )
 
+    require_mapping = action == 'salvar'
     form = ConfiguracaoUploadEmpresaForm(
         request.POST or None,
         request.FILES or None,
         instance=configuracao,
         columns=preview.columns if preview else configuracao.colunas_detectadas_json,
+        require_mapping=require_mapping,
     )
     if preview_error:
         form.add_error('arquivo_exemplo', preview_error)
 
-    if request.method == 'POST' and form.is_valid():
-        configuracao = form.save_configuration(preview=preview)
-        messages.success(request, 'Configuração de upload salva com sucesso.')
+    if request.method == 'POST' and action == 'mapear':
+        if not uploaded_file:
+            form.add_error('arquivo_exemplo', 'Envie um arquivo para mapear as colunas.')
+        elif form.is_valid():
+            configuracao = form.save_preview(preview)
+            messages.success(request, 'Arquivo lido com sucesso. Agora revise o mapeamento do sistema.')
+            return redirect('empresas:upload_config_update', empresa_pk=empresa.pk, config_pk=configuracao.pk)
+
+    if request.method == 'POST' and action == 'limpar_arquivo':
+        if configuracao.arquivo_exemplo:
+            configuracao.arquivo_exemplo.delete(save=False)
+        configuracao.arquivo_exemplo = ''
+        configuracao.nome_arquivo_exemplo = ''
+        configuracao.save(update_fields=['arquivo_exemplo', 'nome_arquivo_exemplo'])
+        messages.success(request, 'Planilha de exemplo removida. Os demais campos foram preservados.')
         return redirect('empresas:upload_config_update', empresa_pk=empresa.pk, config_pk=configuracao.pk)
 
+    if request.method == 'POST' and action == 'salvar':
+        if not (preview or configuracao.colunas_detectadas_json):
+            form.add_error('arquivo_exemplo', 'Envie um arquivo e clique em Mapear antes de salvar.')
+        elif form.is_valid():
+            configuracao = form.save_configuration(preview=preview)
+            messages.success(request, 'Configuração de upload salva com sucesso.')
+            return redirect('empresas:upload_config_update', empresa_pk=empresa.pk, config_pk=configuracao.pk)
+
     mapping_rows = []
-    for item in get_field_schema(form.document_type):
-        key = item['key']
-        mapping_rows.append(
-            {
-                'label': item['label'],
-                'required': item['required'],
-                'map_field': form[f'map__{key}'],
-                'primary_field': form[f'primary__{key}'],
-            }
-        )
+    if form.mapping_enabled:
+        for item in get_field_schema(form.document_type):
+            key = item['key']
+            mapping_rows.append(
+                {
+                    'label': item['label'],
+                    'required': item['required'],
+                    'map_field': form[f'map__{key}'],
+                    'primary_field': form[f'primary__{key}'],
+                }
+            )
 
     context = {
         'empresa': empresa,
@@ -120,6 +144,8 @@ def upload_config_update(request, empresa_pk, config_pk):
         'preview_rows': preview.rows if preview else configuracao.preview_json,
         'preview_columns': preview.columns if preview else configuracao.colunas_detectadas_json,
         'mapping_rows': mapping_rows,
+        'show_mapping': bool((preview.columns if preview else configuracao.colunas_detectadas_json) and form.document_type),
+        'has_example_file': bool(configuracao.arquivo_exemplo or configuracao.nome_arquivo_exemplo),
     }
     return render(request, 'empresas/upload_config_form.html', context)
 

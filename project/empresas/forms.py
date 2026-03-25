@@ -29,7 +29,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo_documento': forms.Select(attrs={'class': 'form-select'}),
-            'arquivo_exemplo': forms.ClearableFileInput(
+            'arquivo_exemplo': forms.FileInput(
                 attrs={
                     'class': 'form-control',
                     'accept': '.csv,.txt,.xlsx,.xls',
@@ -39,7 +39,9 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         columns = kwargs.pop('columns', None) or []
+        require_mapping = kwargs.pop('require_mapping', True)
         super().__init__(*args, **kwargs)
+        self.fields['tipo_documento'].required = True
         choices = [('', 'Selecione uma coluna')] + [(column, column) for column in columns]
         principais = set(self.instance.campos_principais_json or [])
         self.document_type = (
@@ -47,12 +49,17 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             if self.is_bound and self.data.get(self.add_prefix('tipo_documento'))
             else self.instance.tipo_documento
         )
+        self.mapping_enabled = bool(columns) and bool(self.document_type)
+        self.require_mapping = require_mapping and self.mapping_enabled
+
+        if not self.mapping_enabled:
+            return
 
         for field_def in get_field_schema(self.document_type):
             key = field_def['key']
             self.fields[f'map__{key}'] = forms.ChoiceField(
                 choices=choices,
-                required=field_def['required'],
+                required=self.require_mapping and field_def['required'],
                 label=field_def['label'],
                 initial=(self.instance.mapeamento_json or {}).get(key, ''),
                 widget=forms.Select(attrs={'class': 'form-select'}),
@@ -67,6 +74,8 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         selected_columns = {}
+        if not self.mapping_enabled:
+            return cleaned_data
 
         for field_def in get_field_schema(cleaned_data.get('tipo_documento') or self.document_type):
             key = field_def['key']
@@ -98,6 +107,16 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             instance.colunas_detectadas_json = preview.columns
             instance.preview_json = preview.rows
             instance.nome_arquivo_exemplo = preview.file_name
+        instance.save()
+        return instance
+
+    def save_preview(self, preview):
+        instance = self.save(commit=False)
+        instance.colunas_detectadas_json = preview.columns
+        instance.preview_json = preview.rows
+        instance.nome_arquivo_exemplo = preview.file_name
+        instance.mapeamento_json = {}
+        instance.campos_principais_json = []
         instance.save()
         return instance
 
