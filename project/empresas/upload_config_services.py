@@ -108,23 +108,6 @@ def get_type_label(tipo_documento):
     return dict(UPLOAD_TYPE_CHOICES).get(tipo_documento, tipo_documento)
 
 
-def build_upload_slots(empresa):
-    configuracoes = {
-        config.tipo_documento: config
-        for config in empresa.configuracoes_upload.all()
-    }
-    slots = []
-    for tipo, label in UPLOAD_TYPE_CHOICES:
-        slots.append(
-            {
-                'tipo': tipo,
-                'label': label,
-                'configuracao': configuracoes.get(tipo),
-            }
-        )
-    return slots
-
-
 def inspect_uploaded_file(file_obj_or_path, file_name=''):
     source_name = file_name or getattr(file_obj_or_path, 'name', '') or str(file_obj_or_path)
     suffix = Path(source_name).suffix.lower()

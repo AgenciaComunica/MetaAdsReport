@@ -42,7 +42,7 @@ class ConfiguracaoUploadEmpresa(models.Model):
 
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='configuracoes_upload')
     nome = models.CharField(max_length=255)
-    tipo_documento = models.CharField(max_length=40, choices=TipoDocumento.choices)
+    tipo_documento = models.CharField(max_length=40, choices=TipoDocumento.choices, blank=True)
     arquivo_exemplo = models.FileField(upload_to='empresas/upload-configs/', blank=True)
     nome_arquivo_exemplo = models.CharField(max_length=255, blank=True)
     colunas_detectadas_json = models.JSONField(default=list, blank=True)
@@ -53,15 +53,9 @@ class ConfiguracaoUploadEmpresa(models.Model):
     atualizado_em = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['tipo_documento', 'nome']
+        ordering = ['nome', 'pk']
         verbose_name = 'Configuração de Upload'
         verbose_name_plural = 'Configurações de Upload'
-        constraints = [
-            models.UniqueConstraint(
-                fields=['empresa', 'tipo_documento'],
-                name='unique_upload_config_per_company_and_type',
-            )
-        ]
 
     def __str__(self):
         return f'{self.empresa.nome} - {self.nome}'

@@ -100,3 +100,17 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             instance.nome_arquivo_exemplo = preview.file_name
         instance.save()
         return instance
+
+
+class NovaConfiguracaoUploadForm(forms.ModelForm):
+    class Meta:
+        model = ConfiguracaoUploadEmpresa
+        fields = ['nome']
+        widgets = {
+            'nome': forms.TextInput(
+                attrs={
+                    'class': 'form-control',
+                    'placeholder': 'Ex.: Meta Ads Março, CRM Comercial, Financeiro Matriz',
+                }
+            ),
+        }

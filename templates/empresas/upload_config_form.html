@@ -35,6 +35,8 @@
             </div>
             {% if configuracao.nome_arquivo_exemplo %}
                 <p class="text-muted small mb-0">Último arquivo lido: {{ configuracao.nome_arquivo_exemplo }}</p>
+            {% else %}
+                <p class="text-muted small mb-0">Defina o tipo do documento e envie um arquivo de exemplo para concluir esta configuração.</p>
             {% endif %}
         </div>
         <div class="col-lg-8">

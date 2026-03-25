@@ -20,34 +20,67 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h3 class="mb-1">Configurar Uploads</h3>
-            <p class="text-muted mb-0">Crie fontes reutilizáveis de upload para esta empresa e mantenha o mapeamento salvo por tipo.</p>
+            <p class="text-muted mb-0">Crie fontes reutilizáveis de upload para esta empresa e defina o tipo e o mapeamento depois.</p>
         </div>
     </div>
     <div class="upload-config-grid">
-        {% for slot in upload_slots %}
-            {% if slot.configuracao %}
-                <article class="panel upload-config-card">
-                    <span class="eyebrow">Configuração ativa</span>
-                    <h4 class="mb-2">{{ slot.configuracao.nome }}</h4>
-                    <p class="text-muted mb-2">Tipo: {{ slot.configuracao.get_tipo_documento_display }}</p>
-                    {% if slot.configuracao.nome_arquivo_exemplo %}
-                        <p class="text-muted small mb-3">Arquivo base: {{ slot.configuracao.nome_arquivo_exemplo }}</p>
+        <button
+            type="button"
+            class="upload-config-placeholder"
+            data-bs-toggle="modal"
+            data-bs-target="#novaConfiguracaoUploadModal"
+            aria-label="Adicionar configuração de upload"
+        >
+            <span class="upload-config-plus">+</span>
+            <span class="upload-config-label">Adicionar Upload</span>
+            <span class="text-muted">Clique para criar uma nova configuração.</span>
+        </button>
+
+        {% for configuracao in configuracoes_upload %}
+            <article class="panel upload-config-card">
+                <span class="eyebrow">Configuração ativa</span>
+                <h4 class="mb-2">{{ configuracao.nome }}</h4>
+                <p class="text-muted mb-2">
+                    Tipo:
+                    {% if configuracao.tipo_documento %}
+                        {{ configuracao.get_tipo_documento_display }}
                     {% else %}
-                        <p class="text-muted small mb-3">Nenhum arquivo de exemplo configurado.</p>
+                        Não definido
                     {% endif %}
-                    <a href="{% url 'empresas:upload_config_update' empresa.pk slot.configuracao.pk %}" class="btn btn-dark mt-auto">Configurar Upload</a>
-                </article>
-            {% else %}
-                <form method="post" action="{% url 'empresas:upload_config_create' empresa.pk %}" class="upload-config-placeholder-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="tipo_documento" value="{{ slot.tipo }}">
-                    <button type="submit" class="upload-config-placeholder" aria-label="Adicionar configuração {{ slot.label }}">
-                        <span class="upload-config-plus">+</span>
-                        <span class="upload-config-label">{{ slot.label }}</span>
-                    </button>
-                </form>
-            {% endif %}
+                </p>
+                {% if configuracao.nome_arquivo_exemplo %}
+                    <p class="text-muted small mb-3">Arquivo base: {{ configuracao.nome_arquivo_exemplo }}</p>
+                {% else %}
+                    <p class="text-muted small mb-3">Nenhum arquivo de exemplo configurado.</p>
+                {% endif %}
+                <a href="{% url 'empresas:upload_config_update' empresa.pk configuracao.pk %}" class="btn btn-dark mt-auto">Configurar Upload</a>
+            </article>
         {% endfor %}
     </div>
 </section>
+
+<div class="modal fade" id="novaConfiguracaoUploadModal" tabindex="-1" aria-labelledby="novaConfiguracaoUploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="{% url 'empresas:upload_config_create' empresa.pk %}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="novaConfiguracaoUploadModalLabel">Nova configuração de upload</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-0">
+                        {{ nova_configuracao_form.nome.label_tag }}
+                        {{ nova_configuracao_form.nome }}
+                        <p class="text-muted small mt-2 mb-0">O tipo do documento será definido na próxima tela.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-dark">Criar configuração</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

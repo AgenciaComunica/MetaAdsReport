@@ -2,9 +2,9 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from types import SimpleNamespace
 
-from .forms import ConfiguracaoUploadEmpresaForm, EmpresaForm
+from .forms import ConfiguracaoUploadEmpresaForm, EmpresaForm, NovaConfiguracaoUploadForm
 from .models import ConfiguracaoUploadEmpresa, Empresa
-from .upload_config_services import build_upload_slots, get_field_schema, get_type_label, inspect_uploaded_file
+from .upload_config_services import get_field_schema, inspect_uploaded_file
 
 
 def empresa_list(request):
@@ -37,7 +37,8 @@ def empresa_detail(request, pk):
     )
     context = {
         'empresa': empresa,
-        'upload_slots': build_upload_slots(empresa),
+        'configuracoes_upload': empresa.configuracoes_upload.all(),
+        'nova_configuracao_form': NovaConfiguracaoUploadForm(),
     }
     return render(request, 'empresas/detail.html', context)
 
@@ -50,20 +51,16 @@ def upload_config_create(request, pk):
     if request.method != 'POST':
         return redirect('empresas:detail', pk=empresa.pk)
 
-    tipo_documento = request.POST.get('tipo_documento', '')
-    if tipo_documento not in dict(ConfiguracaoUploadEmpresa.TipoDocumento.choices):
-        messages.error(request, 'Tipo de upload inválido.')
-        return redirect('empresas:detail', pk=empresa.pk)
-
-    configuracao, created = ConfiguracaoUploadEmpresa.objects.get_or_create(
-        empresa=empresa,
-        tipo_documento=tipo_documento,
-        defaults={'nome': get_type_label(tipo_documento)},
-    )
-    if created:
+    form = NovaConfiguracaoUploadForm(request.POST)
+    if form.is_valid():
+        configuracao = form.save(commit=False)
+        configuracao.empresa = empresa
+        configuracao.save()
         messages.success(request, f'Configuração "{configuracao.nome}" criada com sucesso.')
     else:
-        messages.info(request, f'A configuração "{configuracao.nome}" já existe para esta empresa.')
+        for _, errors in form.errors.items():
+            for error in errors:
+                messages.error(request, error)
     return redirect('empresas:detail', pk=empresa.pk)
 
 
