@@ -23,38 +23,12 @@ from .services import (
 
 
 def concorrente_list(request):
-    queryset = ConcorrenteAd.objects.select_related('empresa').filter(categoria='Perfil importado')
-    empresa_id = request.session.get('active_company_id')
-    empresa = Empresa.objects.filter(pk=empresa_id).first() if empresa_id else None
-    competitor_status_map = {item['nome']: item for item in competitor_profiles(queryset)}
-    analyses = AnaliseConcorrencial.objects.exclude(concorrente_nome='')
-    analysis_map = {
-        (analysis.empresa_id, analysis.concorrente_nome): analysis
-        for analysis in analyses
-    }
-    ads = list(queryset[:300])
-    for ad in ads:
-        profile = competitor_status_map.get(ad.concorrente_nome.strip())
-        ad.activity_label = profile['activity_label'] if profile else 'Sem Avaliação Feita'
-        ad.activity_class = profile['activity_class'] if profile else 'is-none'
-        ad.analysis = analysis_map.get((ad.empresa_id, ad.concorrente_nome))
-        ad.has_analysis = ad.analysis is not None
-        ad.open_analysis_url = (
-            f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa.id, 'open_analysis': ad.concorrente_nome})}#analise-digital"
-            if ad.has_analysis
-            else ''
-        )
-        if ad.has_analysis and ad.activity_label == 'Sem Avaliação Feita':
-            ad.activity_label = 'Sem Ads'
-    return render(
-        request,
-        'concorrentes/list.html',
-        {
-            'ads': ads,
-            'empresa': empresa,
-            'competitor_profiles': list(competitor_status_map.values()),
-        },
-    )
+    query = {}
+    empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
+    if empresa_id:
+        query['empresa'] = empresa_id
+    query['tab'] = 'concorrentes'
+    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
 
 
 def concorrente_create(request):

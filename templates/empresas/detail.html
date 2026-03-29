@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load empresas_extras %}
 {% block page_title %}{{ empresa.nome }}{% endblock %}
 {% block content %}
 <div class="panel mt-4">
@@ -6,11 +7,16 @@
         <div>
             <h2 class="mb-1">{{ empresa.nome }}</h2>
             <p class="text-muted">{{ empresa.segmento|default:'Sem segmento informado' }}</p>
-            {% if empresa.instagram_profile_url %}
-                <p class="text-muted mb-0"><a href="{{ empresa.instagram_profile_url }}" target="_blank" rel="noreferrer">Instagram da empresa</a></p>
+            <p class="text-muted">CNPJ: {{ empresa.cnpj|default:'Não informado' }}</p>
+            {% if empresa.redes_sociais %}
+                <div class="company-social-summary">
+                    {% for rede in empresa.redes_sociais %}
+                        <a href="{{ rede.url }}" target="_blank" rel="noreferrer" class="company-social-chip" title="{{ rede.label }}" aria-label="{{ rede.label }}">{{ rede.network|social_icon }}</a>
+                    {% endfor %}
+                </div>
             {% endif %}
         </div>
-        <a href="{% url 'empresas:update' empresa.pk %}" class="btn btn-outline-dark">Editar</a>
+        <a href="{% url 'core:home' %}?edit_company={{ empresa.pk }}" class="btn btn-outline-dark">Editar</a>
     </div>
     <p>{{ empresa.observacoes|default:'Sem observações.' }}</p>
     <p class="text-muted mb-0">Criado em {{ empresa.criado_em|date:'d/m/Y H:i' }}.</p>
@@ -53,7 +59,10 @@
                 {% else %}
                     <p class="text-muted small mb-3">Nenhum arquivo de exemplo configurado.</p>
                 {% endif %}
-                <a href="{% url 'empresas:upload_config_update' empresa.pk configuracao.pk %}" class="btn btn-dark mt-auto">Configurar Upload</a>
+                <div class="d-flex gap-2 mt-auto">
+                    <a href="{% url 'empresas:upload_config_update' empresa.pk configuracao.pk %}" class="btn btn-dark flex-grow-1">Configurar Upload</a>
+                    <a href="{% url 'empresas:detail' empresa.pk %}?delete_upload={{ configuracao.pk }}" class="btn btn-outline-danger">Excluir</a>
+                </div>
             </article>
         {% endfor %}
     </div>
@@ -65,7 +74,7 @@
             <form method="post" action="{% url 'empresas:upload_config_create' empresa.pk %}">
                 <div class="modal-header">
                     <h5 class="modal-title" id="novaConfiguracaoUploadModalLabel">Nova configuração de upload</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    <a href="{% url 'empresas:detail' empresa.pk %}" class="btn-close" aria-label="Fechar"></a>
                 </div>
                 <div class="modal-body">
                     {% csrf_token %}
@@ -76,11 +85,38 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-secondary">Cancelar</a>
                     <button type="submit" class="btn btn-dark">Criar configuração</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+{% for configuracao in configuracoes_upload %}
+    <div class="modal fade {% if show_delete_upload_id == configuracao.pk|stringformat:'s' %}show{% endif %}" id="excluirConfiguracaoUploadModal{{ configuracao.pk }}" tabindex="-1" aria-labelledby="excluirConfiguracaoUploadModalLabel{{ configuracao.pk }}" aria-hidden="{% if show_delete_upload_id == configuracao.pk|stringformat:'s' %}false{% else %}true{% endif %}" {% if show_delete_upload_id == configuracao.pk|stringformat:'s' %}style="display:block;"{% endif %}>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="{% url 'empresas:upload_config_delete' empresa.pk configuracao.pk %}">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="excluirConfiguracaoUploadModalLabel{{ configuracao.pk }}">Excluir configuração</h5>
+                        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn-close" aria-label="Fechar"></a>
+                    </div>
+                    <div class="modal-body">
+                        {% csrf_token %}
+                        <p class="mb-2">Tem certeza que deseja excluir <strong>{{ configuracao.nome }}</strong>?</p>
+                        <p class="text-muted mb-0">O arquivo de exemplo e o mapeamento salvo desta configuração serão removidos.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-danger">Confirmar exclusão</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% if show_delete_upload_id == configuracao.pk|stringformat:'s' %}
+        <div class="modal-backdrop fade show"></div>
+    {% endif %}
+{% endfor %}
 {% endblock %}

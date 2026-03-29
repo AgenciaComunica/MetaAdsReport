@@ -3,7 +3,9 @@ from django.db import models
 
 class Empresa(models.Model):
     nome = models.CharField(max_length=255)
+    cnpj = models.CharField(max_length=18, blank=True)
     segmento = models.CharField(max_length=255, blank=True)
+    redes_sociais_json = models.JSONField(default=list, blank=True)
     instagram_profile_url = models.URLField(blank=True)
     ads_biblioteca_ativo = models.BooleanField(default=False)
     ads_biblioteca_query = models.CharField(max_length=255, blank=True)
@@ -27,6 +29,10 @@ class Empresa(models.Model):
 
     def __str__(self):
         return self.nome
+
+    @property
+    def redes_sociais(self):
+        return self.redes_sociais_json or []
 
 
 class ConfiguracaoUploadEmpresa(models.Model):

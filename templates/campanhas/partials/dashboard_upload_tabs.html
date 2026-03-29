@@ -1,0 +1,336 @@
+{% if dashboard_upload_tabs %}
+<div class="panel mt-4">
+    <ul class="nav nav-tabs dashboard-data-tabs" id="dashboardDataTabs" role="tablist">
+        {% for tab in dashboard_upload_tabs %}
+            <li class="nav-item" role="presentation">
+                <button
+                    class="nav-link {% if forloop.first %}active{% endif %}"
+                    id="tab-{{ tab.key }}-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#tab-{{ tab.key }}"
+                    type="button"
+                    role="tab"
+                    aria-controls="tab-{{ tab.key }}"
+                    aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                >
+                    {{ tab.title }}
+                </button>
+            </li>
+        {% endfor %}
+    </ul>
+    <div class="tab-content pt-4">
+        {% for tab in dashboard_upload_tabs %}
+            <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="tab-{{ tab.key }}" role="tabpanel" aria-labelledby="tab-{{ tab.key }}-tab">
+                {% if tab.key == 'trafego_pago' %}
+                    <div class="mt-2">
+                        {% include 'partials/kpi_cards.html' %}
+                    </div>
+                    <div class="row g-4 mt-1">
+                        <div class="col-lg-7">
+                            <div class="panel metric-slider-panel">
+                                <div class="metric-slider-header">
+                                    <h3 id="metricChartTitle">Resultados por campanha</h3>
+                                    <select id="metricChartSelect" class="form-select metric-select">
+                                        {% for chart in stacked_campaign_charts %}
+                                            <option value="{{ forloop.counter0 }}">{{ chart.metric_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div id="stackedCampaignChart" style="min-height: 320px;"></div>
+                                {{ stacked_campaign_charts|json_script:"stacked-campaign-charts-data" }}
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="panel">
+                                <h3>Comparativo entre períodos</h3>
+                                <div class="table-responsive">
+                                    <table class="table align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Métrica</th>
+                                                <th>Anterior</th>
+                                                <th>Atual</th>
+                                                <th>Variação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for row in comparison_rows %}
+                                            <tr>
+                                                <td>{{ row.label }}</td>
+                                                <td>{{ row.anterior|floatformat:2 }}</td>
+                                                <td>{{ row.atual|floatformat:2 }}</td>
+                                                <td class="{{ row.variation_class }}">
+                                                    {{ row.variacao_absoluta|floatformat:2 }}
+                                                    {% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}
+                                                </td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr><td colspan="4">Informe também um período anterior para comparar.</td></tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel mt-4">
+                        <h3>Tabela por campanha</h3>
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead><tr><th>Campanha</th><th>Investimento</th><th>Impressões</th><th>Alcance</th><th>Cliques</th><th>CTR</th><th>CPC</th><th>CPM</th><th>Resultados</th><th>CPL</th></tr></thead>
+                                <tbody>
+                                {% for row in campaign_rows %}
+                                    <tr>
+                                        <td>{{ row.campanha }}</td>
+                                        <td>R$ {{ row.investimento|floatformat:2 }}</td>
+                                        <td>{{ row.impressoes }}</td>
+                                        <td>{{ row.alcance }}</td>
+                                        <td>{{ row.cliques }}</td>
+                                        <td>{{ row.ctr|floatformat:2 }}%</td>
+                                        <td>R$ {{ row.cpc|floatformat:2 }}</td>
+                                        <td>R$ {{ row.cpm|floatformat:2 }}</td>
+                                        <td>{{ row.resultados|floatformat:2 }}</td>
+                                        <td>R$ {{ row.cpl|floatformat:2 }}</td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="10">Nenhum dado para o filtro selecionado.</td></tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% elif tab.key == 'crm_vendas' %}
+                    <div class="dashboard-tab-header">
+                        <div>
+                            <h3 class="mb-1">{{ tab.title }}</h3>
+                            <p class="text-muted mb-0">{{ tab.description }}</p>
+                        </div>
+                        <span class="text-muted small">{{ tab.config_name }}</span>
+                    </div>
+                    {% if tab.ready %}
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-3"><div class="kpi-card"><span>Registros</span><strong>{{ tab.kpis.registros }}</strong></div></div>
+                            <div class="col-md-3"><div class="kpi-card"><span>Vendas Fechadas</span><strong>{{ tab.kpis.vendas_fechadas }}</strong></div></div>
+                            <div class="col-md-3"><div class="kpi-card"><span>Receita Total</span><strong>R$ {{ tab.kpis.receita_total|floatformat:2 }}</strong></div></div>
+                            <div class="col-md-3"><div class="kpi-card"><span>Ticket Médio</span><strong>R$ {{ tab.kpis.ticket_medio|floatformat:2 }}</strong></div></div>
+                        </div>
+                        <div class="row g-4 mt-1">
+                            <div class="col-lg-4">
+                                <div class="panel">
+                                    <h3>Canais</h3>
+                                    <ul class="mb-0">
+                                        {% for label, count in tab.channels %}
+                                            <li>{{ label }}: {{ count }}</li>
+                                        {% empty %}
+                                            <li>Sem canais mapeados.</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="panel">
+                                    <h3>Vendedores</h3>
+                                    <ul class="mb-0">
+                                        {% for label, count in tab.sellers %}
+                                            <li>{{ label }}: {{ count }}</li>
+                                        {% empty %}
+                                            <li>Sem vendedores mapeados.</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="panel">
+                                    <h3>Observação</h3>
+                                    <p class="text-muted mb-0">Os dados desta aba são lidos do arquivo configurado e filtrados pelo período quando a coluna de data está mapeada.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel mt-4">
+                            <h3>Registros CRM</h3>
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead><tr><th>ID</th><th>Data</th><th>Lead</th><th>Canal</th><th>Valor</th><th>Vendedor</th><th>Status</th><th>Origem</th></tr></thead>
+                                    <tbody>
+                                    {% for row in tab.rows %}
+                                        <tr>
+                                            <td>{{ row.id }}</td>
+                                            <td>{{ row.data_contato }}</td>
+                                            <td>{{ row.nome_lead }}</td>
+                                            <td>{{ row.canal }}</td>
+                                            <td>R$ {{ row.valor_venda }}</td>
+                                            <td>{{ row.vendedor }}</td>
+                                            <td>{{ row.status_fechamento }}</td>
+                                            <td>{{ row.origem_lead }}</td>
+                                        </tr>
+                                    {% empty %}
+                                        <tr><td colspan="8">Nenhum registro disponível.</td></tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">Configure um arquivo mapeado de CRM Vendas para exibir esta aba.</p>
+                    {% endif %}
+                {% elif tab.key == 'leads_eventos' %}
+                    <div class="dashboard-tab-header">
+                        <div>
+                            <h3 class="mb-1">{{ tab.title }}</h3>
+                            <p class="text-muted mb-0">{{ tab.description }}</p>
+                        </div>
+                        <span class="text-muted small">{{ tab.config_name }}</span>
+                    </div>
+                    {% if tab.ready %}
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4"><div class="kpi-card"><span>Total de Leads</span><strong>{{ tab.kpis.leads_total }}</strong></div></div>
+                            <div class="col-md-4"><div class="kpi-card"><span>Eventos</span><strong>{{ tab.kpis.eventos_total }}</strong></div></div>
+                            <div class="col-md-4"><div class="kpi-card"><span>Idade Média</span><strong>{{ tab.kpis.idade_media|floatformat:1 }}</strong></div></div>
+                        </div>
+                        <div class="row g-4 mt-1">
+                            <div class="col-lg-4">
+                                <div class="panel">
+                                    <h3>Eventos</h3>
+                                    <ul class="mb-0">
+                                        {% for label, count in tab.events %}
+                                            <li>{{ label }}: {{ count }}</li>
+                                        {% empty %}
+                                            <li>Sem eventos mapeados.</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-lg-8">
+                                <div class="panel">
+                                    <h3>Leads de Eventos</h3>
+                                    <div class="table-responsive">
+                                        <table class="table align-middle">
+                                            <thead><tr><th>Evento</th><th>Local</th><th>Data</th><th>Lead</th><th>Instagram</th><th>Telefone</th><th>Idade</th></tr></thead>
+                                            <tbody>
+                                            {% for row in tab.rows %}
+                                                <tr>
+                                                    <td>{{ row.evento }}</td>
+                                                    <td>{{ row.local_evento }}</td>
+                                                    <td>{{ row.data_evento }}</td>
+                                                    <td>{{ row.nome_lead }}</td>
+                                                    <td>{{ row.instagram }}</td>
+                                                    <td>{{ row.telefone_contato }}</td>
+                                                    <td>{{ row.idade }}</td>
+                                                </tr>
+                                            {% empty %}
+                                                <tr><td colspan="7">Nenhum registro disponível.</td></tr>
+                                            {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">Configure um arquivo mapeado de Leads Eventos para exibir esta aba.</p>
+                    {% endif %}
+                {% elif tab.key == 'analise_completa' %}
+                    <div class="dashboard-tab-header">
+                        <div>
+                            <h3 class="mb-1">{{ tab.title }}</h3>
+                            <p class="text-muted mb-0">{{ tab.description }}</p>
+                        </div>
+                    </div>
+                    {% if tab.ready %}
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4"><div class="kpi-card"><span>Investimento Tráfego</span><strong>R$ {{ tab.kpis.investimento_trafego|floatformat:2 }}</strong></div></div>
+                            <div class="col-md-4"><div class="kpi-card"><span>Receita CRM</span><strong>R$ {{ tab.kpis.receita_crm_total|floatformat:2 }}</strong></div></div>
+                            <div class="col-md-4"><div class="kpi-card"><span>Receita via Tráfego</span><strong>R$ {{ tab.kpis.receita_trafego_estimada|floatformat:2 }}</strong></div></div>
+                            <div class="col-md-4"><div class="kpi-card"><span>ROAS Estimado</span><strong>{{ tab.kpis.roas_estimado|floatformat:2 }}x</strong></div></div>
+                            <div class="col-md-4"><div class="kpi-card"><span>Vendas via Tráfego</span><strong>{{ tab.kpis.vendas_trafego_estimada }}</strong></div></div>
+                            <div class="col-md-4"><div class="kpi-card"><span>Leads de Eventos</span><strong>{{ tab.kpis.leads_eventos }}</strong></div></div>
+                        </div>
+                        <div class="panel mt-4">
+                            <h3>Insights</h3>
+                            <ul class="mb-0">
+                                {% for insight in tab.insights %}
+                                    <li>{{ insight }}</li>
+                                {% endfor %}
+                            </ul>
+                            <p class="text-muted small mt-3 mb-0">A receita atribuída a tráfego pago é estimada a partir dos campos Origem do Lead, Canal e Tag Lead no CRM.</p>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">Configure ao menos Tráfego Pago e CRM Vendas para ter uma análise completa consistente.</p>
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="mt-4">
+    {% include 'partials/kpi_cards.html' %}
+</div>
+<div class="row g-4 mt-1">
+    <div class="col-lg-7">
+        <div class="panel metric-slider-panel">
+            <div class="metric-slider-header">
+                <h3 id="metricChartTitle">Resultados por campanha</h3>
+                <select id="metricChartSelect" class="form-select metric-select">
+                    {% for chart in stacked_campaign_charts %}
+                        <option value="{{ forloop.counter0 }}">{{ chart.metric_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="stackedCampaignChart" style="min-height: 320px;"></div>
+            {{ stacked_campaign_charts|json_script:"stacked-campaign-charts-data" }}
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="panel">
+            <h3>Comparativo entre períodos</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Métrica</th><th>Anterior</th><th>Atual</th><th>Variação</th></tr></thead>
+                    <tbody>
+                    {% for row in comparison_rows %}
+                        <tr>
+                            <td>{{ row.label }}</td>
+                            <td>{{ row.anterior|floatformat:2 }}</td>
+                            <td>{{ row.atual|floatformat:2 }}</td>
+                            <td class="{{ row.variation_class }}">
+                                {{ row.variacao_absoluta|floatformat:2 }}
+                                {% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4">Informe também um período anterior para comparar.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="panel mt-4">
+    <h3>Tabela por campanha</h3>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Campanha</th><th>Investimento</th><th>Impressões</th><th>Alcance</th><th>Cliques</th><th>CTR</th><th>CPC</th><th>CPM</th><th>Resultados</th><th>CPL</th></tr></thead>
+            <tbody>
+            {% for row in campaign_rows %}
+                <tr>
+                    <td>{{ row.campanha }}</td>
+                    <td>R$ {{ row.investimento|floatformat:2 }}</td>
+                    <td>{{ row.impressoes }}</td>
+                    <td>{{ row.alcance }}</td>
+                    <td>{{ row.cliques }}</td>
+                    <td>{{ row.ctr|floatformat:2 }}%</td>
+                    <td>R$ {{ row.cpc|floatformat:2 }}</td>
+                    <td>R$ {{ row.cpm|floatformat:2 }}</td>
+                    <td>{{ row.resultados|floatformat:2 }}</td>
+                    <td>R$ {{ row.cpl|floatformat:2 }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="10">Nenhum dado para o filtro selecionado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}

@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.dateparse import parse_date
 from django.utils.text import slugify
 
@@ -19,11 +20,12 @@ from .services import render_pdf_bytes, render_report_html
 
 
 def relatorio_list(request):
-    relatorios = Relatorio.objects.select_related('empresa')
-    company_id = request.session.get('active_company_id')
-    if company_id:
-        relatorios = relatorios.filter(empresa_id=company_id)
-    return render(request, 'relatorios/list.html', {'relatorios': relatorios})
+    query = {}
+    empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
+    if empresa_id:
+        query['empresa'] = empresa_id
+    query['tab'] = 'relatorios'
+    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
 
 
 def relatorio_generate(request):

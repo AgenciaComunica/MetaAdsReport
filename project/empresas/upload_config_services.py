@@ -113,6 +113,18 @@ def get_type_label(tipo_documento):
 
 
 def inspect_uploaded_file(file_obj_or_path, file_name=''):
+    dataframe = read_uploaded_dataframe(file_obj_or_path, file_name=file_name)
+    preview_rows = dataframe.head(5).to_dict(orient='records')
+    sanitized_rows = [{str(key): _serialize_cell(value) for key, value in row.items()} for row in preview_rows]
+    source_name = file_name or getattr(file_obj_or_path, 'name', '') or str(file_obj_or_path)
+    return UploadPreview(
+        columns=list(dataframe.columns),
+        rows=sanitized_rows,
+        file_name=Path(source_name).name,
+    )
+
+
+def read_uploaded_dataframe(file_obj_or_path, file_name=''):
     source_name = file_name or getattr(file_obj_or_path, 'name', '') or str(file_obj_or_path)
     suffix = Path(source_name).suffix.lower()
     reader = _read_excel if suffix in {'.xlsx', '.xls'} else _read_csv
@@ -120,13 +132,7 @@ def inspect_uploaded_file(file_obj_or_path, file_name=''):
     dataframe = dataframe.dropna(how='all')
     dataframe.columns = [str(column).strip() for column in dataframe.columns]
     dataframe = dataframe.fillna('')
-    preview_rows = dataframe.head(5).to_dict(orient='records')
-    sanitized_rows = [{str(key): _serialize_cell(value) for key, value in row.items()} for row in preview_rows]
-    return UploadPreview(
-        columns=list(dataframe.columns),
-        rows=sanitized_rows,
-        file_name=Path(source_name).name,
-    )
+    return dataframe
 
 
 def _read_csv(file_obj_or_path):

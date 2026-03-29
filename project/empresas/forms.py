@@ -1,25 +1,130 @@
 from django import forms
+import json
 
 from .models import ConfiguracaoUploadEmpresa, Empresa
 from .upload_config_services import get_field_schema
 
 
+SEGMENTO_CHOICES = [
+    ('', 'Selecione um segmento'),
+    ('Industria', 'Indústria'),
+    ('Comercio', 'Comércio'),
+    ('Servicos', 'Serviços'),
+    ('Tecnologia', 'Tecnologia'),
+    ('Saude', 'Saúde'),
+    ('Educacao', 'Educação'),
+    ('Financeiro', 'Financeiro'),
+    ('Imobiliario', 'Imobiliário'),
+    ('Alimentos e Bebidas', 'Alimentos e Bebidas'),
+    ('Moda e Beleza', 'Moda e Beleza'),
+    ('Logistica', 'Logística'),
+    ('Turismo e Hotelaria', 'Turismo e Hotelaria'),
+    ('Agro', 'Agro'),
+    ('Outro', 'Outro'),
+]
+
+SOCIAL_NETWORK_CHOICES = [
+    ('instagram', 'Instagram'),
+    ('facebook', 'Facebook'),
+    ('linkedin', 'LinkedIn'),
+    ('youtube', 'YouTube'),
+    ('tiktok', 'TikTok'),
+    ('x', 'X / Twitter'),
+    ('site', 'Site'),
+    ('whatsapp', 'WhatsApp'),
+    ('outro', 'Outro'),
+]
+
+SOCIAL_NETWORK_LABELS = dict(SOCIAL_NETWORK_CHOICES)
+
+
 class EmpresaForm(forms.ModelForm):
+    segmento = forms.ChoiceField(
+        choices=SEGMENTO_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    redes_sociais_payload = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
+
     class Meta:
         model = Empresa
-        fields = ['nome', 'segmento', 'instagram_profile_url', 'observacoes', 'ativo']
+        fields = ['nome', 'cnpj', 'segmento', 'observacoes', 'ativo']
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
-            'segmento': forms.TextInput(attrs={'class': 'form-control'}),
-            'instagram_profile_url': forms.URLInput(
-                attrs={
-                    'class': 'form-control',
-                    'placeholder': 'https://www.instagram.com/seu_perfil/',
-                }
-            ),
+            'cnpj': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '00.000.000/0000-00'}),
             'observacoes': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
-            'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        redes = self.instance.redes_sociais_json if self.instance.pk else []
+        if not redes and self.instance.instagram_profile_url:
+            redes = [
+                {
+                    'network': 'instagram',
+                    'label': SOCIAL_NETWORK_LABELS['instagram'],
+                    'url': self.instance.instagram_profile_url,
+                }
+            ]
+        self.fields['redes_sociais_payload'].initial = json.dumps(redes, ensure_ascii=False)
+
+    def clean_redes_sociais_payload(self):
+        payload = self.cleaned_data.get('redes_sociais_payload', '').strip()
+        if not payload:
+            return []
+
+        try:
+            items = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise forms.ValidationError('Não foi possível interpretar a lista de redes sociais.') from exc
+
+        if not isinstance(items, list):
+            raise forms.ValidationError('Formato inválido para redes sociais.')
+
+        redes = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            network = (item.get('network') or '').strip()
+            url = (item.get('url') or '').strip()
+            if not network and not url:
+                continue
+            if not network:
+                raise forms.ValidationError('Selecione a rede social antes de salvar.')
+            if network not in SOCIAL_NETWORK_LABELS:
+                raise forms.ValidationError('Rede social inválida.')
+            if not url:
+                raise forms.ValidationError('Informe a URL da rede social.')
+            try:
+                forms.URLField().clean(url)
+            except forms.ValidationError as exc:
+                raise forms.ValidationError(f'URL inválida para {SOCIAL_NETWORK_LABELS[network]}.') from exc
+            redes.append(
+                {
+                    'network': network,
+                    'label': SOCIAL_NETWORK_LABELS[network],
+                    'url': url,
+                }
+            )
+        return redes
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        redes = self.cleaned_data.get('redes_sociais_payload', [])
+        instance.redes_sociais_json = redes
+        instagram_url = ''
+        for item in redes:
+            if item.get('network') == 'instagram':
+                instagram_url = item.get('url', '')
+                break
+        instance.instagram_profile_url = instagram_url
+        if commit:
+            instance.save()
+        return instance
 
 
 class ConfiguracaoUploadEmpresaForm(forms.ModelForm):

@@ -1,8 +1,39 @@
 {% extends 'base.html' %}
 {% load ia_formatting %}
-{% block page_title %}Dashboard de campanhas{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-end mt-4">
+<div class="panel mt-4 form-panel">
+    <form method="get" class="row g-3" id="dashboardFiltersForm">
+        <input type="hidden" name="tab" value="{{ dashboard_tab }}">
+        <div class="col-md-4">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
+        <div class="col-md-4">{{ form.periodo_anterior.label_tag }}{{ form.periodo_anterior }}{{ form.data_inicio_anterior }}{{ form.data_fim_anterior }}</div>
+        <div class="col-md-4">{{ form.periodo_atual.label_tag }}{{ form.periodo_atual }}{{ form.data_inicio }}{{ form.data_fim }}</div>
+    </form>
+</div>
+<div class="panel mt-4">
+    <ul class="nav nav-tabs dashboard-data-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=trafego_pago" class="nav-link {% if dashboard_tab == 'trafego_pago' %}active{% endif %}">Tráfego Pago</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=crm_vendas" class="nav-link {% if dashboard_tab == 'crm_vendas' %}active{% endif %}">CRM Vendas</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=analise_completa" class="nav-link {% if dashboard_tab == 'analise_completa' %}active{% endif %}">Análise Completa</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=uploads" class="nav-link {% if dashboard_tab == 'uploads' %}active{% endif %}">Uploads</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=concorrentes" class="nav-link {% if dashboard_tab == 'concorrentes' %}active{% endif %}">Concorrentes</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=relatorios" class="nav-link {% if dashboard_tab == 'relatorios' %}active{% endif %}">Relatórios</a>
+        </li>
+    </ul>
+    <div class="pt-4">
+{% if dashboard_tab == 'trafego_pago' %}
+<div class="d-flex justify-content-end">
     {% if empresa %}
         <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
             {% csrf_token %}
@@ -15,13 +46,6 @@
             <button type="submit" class="btn btn-dark">Gerar Relatório</button>
         </form>
     {% endif %}
-</div>
-<div class="panel mt-4 form-panel">
-    <form method="get" class="row g-3" id="dashboardFiltersForm">
-        <div class="col-md-4">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
-        <div class="col-md-4">{{ form.periodo_anterior.label_tag }}{{ form.periodo_anterior }}{{ form.data_inicio_anterior }}{{ form.data_fim_anterior }}</div>
-        <div class="col-md-4">{{ form.periodo_atual.label_tag }}{{ form.periodo_atual }}{{ form.data_inicio }}{{ form.data_fim }}</div>
-    </form>
 </div>
 <div class="mt-4">
     {% include 'partials/kpi_cards.html' %}
@@ -46,32 +70,7 @@
             <h3>Comparativo entre períodos</h3>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead>
-                        <tr>
-                            <th>Métrica</th>
-                            <th>
-                                Anterior
-                                <div class="comparison-period-label">
-                                    {% if form.data_inicio_anterior.value and form.data_fim_anterior.value %}
-                                        {{ form.data_inicio_anterior.value|date:'d-m-y' }} até {{ form.data_fim_anterior.value|date:'d-m-y' }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </div>
-                            </th>
-                            <th>
-                                Atual
-                                <div class="comparison-period-label">
-                                    {% if form.data_inicio.value and form.data_fim.value %}
-                                        {{ form.data_inicio.value|date:'d-m-y' }} até {{ form.data_fim.value|date:'d-m-y' }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </div>
-                            </th>
-                            <th>Variação</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Métrica</th><th>Anterior</th><th>Atual</th><th>Variação</th></tr></thead>
                     <tbody>
                     {% for row in comparison_rows %}
                         <tr>
@@ -164,7 +163,7 @@
     {% elif empresa.instagram_profile_url %}
         <p class="text-muted">O Instagram da empresa será analisado ao rodar <strong>Avaliar Redes Sociais</strong>.</p>
     {% else %}
-        <p class="text-muted">Cadastre o Instagram da empresa em <strong>Editar empresa</strong> para habilitar a análise digital própria.</p>
+        <p class="text-muted">Cadastre a rede social Instagram em <strong>Editar empresa</strong> para habilitar a análise digital própria.</p>
     {% endif %}
     {% if competitor_analysis_panels %}
         <div class="accordion" id="digitalAnalysisAccordion">
@@ -212,6 +211,242 @@
             Cadastre os Concorrentes da empresa e use <strong>Avaliar Redes Sociais</strong> aqui para gerar a leitura subjetiva da IA.
         </p>
     {% endif %}
+</div>
+{% elif dashboard_tab == 'crm_vendas' %}
+<div>
+    {% if crm_vendas_tab and crm_vendas_tab.ready %}
+        <div class="dashboard-tab-header">
+            <div>
+                <h3 class="mb-1">{{ crm_vendas_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ crm_vendas_tab.description }}</p>
+            </div>
+            <span class="text-muted small">{{ crm_vendas_tab.config_name }}</span>
+        </div>
+        <div class="row g-3 mt-1">
+            <div class="col-md-3"><div class="kpi-card"><span>Registros</span><strong>{{ crm_vendas_tab.kpis.registros }}</strong></div></div>
+            <div class="col-md-3"><div class="kpi-card"><span>Vendas Fechadas</span><strong>{{ crm_vendas_tab.kpis.vendas_fechadas }}</strong></div></div>
+            <div class="col-md-3"><div class="kpi-card"><span>Receita Total</span><strong>R$ {{ crm_vendas_tab.kpis.receita_total|floatformat:2 }}</strong></div></div>
+            <div class="col-md-3"><div class="kpi-card"><span>Ticket Médio</span><strong>R$ {{ crm_vendas_tab.kpis.ticket_medio|floatformat:2 }}</strong></div></div>
+        </div>
+        <div class="row g-4 mt-1">
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Canais</h3>
+                    <ul class="mb-0">
+                        {% for label, count in crm_vendas_tab.channels %}
+                            <li>{{ label }}: {{ count }}</li>
+                        {% empty %}
+                            <li>Sem canais mapeados.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Vendedores</h3>
+                    <ul class="mb-0">
+                        {% for label, count in crm_vendas_tab.sellers %}
+                            <li>{{ label }}: {{ count }}</li>
+                        {% empty %}
+                            <li>Sem vendedores mapeados.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Observação</h3>
+                    <p class="text-muted mb-0">Os dados desta aba são lidos do arquivo configurado e filtrados pelo período quando a coluna de data está mapeada.</p>
+                </div>
+            </div>
+        </div>
+        <div class="panel mt-4">
+            <h3>Registros CRM</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>ID</th><th>Data</th><th>Lead</th><th>Canal</th><th>Valor</th><th>Vendedor</th><th>Status</th><th>Origem</th></tr></thead>
+                    <tbody>
+                    {% for row in crm_vendas_tab.rows %}
+                        <tr>
+                            <td>{{ row.id }}</td>
+                            <td>{{ row.data_contato }}</td>
+                            <td>{{ row.nome_lead }}</td>
+                            <td>{{ row.canal }}</td>
+                            <td>R$ {{ row.valor_venda }}</td>
+                            <td>{{ row.vendedor }}</td>
+                            <td>{{ row.status_fechamento }}</td>
+                            <td>{{ row.origem_lead }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="8">Nenhum registro disponível.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted mb-0">Configure um arquivo mapeado de CRM Vendas para exibir esta aba.</p>
+    {% endif %}
+</div>
+{% elif dashboard_tab == 'analise_completa' %}
+<div>
+    {% if analise_completa_tab and analise_completa_tab.ready %}
+        <div class="dashboard-tab-header">
+            <div>
+                <h3 class="mb-1">{{ analise_completa_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ analise_completa_tab.description }}</p>
+            </div>
+        </div>
+        <div class="row g-3 mt-1">
+            <div class="col-md-4"><div class="kpi-card"><span>Investimento Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.investimento_trafego|floatformat:2 }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Receita CRM</span><strong>R$ {{ analise_completa_tab.kpis.receita_crm_total|floatformat:2 }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Receita via Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.receita_trafego_estimada|floatformat:2 }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>ROAS Estimado</span><strong>{{ analise_completa_tab.kpis.roas_estimado|floatformat:2 }}x</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Vendas via Tráfego</span><strong>{{ analise_completa_tab.kpis.vendas_trafego_estimada }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Leads de Eventos</span><strong>{{ analise_completa_tab.kpis.leads_eventos }}</strong></div></div>
+        </div>
+        <div class="panel mt-4">
+            <h3>Insights</h3>
+            <ul class="mb-0">
+                {% for insight in analise_completa_tab.insights %}
+                    <li>{{ insight }}</li>
+                {% endfor %}
+            </ul>
+            <p class="text-muted small mt-3 mb-0">A receita atribuída a tráfego pago é estimada a partir dos campos Origem do Lead, Canal e Tag Lead no CRM.</p>
+        </div>
+    {% else %}
+        <p class="text-muted mb-0">Configure ao menos Tráfego Pago e CRM Vendas para ter uma análise completa consistente.</p>
+    {% endif %}
+</div>
+{% elif dashboard_tab == 'uploads' %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <div>
+        {% if empresa %}
+            <p class="text-muted mb-0">Uploads da empresa <strong>{{ empresa.nome }}</strong>.</p>
+        {% else %}
+            <p class="text-muted mb-0">Selecione uma empresa para ver os uploads.</p>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        {% if empresa %}
+            <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Configurar Uploads</a>
+        {% endif %}
+        <a href="{% url 'campanhas:upload_create' %}" class="btn btn-dark">Novo upload</a>
+    </div>
+</div>
+<div class="panel">
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Empresa</th><th>Referência</th><th>Período</th><th>Criado em</th><th></th></tr></thead>
+            <tbody>
+            {% for upload in uploads_list %}
+                <tr>
+                    <td>{{ upload.empresa.nome }}</td>
+                    <td>{{ upload.nome_referencia }}</td>
+                    <td>{{ upload.get_periodo_tipo_display }}</td>
+                    <td>{{ upload.criado_em|date:'d/m/Y H:i' }}</td>
+                    <td class="d-flex gap-2">
+                        <a class="btn btn-sm btn-outline-dark" href="{% url 'campanhas:upload_detail' upload.pk %}">Abrir</a>
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'campanhas:upload_delete' upload.pk %}">Excluir</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Nenhum upload encontrado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% elif dashboard_tab == 'concorrentes' %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <p class="text-muted mb-0">Base observável/importada de anúncios públicos dos concorrentes.</p>
+    <div class="d-flex gap-2">
+        <a href="{% url 'concorrentes:instagram_import' %}" class="btn btn-dark">Novo Concorrente</a>
+        <a href="{% url 'concorrentes:import' %}" class="btn btn-outline-dark">Importar Concorrentes</a>
+    </div>
+</div>
+<div class="panel">
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Concorrente</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th class="text-end">Ações</th></tr></thead>
+            <tbody>
+            {% for ad in concorrentes_list %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span>{{ ad.concorrente_nome }}</span>
+                            <span class="activity-pill {{ ad.activity_class }}">{{ ad.activity_label }}</span>
+                        </div>
+                    </td>
+                    <td>{{ ad.empresa.nome }}</td>
+                    <td>
+                        {% if ad.analysis %}
+                            {{ ad.analysis.criado_em|date:'d/m/Y H:i' }}
+                        {% elif ad.activity_label == 'Sem Avaliação Feita' %}
+                            -
+                        {% elif ad.data_referencia %}
+                            {{ ad.data_referencia|date:'d/m/Y' }} {{ ad.criado_em|date:'H:i' }}
+                        {% else %}
+                            {{ ad.criado_em|date:'d/m/Y H:i' }}
+                        {% endif %}
+                    </td>
+                    <td>{{ ad.plataforma }}</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'concorrentes:update' ad.pk %}">Editar</a>
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'concorrentes:delete' ad.pk %}">Excluir</a>
+                        {% if ad.has_analysis %}
+                            <a class="btn btn-sm btn-outline-dark" href="{{ ad.open_analysis_url }}">Ver análise</a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Nenhum anúncio concorrente cadastrado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% elif dashboard_tab == 'relatorios' %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <p class="text-muted mb-0">Relatórios consolidados com KPIs, leitura competitiva e insights da IA.</p>
+    {% if empresa %}
+        <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
+            {% csrf_token %}
+            <input type="hidden" name="empresa" value="{{ empresa.id }}">
+            <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
+            <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
+            <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
+            <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
+            <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ form.data_inicio.value|default:'' }} a {{ form.data_fim.value|default:'' }}">
+            <button type="submit" class="btn btn-dark">Gerar Relatório</button>
+        </form>
+    {% endif %}
+</div>
+<div class="panel">
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Título</th><th>Empresa</th><th>Período</th><th>Criado em</th><th></th></tr></thead>
+            <tbody>
+            {% for relatorio in relatorios_list %}
+                <tr>
+                    <td>{{ relatorio.titulo }}</td>
+                    <td>{{ relatorio.empresa.nome }}</td>
+                    <td>{{ relatorio.periodo_inicio|date:'d/m/Y' }} - {{ relatorio.periodo_fim|date:'d/m/Y' }}</td>
+                    <td>{{ relatorio.criado_em|date:'d/m/Y H:i' }}</td>
+                    <td class="d-flex gap-2">
+                        <a class="btn btn-sm btn-outline-dark" href="{% url 'relatorios:detail' relatorio.pk %}">Abrir</a>
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'relatorios:delete' relatorio.pk %}">Excluir</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Nenhum relatório gerado ainda.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+    </div>
 </div>
 {% endblock %}
 {% block extra_js %}

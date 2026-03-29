@@ -1,16 +1,21 @@
+from urllib.parse import urlencode
+
 from django import forms
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from core.utils import last_complete_month_ranges
 from empresas.services import empresa_digital_summary
 from empresas.models import Empresa
 from concorrentes.models import ConcorrenteAd
-from concorrentes.services import competitor_summary, competitor_summary_for_name_in_period
+from concorrentes.services import competitor_profiles, competitor_summary, competitor_summary_for_name_in_period
 from ia.models import AnaliseConcorrencial
+from relatorios.models import Relatorio
 
 from .forms import ComparePeriodForm, UploadCampanhaForm
 from .models import UploadCampanha
+from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
     campaign_comparison_table,
     COLUMN_ALIASES,
@@ -25,11 +30,12 @@ from .services import (
 
 
 def upload_list(request):
-    empresa_id = request.session.get('active_company_id')
-    uploads = UploadCampanha.objects.select_related('empresa')
+    query = {}
+    empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
     if empresa_id:
-        uploads = uploads.filter(empresa_id=empresa_id)
-    return render(request, 'campanhas/upload_list.html', {'uploads': uploads})
+        query['empresa'] = empresa_id
+    query['tab'] = 'uploads'
+    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
 
 
 def upload_create(request):
@@ -152,6 +158,10 @@ def upload_campaign_delete(request, pk):
 
 
 def dashboard(request):
+    dashboard_tab = request.GET.get('tab') or 'trafego_pago'
+    allowed_tabs = {'trafego_pago', 'crm_vendas', 'analise_completa', 'uploads', 'concorrentes', 'relatorios'}
+    if dashboard_tab not in allowed_tabs:
+        dashboard_tab = 'trafego_pago'
     chart_metrics = ['resultados', 'investimento', 'impressoes', 'alcance', 'cliques', 'ctr', 'cpc', 'cpm', 'cpl']
     default_ranges = last_complete_month_ranges()
     initial = {
@@ -246,7 +256,39 @@ def dashboard(request):
         if competitor['nome'] in analysis_names and competitor.get('activity_label') == 'Sem Avaliação Feita':
             competitor['activity_label'] = 'Sem Ads'
 
+    dashboard_upload_tabs = build_dashboard_upload_tabs(empresa, queryset, current_start, current_end) if empresa else []
+    dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
+
+    uploads_list = UploadCampanha.objects.select_related('empresa')
+    uploads_list = uploads_list.filter(empresa=empresa) if empresa else uploads_list
+
+    concorrentes_list_qs = ConcorrenteAd.objects.select_related('empresa').filter(categoria='Perfil importado')
+    concorrentes_list_qs = concorrentes_list_qs.filter(empresa=empresa) if empresa else concorrentes_list_qs
+    competitor_status_map = {item['nome']: item for item in competitor_profiles(concorrentes_list_qs)}
+    analyses_map = {
+        (analysis.empresa_id, analysis.concorrente_nome): analysis
+        for analysis in AnaliseConcorrencial.objects.exclude(concorrente_nome='')
+    }
+    concorrentes_list = list(concorrentes_list_qs[:300])
+    for ad in concorrentes_list:
+        profile = competitor_status_map.get(ad.concorrente_nome.strip())
+        ad.activity_label = profile['activity_label'] if profile else 'Sem Avaliação Feita'
+        ad.activity_class = profile['activity_class'] if profile else 'is-none'
+        ad.analysis = analyses_map.get((ad.empresa_id, ad.concorrente_nome))
+        ad.has_analysis = ad.analysis is not None
+        ad.open_analysis_url = (
+            f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa_id, 'tab': 'overview', 'open_analysis': ad.concorrente_nome})}#analise-digital"
+            if ad.has_analysis
+            else ''
+        )
+        if ad.has_analysis and ad.activity_label == 'Sem Avaliação Feita':
+            ad.activity_label = 'Sem Ads'
+
+    relatorios_list = Relatorio.objects.select_related('empresa')
+    relatorios_list = relatorios_list.filter(empresa=empresa) if empresa else relatorios_list
+
     context = {
+        'dashboard_tab': dashboard_tab,
         'form': form,
         'empresa': empresa,
         'periodo_atual_resumo': f'{current_start:%d-%m-%y} até {current_end:%d-%m-%y}',
@@ -264,5 +306,11 @@ def dashboard(request):
         'competitor_analysis_panels': competitor_analysis_panels,
         'open_analysis': open_analysis,
         'competitor_summary': overall_competitor_summary,
+        'dashboard_upload_tabs': dashboard_upload_tabs,
+        'crm_vendas_tab': dashboard_upload_tab_map.get('crm_vendas'),
+        'analise_completa_tab': dashboard_upload_tab_map.get('analise_completa'),
+        'uploads_list': uploads_list,
+        'concorrentes_list': concorrentes_list,
+        'relatorios_list': relatorios_list,
     }
     return render(request, 'campanhas/dashboard.html', context)

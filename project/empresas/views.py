@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from types import SimpleNamespace
 
 from .forms import ConfiguracaoUploadEmpresaForm, EmpresaForm, NovaConfiguracaoUploadForm
@@ -12,22 +13,12 @@ def empresa_list(request):
 
 
 def empresa_create(request):
-    form = EmpresaForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        empresa = form.save()
-        messages.success(request, 'Empresa cadastrada com sucesso.')
-        return redirect('empresas:detail', pk=empresa.pk)
-    return render(request, 'empresas/form.html', {'form': form, 'title': 'Nova empresa'})
+    return redirect('core:home')
 
 
 def empresa_update(request, pk):
-    empresa = get_object_or_404(Empresa, pk=pk)
-    form = EmpresaForm(request.POST or None, instance=empresa)
-    if request.method == 'POST' and form.is_valid():
-        form.save()
-        messages.success(request, 'Empresa atualizada com sucesso.')
-        return redirect('empresas:detail', pk=empresa.pk)
-    return render(request, 'empresas/form.html', {'form': form, 'title': 'Editar empresa', 'empresa': empresa})
+    get_object_or_404(Empresa, pk=pk)
+    return redirect(f"{reverse('core:home')}?edit_company={pk}")
 
 
 def empresa_detail(request, pk):
@@ -39,6 +30,7 @@ def empresa_detail(request, pk):
         'empresa': empresa,
         'configuracoes_upload': empresa.configuracoes_upload.all(),
         'nova_configuracao_form': NovaConfiguracaoUploadForm(),
+        'show_delete_upload_id': request.GET.get('delete_upload', ''),
     }
     return render(request, 'empresas/detail.html', context)
 
@@ -148,6 +140,23 @@ def upload_config_update(request, empresa_pk, config_pk):
         'has_example_file': bool(configuracao.arquivo_exemplo or configuracao.nome_arquivo_exemplo),
     }
     return render(request, 'empresas/upload_config_form.html', context)
+
+
+def upload_config_delete(request, empresa_pk, config_pk):
+    empresa = get_object_or_404(Empresa, pk=empresa_pk)
+    configuracao = get_object_or_404(
+        ConfiguracaoUploadEmpresa.objects.select_related('empresa'),
+        pk=config_pk,
+        empresa=empresa,
+    )
+    if request.method == 'POST':
+        nome = configuracao.nome
+        if configuracao.arquivo_exemplo:
+            configuracao.arquivo_exemplo.delete(save=False)
+        configuracao.delete()
+        messages.success(request, f'Configuração "{nome}" removida com sucesso.')
+        return redirect('empresas:detail', pk=empresa.pk)
+    return redirect(f"{reverse('empresas:detail', kwargs={'pk': empresa.pk})}?delete_upload={configuracao.pk}")
 
 
 def empresa_delete(request, pk):

@@ -1,34 +1,263 @@
 {% extends 'base.html' %}
-{% block page_title %}Visão geral{% endblock %}
+{% load empresas_extras %}
+{% block page_title %}Empresas{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
-    <p class="text-muted mb-0">Empresas cadastradas no sistema.</p>
-    <a href="{% url 'empresas:create' %}" class="btn btn-dark">Nova empresa</a>
-</div>
 <div class="panel">
-    <div class="table-responsive">
-        <table class="table align-middle">
-            <thead><tr><th>Nome</th><th>Segmento</th><th>Instagram</th><th>Status</th><th>Criado em</th><th class="text-end">Ações</th></tr></thead>
-            <tbody>
-            {% for empresa in empresas %}
-                <tr>
-                    <td>{{ empresa.nome }}</td>
-                    <td>{{ empresa.segmento|default:'-' }}</td>
-                    <td>{% if empresa.instagram_profile_url %}<a href="{{ empresa.instagram_profile_url }}" target="_blank" rel="noreferrer">Perfil</a>{% else %}-{% endif %}</td>
-                    <td>{% if empresa.ativo %}Ativa{% else %}Inativa{% endif %}</td>
-                    <td>{{ empresa.criado_em|date:'d/m/Y H:i' }}</td>
-                    <td class="text-end d-flex gap-2 justify-content-end">
-                        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-sm btn-outline-dark">Perfil</a>
-                        <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}" class="btn btn-sm btn-outline-dark">Ver relatório</a>
-                        <a href="{% url 'empresas:update' empresa.pk %}" class="btn btn-sm btn-outline-secondary">Editar</a>
-                        <a href="{% url 'empresas:delete' empresa.pk %}" class="btn btn-sm btn-outline-danger">Excluir</a>
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="6">Nenhuma empresa cadastrada.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+    <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-4">
+        <div>
+            <h3 class="mb-1">Empresas cadastradas</h3>
+            <p class="text-muted mb-0">Gerencie as empresas em cards e filtre rapidamente pelo nome.</p>
+        </div>
+        <div class="company-search-wrap">
+            <label for="companySearchInput" class="form-label mb-1">Pesquisar empresa</label>
+            <input type="search" id="companySearchInput" class="form-control" placeholder="Digite o nome da empresa" data-company-search>
+        </div>
+    </div>
+
+    <div class="company-card-grid" data-company-grid>
+        <button
+            type="button"
+            class="company-card company-card-placeholder"
+            data-bs-toggle="modal"
+            data-bs-target="#novaEmpresaModal"
+        >
+            <span class="company-card-plus">+</span>
+            <strong>Nova empresa</strong>
+            <span class="text-muted">Clique para cadastrar uma nova empresa.</span>
+        </button>
+
+        {% for empresa in empresas %}
+            <article class="company-card" data-company-card data-company-name="{{ empresa.nome|lower }}">
+                <div class="company-card-head">
+                    <div>
+                        <span class="eyebrow">Empresa</span>
+                        <h3 class="company-card-title">{{ empresa.nome }}</h3>
+                    </div>
+                    <span class="badge {% if empresa.ativo %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                        {% if empresa.ativo %}Ativa{% else %}Inativa{% endif %}
+                    </span>
+                </div>
+                <p class="text-muted mb-2">{{ empresa.segmento|default:'Sem segmento informado' }}</p>
+                <p class="text-muted small mb-1">CNPJ: {{ empresa.cnpj|default:'Não informado' }}</p>
+                <p class="text-muted small mb-1">Criada em {{ empresa.criado_em|date:'d/m/Y H:i' }}</p>
+                <div class="company-social-summary mb-3">
+                    {% if empresa.redes_sociais %}
+                        {% for rede in empresa.redes_sociais %}
+                            <a href="{{ rede.url }}" target="_blank" rel="noreferrer" class="company-social-chip" title="{{ rede.label }}" aria-label="{{ rede.label }}">{{ rede.network|social_icon }}</a>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted small mb-0">Sem redes sociais cadastradas</p>
+                    {% endif %}
+                </div>
+                <div class="company-card-actions">
+                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=uploads" class="btn btn-sm btn-outline-dark">Uploads</a>
+                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=relatorios" class="btn btn-sm btn-outline-dark">Relatórios</a>
+                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=concorrentes" class="btn btn-sm btn-outline-dark">Concorrentes</a>
+                    <a href="{{ edit_company_base_url }}?edit_company={{ empresa.pk }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                    <a href="{% url 'core:home' %}?delete_company={{ empresa.pk }}" class="btn btn-sm btn-outline-danger">Excluir</a>
+                </div>
+            </article>
+        {% empty %}
+            <div class="company-empty-state">
+                <p class="text-muted mb-0">Nenhuma empresa cadastrada ainda.</p>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="company-empty-state mt-4 d-none" data-company-empty-search>
+        <p class="text-muted mb-0">Nenhuma empresa encontrada para esse filtro.</p>
     </div>
 </div>
+
+<div class="modal fade {% if show_create_modal %}show{% endif %}" id="novaEmpresaModal" tabindex="-1" aria-labelledby="novaEmpresaModalLabel" aria-hidden="{% if show_create_modal %}false{% else %}true{% endif %}" {% if show_create_modal %}style="display:block;"{% endif %}>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="novaEmpresaModalLabel">Nova empresa</h5>
+                    <a href="{% url 'core:home' %}" class="btn-close" aria-label="Fechar"></a>
+                </div>
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ empresa_form.nome.label_tag }}
+                            {{ empresa_form.nome }}
+                            {% if empresa_form.nome.errors %}<div class="text-danger small mt-1">{{ empresa_form.nome.errors|join:', ' }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            {{ empresa_form.cnpj.label_tag }}
+                            {{ empresa_form.cnpj }}
+                            {% if empresa_form.cnpj.errors %}<div class="text-danger small mt-1">{{ empresa_form.cnpj.errors|join:', ' }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            {{ empresa_form.segmento.label_tag }}
+                            {{ empresa_form.segmento }}
+                            {% if empresa_form.segmento.errors %}<div class="text-danger small mt-1">{{ empresa_form.segmento.errors|join:', ' }}</div>{% endif %}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label mb-2">Redes sociais</label>
+                            {{ empresa_form.redes_sociais_payload }}
+                            <div class="social-links-builder" data-social-links data-input-id="{{ empresa_form.redes_sociais_payload.id_for_label }}">
+                                <div class="social-links-list" data-social-links-list></div>
+                                <button type="button" class="social-link-placeholder" data-social-links-add>
+                                    <span class="social-link-placeholder-icon">+</span>
+                                    <span>Adicionar rede social</span>
+                                </button>
+                            </div>
+                            {% if empresa_form.redes_sociais_payload.errors %}<div class="text-danger small mt-1">{{ empresa_form.redes_sociais_payload.errors|join:', ' }}</div>{% endif %}
+                        </div>
+                        <div class="col-12">
+                            {{ empresa_form.observacoes.label_tag }}
+                            {{ empresa_form.observacoes }}
+                            {% if empresa_form.observacoes.errors %}<div class="text-danger small mt-1">{{ empresa_form.observacoes.errors|join:', ' }}</div>{% endif %}
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                {{ empresa_form.ativo }}
+                                <label class="form-check-label" for="{{ empresa_form.ativo.id_for_label }}">Empresa ativa</label>
+                            </div>
+                            {% if empresa_form.ativo.errors %}<div class="text-danger small mt-1">{{ empresa_form.ativo.errors|join:', ' }}</div>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="{% url 'core:home' %}" class="btn btn-outline-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-dark">Salvar empresa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% if show_create_modal %}
+    <div class="modal-backdrop fade show"></div>
+{% endif %}
+
+{% for empresa in empresas %}
+    {% with edit_form=edit_forms|get_item:empresa.pk %}
+        <div class="modal fade {% if show_edit_modal_id == empresa.pk|stringformat:'s' %}show{% endif %}" id="editarEmpresaModal{{ empresa.pk }}" tabindex="-1" aria-labelledby="editarEmpresaModalLabel{{ empresa.pk }}" aria-hidden="{% if show_edit_modal_id == empresa.pk|stringformat:'s' %}false{% else %}true{% endif %}" {% if show_edit_modal_id == empresa.pk|stringformat:'s' %}style="display:block;"{% endif %}>
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'core:home' %}">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="editarEmpresaModalLabel{{ empresa.pk }}">Editar empresa</h5>
+                            <a href="{% url 'core:home' %}" class="btn-close" aria-label="Fechar"></a>
+                        </div>
+                        <div class="modal-body">
+                            {% csrf_token %}
+                            <input type="hidden" name="company_action" value="update">
+                            <input type="hidden" name="empresa_id" value="{{ empresa.pk }}">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    {{ edit_form.nome.label_tag }}
+                                    {{ edit_form.nome }}
+                                    {% if edit_form.nome.errors %}<div class="text-danger small mt-1">{{ edit_form.nome.errors|join:', ' }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ edit_form.cnpj.label_tag }}
+                                    {{ edit_form.cnpj }}
+                                    {% if edit_form.cnpj.errors %}<div class="text-danger small mt-1">{{ edit_form.cnpj.errors|join:', ' }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ edit_form.segmento.label_tag }}
+                                    {{ edit_form.segmento }}
+                                    {% if edit_form.segmento.errors %}<div class="text-danger small mt-1">{{ edit_form.segmento.errors|join:', ' }}</div>{% endif %}
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label mb-2">Redes sociais</label>
+                                    {{ edit_form.redes_sociais_payload }}
+                                    <div class="social-links-builder" data-social-links data-input-id="{{ edit_form.redes_sociais_payload.id_for_label }}">
+                                        <div class="social-links-list" data-social-links-list></div>
+                                        <button type="button" class="social-link-placeholder" data-social-links-add>
+                                            <span class="social-link-placeholder-icon">+</span>
+                                            <span>Adicionar rede social</span>
+                                        </button>
+                                    </div>
+                                    {% if edit_form.redes_sociais_payload.errors %}<div class="text-danger small mt-1">{{ edit_form.redes_sociais_payload.errors|join:', ' }}</div>{% endif %}
+                                </div>
+                                <div class="col-12">
+                                    {{ edit_form.observacoes.label_tag }}
+                                    {{ edit_form.observacoes }}
+                                    {% if edit_form.observacoes.errors %}<div class="text-danger small mt-1">{{ edit_form.observacoes.errors|join:', ' }}</div>{% endif %}
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        {{ edit_form.ativo }}
+                                        <label class="form-check-label" for="{{ edit_form.ativo.id_for_label }}">Empresa ativa</label>
+                                    </div>
+                                    {% if edit_form.ativo.errors %}<div class="text-danger small mt-1">{{ edit_form.ativo.errors|join:', ' }}</div>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <a href="{% url 'core:home' %}" class="btn btn-outline-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-dark">Salvar alterações</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% if show_edit_modal_id == empresa.pk|stringformat:'s' %}
+            <div class="modal-backdrop fade show"></div>
+        {% endif %}
+    {% endwith %}
+{% endfor %}
+
+{% for empresa in empresas %}
+    <div class="modal fade {% if show_delete_modal_id == empresa.pk|stringformat:'s' %}show{% endif %}" id="excluirEmpresaModal{{ empresa.pk }}" tabindex="-1" aria-labelledby="excluirEmpresaModalLabel{{ empresa.pk }}" aria-hidden="{% if show_delete_modal_id == empresa.pk|stringformat:'s' %}false{% else %}true{% endif %}" {% if show_delete_modal_id == empresa.pk|stringformat:'s' %}style="display:block;"{% endif %}>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="{% url 'empresas:delete' empresa.pk %}">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="excluirEmpresaModalLabel{{ empresa.pk }}">Excluir empresa</h5>
+                        <a href="{% url 'core:home' %}" class="btn-close" aria-label="Fechar"></a>
+                    </div>
+                    <div class="modal-body">
+                        {% csrf_token %}
+                        <p class="mb-2">Tem certeza que deseja excluir <strong>{{ empresa.nome }}</strong>?</p>
+                        <p class="text-muted mb-0">Todos os dados vinculados a esta empresa também serão removidos.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{% url 'core:home' %}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-danger">Confirmar exclusão</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% if show_delete_modal_id == empresa.pk|stringformat:'s' %}
+        <div class="modal-backdrop fade show"></div>
+    {% endif %}
+{% endfor %}
+
+<template id="socialLinkRowTemplate">
+    <div class="social-link-row" data-social-link-row>
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <select class="form-select" data-social-link-network>
+                    <option value="">Selecione a rede</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="linkedin">LinkedIn</option>
+                    <option value="youtube">YouTube</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="x">X / Twitter</option>
+                    <option value="site">Site</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="outro">Outro</option>
+                </select>
+            </div>
+            <div class="col-md-7">
+                <input type="url" class="form-control" data-social-link-url placeholder="https://">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-outline-danger social-link-remove" data-social-link-remove aria-label="Remover rede social">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M6.5 1h3l.5 1H13a.5.5 0 0 1 0 1h-.6l-.6 9.1A2 2 0 0 1 9.8 14H6.2a2 2 0 0 1-1.99-1.9L3.6 3H3a.5.5 0 0 1 0-1h3zm-1.3 2 .52 8.98a1 1 0 0 0 1 .94h3.56a1 1 0 0 0 1-.94L11.8 3zm1.8 1.5a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
 {% endblock %}
