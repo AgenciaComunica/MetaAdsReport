@@ -27,14 +27,31 @@ def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, pe
 
 def build_traffic_tab(config, queryset):
     summary = summarize_metrics(queryset)
+    metric_cards = _build_metric_cards(
+        summary,
+        config.metricas_painel_json if config else [],
+        {
+            'investimento': ('Investimento', lambda value: f'R$ {value:.2f}'),
+            'impressoes': ('Impressões', lambda value: str(value)),
+            'alcance': ('Alcance', lambda value: str(value)),
+            'cliques': ('Cliques', lambda value: str(value)),
+            'ctr': ('CTR', lambda value: f'{value:.2f}%'),
+            'cpc': ('CPC', lambda value: f'R$ {value:.2f}'),
+            'cpm': ('CPM', lambda value: f'R$ {value:.2f}'),
+            'resultados': ('Resultados', lambda value: f'{value:.2f}'),
+            'cpl': ('CPL', lambda value: f'R$ {value:.2f}'),
+        },
+    )
     return {
         'key': 'trafego_pago',
-        'title': 'Tráfego Pago',
+        'title': config.nome if config else 'Tráfego Pago',
+        'config_id': config.pk if config else None,
         'configured': bool(config),
         'ready': bool(config) and queryset.exists(),
         'config_name': config.nome if config else '',
         'description': 'Dados consolidados do dashboard atual de campanhas.',
         'kpis': summary,
+        'metric_cards': metric_cards,
         'campaign_rows': campaign_table(queryset),
     }
 
@@ -48,20 +65,32 @@ def build_crm_tab(config, period_start=None, period_end=None):
     sales_rows = [row for row in rows if str(row.get('status_fechamento', '')).strip().lower() in closed_status]
     channels = _top_values(rows, 'canal')
     sellers = _top_values(rows, 'vendedor')
+    kpis = {
+        'registros': len(rows),
+        'vendas_fechadas': len(sales_rows),
+        'receita_total': total_revenue,
+        'ticket_medio': (total_revenue / Decimal(len(sales_rows))) if sales_rows else Decimal('0'),
+    }
     return {
         'key': 'crm_vendas',
-        'title': 'CRM Vendas',
+        'title': config.nome,
+        'config_id': config.pk,
         'configured': True,
         'ready': bool(rows),
         'config_name': config.nome,
         'description': 'Leitura do arquivo configurado para CRM e vendas.',
         'rows': rows[:20],
-        'kpis': {
-            'registros': len(rows),
-            'vendas_fechadas': len(sales_rows),
-            'receita_total': total_revenue,
-            'ticket_medio': (total_revenue / Decimal(len(sales_rows))) if sales_rows else Decimal('0'),
-        },
+        'kpis': kpis,
+        'metric_cards': _build_metric_cards(
+            kpis,
+            config.metricas_painel_json,
+            {
+                'registros': ('Registros', lambda value: str(value)),
+                'vendas_fechadas': ('Vendas Fechadas', lambda value: str(value)),
+                'receita_total': ('Receita Total', lambda value: f'R$ {value:.2f}'),
+                'ticket_medio': ('Ticket Médio', lambda value: f'R$ {value:.2f}'),
+            },
+        ),
         'channels': channels,
         'sellers': sellers,
     }
@@ -73,19 +102,30 @@ def build_leads_tab(config, period_start=None, period_end=None):
     rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_evento')
     ages = [_to_decimal(row.get('idade')) for row in rows if row.get('idade') not in ('', None)]
     avg_age = (sum(ages, Decimal('0')) / Decimal(len(ages))) if ages else Decimal('0')
+    kpis = {
+        'leads_total': len(rows),
+        'eventos_total': len({row.get('evento') for row in rows if row.get('evento')}),
+        'idade_media': avg_age,
+    }
     return {
         'key': 'leads_eventos',
-        'title': 'Leads Eventos',
+        'title': config.nome,
+        'config_id': config.pk,
         'configured': True,
         'ready': bool(rows),
         'config_name': config.nome,
         'description': 'Leads captados em eventos a partir do arquivo configurado.',
         'rows': rows[:20],
-        'kpis': {
-            'leads_total': len(rows),
-            'eventos_total': len({row.get('evento') for row in rows if row.get('evento')}),
-            'idade_media': avg_age,
-        },
+        'kpis': kpis,
+        'metric_cards': _build_metric_cards(
+            kpis,
+            config.metricas_painel_json,
+            {
+                'leads_total': ('Total de Leads', lambda value: str(value)),
+                'eventos_total': ('Eventos', lambda value: str(value)),
+                'idade_media': ('Idade Média', lambda value: f'{value:.1f}'),
+            },
+        ),
         'events': _top_values(rows, 'evento'),
     }
 
@@ -204,3 +244,14 @@ def _is_paid_traffic_sale(row):
         ]
     ).lower()
     return any(term in haystack for term in PAID_TRAFFIC_HINTS)
+
+
+def _build_metric_cards(kpis, selected_keys, formatters):
+    keys = selected_keys or list(formatters.keys())
+    cards = []
+    for key in keys:
+        if key not in formatters:
+            continue
+        label, formatter = formatters[key]
+        cards.append({'label': label, 'value': formatter(kpis.get(key, 0))})
+    return cards

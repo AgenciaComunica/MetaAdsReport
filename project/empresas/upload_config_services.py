@@ -49,6 +49,31 @@ UPLOAD_FIELD_SCHEMAS = {
     ],
 }
 
+PANEL_METRIC_SCHEMAS = {
+    ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO: [
+        {'key': 'investimento', 'label': 'Investimento'},
+        {'key': 'impressoes', 'label': 'Impressões'},
+        {'key': 'alcance', 'label': 'Alcance'},
+        {'key': 'cliques', 'label': 'Cliques'},
+        {'key': 'ctr', 'label': 'CTR'},
+        {'key': 'cpc', 'label': 'CPC'},
+        {'key': 'cpm', 'label': 'CPM'},
+        {'key': 'resultados', 'label': 'Resultados'},
+        {'key': 'cpl', 'label': 'CPL'},
+    ],
+    ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS: [
+        {'key': 'registros', 'label': 'Registros'},
+        {'key': 'vendas_fechadas', 'label': 'Vendas Fechadas'},
+        {'key': 'receita_total', 'label': 'Receita Total'},
+        {'key': 'ticket_medio', 'label': 'Ticket Médio'},
+    ],
+    ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS: [
+        {'key': 'leads_total', 'label': 'Total de Leads'},
+        {'key': 'eventos_total', 'label': 'Eventos'},
+        {'key': 'idade_media', 'label': 'Idade Média'},
+    ],
+}
+
 LEGACY_TYPE_MAP = {
     'crm': ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS,
     'vendas': ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS,
@@ -110,6 +135,10 @@ def get_field_schema(tipo_documento):
 
 def get_type_label(tipo_documento):
     return dict(UPLOAD_TYPE_CHOICES).get(tipo_documento, tipo_documento)
+
+
+def get_panel_metric_schema(tipo_documento):
+    return PANEL_METRIC_SCHEMAS.get(tipo_documento, [])
 
 
 def inspect_uploaded_file(file_obj_or_path, file_name=''):

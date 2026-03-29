@@ -24,7 +24,7 @@ def relatorio_list(request):
     empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
     if empresa_id:
         query['empresa'] = empresa_id
-    query['tab'] = 'relatorios'
+    query['tab'] = 'analise_completa'
     return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
 
 

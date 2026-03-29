@@ -1,6 +1,7 @@
 from django import forms
 
 from empresas.models import Empresa
+from empresas.models import ConfiguracaoUploadEmpresa
 
 from .models import UploadCampanha
 
@@ -30,6 +31,26 @@ class UploadCampanhaForm(forms.ModelForm):
         self.fields['empresa'].queryset = Empresa.objects.order_by('nome')
         if empresa_inicial:
             self.fields['empresa'].initial = empresa_inicial
+
+
+class UploadPainelArquivoForm(forms.Form):
+    arquivo = forms.FileField(
+        label='Arquivo',
+        widget=forms.FileInput(
+            attrs={
+                'class': 'form-control',
+                'accept': '.csv,.txt,.xlsx,.xls',
+            }
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.configuracao = kwargs.pop('configuracao', None)
+        super().__init__(*args, **kwargs)
+
+    @property
+    def tipo_documento(self):
+        return self.configuracao.tipo_documento if self.configuracao else ''
 
 
 class ComparePeriodForm(forms.Form):

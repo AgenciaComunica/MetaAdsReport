@@ -2,7 +2,7 @@ from django import forms
 import json
 
 from .models import ConfiguracaoUploadEmpresa, Empresa
-from .upload_config_services import get_field_schema
+from .upload_config_services import get_field_schema, get_panel_metric_schema
 
 
 SEGMENTO_CHOICES = [
@@ -156,6 +156,17 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         )
         self.mapping_enabled = bool(columns) and bool(self.document_type)
         self.require_mapping = require_mapping and self.mapping_enabled
+        selected_metrics = set(self.instance.metricas_painel_json or [])
+
+        if self.document_type:
+            for metric_def in get_panel_metric_schema(self.document_type):
+                key = metric_def['key']
+                self.fields[f'metric__{key}'] = forms.BooleanField(
+                    required=False,
+                    label=metric_def['label'],
+                    initial=(key in selected_metrics) or not selected_metrics,
+                    widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+                )
 
         if not self.mapping_enabled:
             return
@@ -198,6 +209,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         instance = self.save(commit=False)
         mapping = {}
         principais = []
+        metricas = []
         for field_def in get_field_schema(instance.tipo_documento):
             key = field_def['key']
             mapped_column = self.cleaned_data.get(f'map__{key}')
@@ -206,8 +218,14 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             if self.cleaned_data.get(f'primary__{key}'):
                 principais.append(key)
 
+        for metric_def in get_panel_metric_schema(instance.tipo_documento):
+            key = metric_def['key']
+            if self.cleaned_data.get(f'metric__{key}'):
+                metricas.append(key)
+
         instance.mapeamento_json = mapping
         instance.campos_principais_json = principais
+        instance.metricas_painel_json = metricas
         if preview:
             instance.colunas_detectadas_json = preview.columns
             instance.preview_json = preview.rows

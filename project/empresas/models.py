@@ -50,6 +50,7 @@ class ConfiguracaoUploadEmpresa(models.Model):
     preview_json = models.JSONField(default=list, blank=True)
     mapeamento_json = models.JSONField(default=dict, blank=True)
     campos_principais_json = models.JSONField(default=list, blank=True)
+    metricas_painel_json = models.JSONField(default=list, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 

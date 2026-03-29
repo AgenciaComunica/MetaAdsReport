@@ -50,8 +50,8 @@
                     {% endif %}
                 </div>
                 <div class="company-card-actions">
-                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=uploads" class="btn btn-sm btn-outline-dark">Uploads</a>
-                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=relatorios" class="btn btn-sm btn-outline-dark">Relatórios</a>
+                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=trafego_pago" class="btn btn-sm btn-outline-dark">Uploads</a>
+                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=analise_completa" class="btn btn-sm btn-outline-dark">Relatórios</a>
                     <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}&tab=concorrentes" class="btn btn-sm btn-outline-dark">Concorrentes</a>
                     <a href="{{ edit_company_base_url }}?edit_company={{ empresa.pk }}" class="btn btn-sm btn-outline-secondary">Editar</a>
                     <a href="{% url 'core:home' %}?delete_company={{ empresa.pk }}" class="btn btn-sm btn-outline-danger">Excluir</a>

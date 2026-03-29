@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from .forms import ConfiguracaoUploadEmpresaForm, EmpresaForm, NovaConfiguracaoUploadForm
 from .models import ConfiguracaoUploadEmpresa, Empresa
-from .upload_config_services import get_field_schema, inspect_uploaded_file
+from .upload_config_services import get_field_schema, get_panel_metric_schema, inspect_uploaded_file
 
 
 def empresa_list(request):
@@ -129,6 +129,16 @@ def upload_config_update(request, empresa_pk, config_pk):
                 }
             )
 
+    metric_rows = []
+    if form.document_type:
+        for item in get_panel_metric_schema(form.document_type):
+            metric_rows.append(
+                {
+                    'label': item['label'],
+                    'field': form[f'metric__{item["key"]}'],
+                }
+            )
+
     context = {
         'empresa': empresa,
         'configuracao': configuracao,
@@ -136,6 +146,7 @@ def upload_config_update(request, empresa_pk, config_pk):
         'preview_rows': preview.rows if preview else configuracao.preview_json,
         'preview_columns': preview.columns if preview else configuracao.colunas_detectadas_json,
         'mapping_rows': mapping_rows,
+        'metric_rows': metric_rows,
         'show_mapping': bool((preview.columns if preview else configuracao.colunas_detectadas_json) and form.document_type),
         'has_example_file': bool(configuracao.arquivo_exemplo or configuracao.nome_arquivo_exemplo),
     }

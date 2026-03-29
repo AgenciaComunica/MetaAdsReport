@@ -25,8 +25,8 @@
 <section class="mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="mb-1">Configurar Uploads</h3>
-            <p class="text-muted mb-0">Crie fontes reutilizáveis de upload para esta empresa e defina o tipo e o mapeamento depois.</p>
+            <h3 class="mb-1">Configurar Painéis</h3>
+            <p class="text-muted mb-0">Defina os painéis da empresa, como os arquivos são enviados e mapeados e quais análises alimentarão o dashboard.</p>
         </div>
     </div>
     <div class="upload-config-grid">
@@ -38,8 +38,8 @@
             aria-label="Adicionar configuração de upload"
         >
             <span class="upload-config-plus">+</span>
-            <span class="upload-config-label">Adicionar Upload</span>
-            <span class="text-muted">Clique para criar uma nova configuração.</span>
+            <span class="upload-config-label">Adicionar Painel</span>
+            <span class="text-muted">Clique para criar uma nova configuração de painel.</span>
         </button>
 
         {% for configuracao in configuracoes_upload %}
@@ -60,7 +60,7 @@
                     <p class="text-muted small mb-3">Nenhum arquivo de exemplo configurado.</p>
                 {% endif %}
                 <div class="d-flex gap-2 mt-auto">
-                    <a href="{% url 'empresas:upload_config_update' empresa.pk configuracao.pk %}" class="btn btn-dark flex-grow-1">Configurar Upload</a>
+                    <a href="{% url 'empresas:upload_config_update' empresa.pk configuracao.pk %}" class="btn btn-dark flex-grow-1">Configurar Painel</a>
                     <a href="{% url 'empresas:detail' empresa.pk %}?delete_upload={{ configuracao.pk }}" class="btn btn-outline-danger">Excluir</a>
                 </div>
             </article>
@@ -73,7 +73,7 @@
         <div class="modal-content">
             <form method="post" action="{% url 'empresas:upload_config_create' empresa.pk %}">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="novaConfiguracaoUploadModalLabel">Nova configuração de upload</h5>
+                    <h5 class="modal-title" id="novaConfiguracaoUploadModalLabel">Nova configuração de painel</h5>
                     <a href="{% url 'empresas:detail' empresa.pk %}" class="btn-close" aria-label="Fechar"></a>
                 </div>
                 <div class="modal-body">
@@ -81,12 +81,12 @@
                     <div class="mb-0">
                         {{ nova_configuracao_form.nome.label_tag }}
                         {{ nova_configuracao_form.nome }}
-                        <p class="text-muted small mt-2 mb-0">O tipo do documento será definido na próxima tela.</p>
+                        <p class="text-muted small mt-2 mb-0">O tipo do painel e o mapeamento serão definidos na próxima tela.</p>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-secondary">Cancelar</a>
-                    <button type="submit" class="btn btn-dark">Criar configuração</button>
+                    <button type="submit" class="btn btn-dark">Criar painel</button>
                 </div>
             </form>
         </div>
