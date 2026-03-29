@@ -7,13 +7,14 @@ from django.urls import reverse
 
 from core.utils import last_complete_month_ranges
 from empresas.services import empresa_digital_summary
-from empresas.models import Empresa
+from empresas.models import ConfiguracaoUploadEmpresa, Empresa
+from empresas.upload_config_services import inspect_uploaded_file
 from concorrentes.models import ConcorrenteAd
 from concorrentes.services import competitor_profiles, competitor_summary, competitor_summary_for_name_in_period
 from ia.models import AnaliseConcorrencial
 from relatorios.models import Relatorio
 
-from .forms import ComparePeriodForm, UploadCampanhaForm
+from .forms import ComparePeriodForm, UploadCampanhaForm, UploadPainelArquivoForm
 from .models import UploadCampanha
 from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
@@ -34,11 +35,12 @@ def upload_list(request):
     empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
     if empresa_id:
         query['empresa'] = empresa_id
-    query['tab'] = 'uploads'
     return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
 
 
 def upload_create(request):
+    if request.method != 'POST':
+        return redirect('campanhas:dashboard')
     empresa_inicial = None
     empresa_id = request.session.get('active_company_id')
     if empresa_id:
@@ -159,7 +161,7 @@ def upload_campaign_delete(request, pk):
 
 def dashboard(request):
     dashboard_tab = request.GET.get('tab') or 'trafego_pago'
-    allowed_tabs = {'trafego_pago', 'crm_vendas', 'analise_completa', 'uploads', 'concorrentes', 'relatorios'}
+    allowed_tabs = {'trafego_pago', 'crm_vendas', 'leads_eventos', 'analise_completa', 'concorrentes'}
     if dashboard_tab not in allowed_tabs:
         dashboard_tab = 'trafego_pago'
     chart_metrics = ['resultados', 'investimento', 'impressoes', 'alcance', 'cliques', 'ctr', 'cpc', 'cpm', 'cpl']
@@ -218,6 +220,10 @@ def dashboard(request):
         current_start = default_ranges['current_start']
         current_end = default_ranges['current_end']
 
+    show_upload_modal_key = ''
+    traffic_upload_form = UploadCampanhaForm(prefix='upload-trafego', empresa_inicial=empresa)
+    painel_upload_forms = {}
+
     competitor_qs = ConcorrenteAd.objects.filter(empresa=empresa) if empresa else ConcorrenteAd.objects.none()
     competitor_analyses = (
         AnaliseConcorrencial.objects.filter(empresa=empresa).exclude(concorrente_nome='')
@@ -258,6 +264,75 @@ def dashboard(request):
 
     dashboard_upload_tabs = build_dashboard_upload_tabs(empresa, queryset, current_start, current_end) if empresa else []
     dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
+    for tab in dashboard_upload_tabs:
+        config_id = tab.get('config_id')
+        if config_id and tab['key'] != 'trafego_pago':
+            configuracao = ConfiguracaoUploadEmpresa.objects.filter(pk=config_id, empresa=empresa).first()
+            if configuracao:
+                painel_upload_forms[tab['key']] = UploadPainelArquivoForm(prefix=f'upload-{tab["key"]}', configuracao=configuracao)
+    visible_dashboard_tabs = list(dashboard_upload_tabs)
+    if empresa:
+        analise_index = next(
+            (index for index, item in enumerate(visible_dashboard_tabs) if item['key'] == 'analise_completa'),
+            len(visible_dashboard_tabs),
+        )
+        visible_dashboard_tabs.insert(analise_index, {'key': 'concorrentes', 'title': 'Concorrentes'})
+    visible_keys = {item['key'] for item in visible_dashboard_tabs}
+    if dashboard_tab not in visible_keys and visible_dashboard_tabs:
+        dashboard_tab = visible_dashboard_tabs[0]['key']
+    elif dashboard_tab not in visible_keys:
+        dashboard_tab = 'concorrentes'
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'novo_upload_trafego' and dashboard_upload_tab_map.get('trafego_pago'):
+            traffic_upload_form = UploadCampanhaForm(
+                request.POST,
+                request.FILES,
+                prefix='upload-trafego',
+                empresa_inicial=empresa,
+            )
+            if traffic_upload_form.is_valid():
+                upload = traffic_upload_form.save()
+                result = import_metrics_from_upload(upload)
+                upload.colunas_mapeadas_json = result.mapping
+                upload.observacoes_importacao = '\n'.join(result.warnings)
+                upload.save(update_fields=['colunas_mapeadas_json', 'observacoes_importacao'])
+                if result.missing_required:
+                    request.session['pending_upload_id'] = upload.pk
+                    messages.warning(request, 'A importação precisa de mapeamento manual para continuar.')
+                    return redirect('campanhas:manual_mapping', pk=upload.pk)
+                messages.success(request, f'Upload importado com {result.imported_count} linhas.')
+                return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': 'trafego_pago'})}")
+            show_upload_modal_key = 'trafego_pago'
+        elif action == 'novo_upload_painel':
+            panel_key = request.POST.get('panel_key', '')
+            panel_tab = dashboard_upload_tab_map.get(panel_key)
+            if panel_tab and panel_tab.get('config_id'):
+                configuracao = get_object_or_404(
+                    ConfiguracaoUploadEmpresa.objects.select_related('empresa'),
+                    pk=panel_tab['config_id'],
+                    empresa=empresa,
+                )
+                form_key = panel_tab['key']
+                painel_form = UploadPainelArquivoForm(
+                    request.POST,
+                    request.FILES,
+                    prefix=f'upload-{form_key}',
+                    configuracao=configuracao,
+                )
+                painel_upload_forms[form_key] = painel_form
+                if painel_form.is_valid():
+                    uploaded_file = painel_form.cleaned_data['arquivo']
+                    preview = inspect_uploaded_file(uploaded_file, uploaded_file.name)
+                    configuracao.arquivo_exemplo = uploaded_file
+                    configuracao.nome_arquivo_exemplo = preview.file_name
+                    configuracao.colunas_detectadas_json = preview.columns
+                    configuracao.preview_json = preview.rows
+                    configuracao.save()
+                    messages.success(request, f'Arquivo enviado para o painel "{configuracao.nome}".')
+                    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': form_key})}")
+                show_upload_modal_key = form_key
 
     uploads_list = UploadCampanha.objects.select_related('empresa')
     uploads_list = uploads_list.filter(empresa=empresa) if empresa else uploads_list
@@ -277,7 +352,7 @@ def dashboard(request):
         ad.analysis = analyses_map.get((ad.empresa_id, ad.concorrente_nome))
         ad.has_analysis = ad.analysis is not None
         ad.open_analysis_url = (
-            f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa_id, 'tab': 'overview', 'open_analysis': ad.concorrente_nome})}#analise-digital"
+            f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa_id, 'tab': 'concorrentes', 'open_analysis': ad.concorrente_nome})}#analise-digital"
             if ad.has_analysis
             else ''
         )
@@ -307,7 +382,13 @@ def dashboard(request):
         'open_analysis': open_analysis,
         'competitor_summary': overall_competitor_summary,
         'dashboard_upload_tabs': dashboard_upload_tabs,
+        'visible_dashboard_tabs': visible_dashboard_tabs,
+        'show_upload_modal_key': show_upload_modal_key,
+        'traffic_upload_form': traffic_upload_form,
+        'painel_upload_forms': painel_upload_forms,
+        'trafego_pago_tab': dashboard_upload_tab_map.get('trafego_pago'),
         'crm_vendas_tab': dashboard_upload_tab_map.get('crm_vendas'),
+        'leads_eventos_tab': dashboard_upload_tab_map.get('leads_eventos'),
         'analise_completa_tab': dashboard_upload_tab_map.get('analise_completa'),
         'uploads_list': uploads_list,
         'concorrentes_list': concorrentes_list,

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load ia_formatting %}
+{% load empresas_extras %}
 {% block page_title %}Dashboard{% endblock %}
 {% block content %}
 <div class="panel mt-4 form-panel">
@@ -12,43 +13,29 @@
 </div>
 <div class="panel mt-4">
     <ul class="nav nav-tabs dashboard-data-tabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=trafego_pago" class="nav-link {% if dashboard_tab == 'trafego_pago' %}active{% endif %}">Tráfego Pago</a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=crm_vendas" class="nav-link {% if dashboard_tab == 'crm_vendas' %}active{% endif %}">CRM Vendas</a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=analise_completa" class="nav-link {% if dashboard_tab == 'analise_completa' %}active{% endif %}">Análise Completa</a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=uploads" class="nav-link {% if dashboard_tab == 'uploads' %}active{% endif %}">Uploads</a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=concorrentes" class="nav-link {% if dashboard_tab == 'concorrentes' %}active{% endif %}">Concorrentes</a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=relatorios" class="nav-link {% if dashboard_tab == 'relatorios' %}active{% endif %}">Relatórios</a>
-        </li>
+        {% for tab in visible_dashboard_tabs %}
+            <li class="nav-item" role="presentation">
+                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="nav-link {% if dashboard_tab == tab.key %}active{% endif %}">{{ tab.title }}</a>
+            </li>
+        {% endfor %}
     </ul>
     <div class="pt-4">
 {% if dashboard_tab == 'trafego_pago' %}
-<div class="d-flex justify-content-end">
-    {% if empresa %}
-        <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
-            {% csrf_token %}
-            <input type="hidden" name="empresa" value="{{ empresa.id }}">
-            <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
-            <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
-            <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
-            <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
-            <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ form.data_inicio.value|default:'' }} a {{ form.data_fim.value|default:'' }}">
-            <button type="submit" class="btn btn-dark">Gerar Relatório</button>
-        </form>
+<div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+    <div>
+        <h3 class="mb-1">{{ trafego_pago_tab.title|default:'Tráfego Pago' }}</h3>
+        <p class="text-muted mb-0">Dados consolidados do painel de tráfego pago.</p>
+    </div>
+    {% if trafego_pago_tab and trafego_pago_tab.config_id %}
+        <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadtrafego_pagoModal">Novo upload</button>
     {% endif %}
 </div>
 <div class="mt-4">
-    {% include 'partials/kpi_cards.html' %}
+    <div class="row g-3">
+        {% for item in trafego_pago_tab.metric_cards %}
+            <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
+        {% endfor %}
+    </div>
 </div>
 <div class="row g-4 mt-1">
     <div class="col-lg-7">
@@ -115,6 +102,284 @@
             {% endfor %}
             </tbody>
         </table>
+    </div>
+</div>
+{% elif dashboard_tab == 'crm_vendas' %}
+<div>
+    {% if crm_vendas_tab and crm_vendas_tab.ready %}
+        <div class="dashboard-tab-header">
+            <div>
+                <h3 class="mb-1">{{ crm_vendas_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ crm_vendas_tab.description }}</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="text-muted small">{{ crm_vendas_tab.config_name }}</span>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadcrm_vendasModal">Novo upload</button>
+            </div>
+        </div>
+        <div class="row g-3 mt-1">
+            {% for item in crm_vendas_tab.metric_cards %}
+                <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
+            {% endfor %}
+        </div>
+        <div class="row g-4 mt-1">
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Canais</h3>
+                    <ul class="mb-0">
+                        {% for label, count in crm_vendas_tab.channels %}
+                            <li>{{ label }}: {{ count }}</li>
+                        {% empty %}
+                            <li>Sem canais mapeados.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Vendedores</h3>
+                    <ul class="mb-0">
+                        {% for label, count in crm_vendas_tab.sellers %}
+                            <li>{{ label }}: {{ count }}</li>
+                        {% empty %}
+                            <li>Sem vendedores mapeados.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Observação</h3>
+                    <p class="text-muted mb-0">Os dados desta aba são lidos do arquivo configurado e filtrados pelo período quando a coluna de data está mapeada.</p>
+                </div>
+            </div>
+        </div>
+        <div class="panel mt-4">
+            <h3>Registros CRM</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>ID</th><th>Data</th><th>Lead</th><th>Canal</th><th>Valor</th><th>Vendedor</th><th>Status</th><th>Origem</th></tr></thead>
+                    <tbody>
+                    {% for row in crm_vendas_tab.rows %}
+                        <tr>
+                            <td>{{ row.id }}</td>
+                            <td>{{ row.data_contato }}</td>
+                            <td>{{ row.nome_lead }}</td>
+                            <td>{{ row.canal }}</td>
+                            <td>R$ {{ row.valor_venda }}</td>
+                            <td>{{ row.vendedor }}</td>
+                            <td>{{ row.status_fechamento }}</td>
+                            <td>{{ row.origem_lead }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="8">Nenhum registro disponível.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted mb-0">Configure um arquivo mapeado de CRM Vendas para exibir esta aba.</p>
+    {% endif %}
+</div>
+{% elif dashboard_tab == 'leads_eventos' %}
+<div>
+    {% if leads_eventos_tab and leads_eventos_tab.ready %}
+        <div class="dashboard-tab-header">
+            <div>
+                <h3 class="mb-1">{{ leads_eventos_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ leads_eventos_tab.description }}</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="text-muted small">{{ leads_eventos_tab.config_name }}</span>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadleads_eventosModal">Novo upload</button>
+            </div>
+        </div>
+        <div class="row g-3 mt-1">
+            {% for item in leads_eventos_tab.metric_cards %}
+                <div class="col-md-4"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
+            {% endfor %}
+        </div>
+        <div class="row g-4 mt-1">
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Eventos</h3>
+                    <ul class="mb-0">
+                        {% for label, count in leads_eventos_tab.events %}
+                            <li>{{ label }}: {{ count }}</li>
+                        {% empty %}
+                            <li>Sem eventos mapeados.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="panel">
+                    <h3>Leads de Eventos</h3>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead><tr><th>Evento</th><th>Local</th><th>Data</th><th>Lead</th><th>Instagram</th><th>Telefone</th><th>Idade</th></tr></thead>
+                            <tbody>
+                            {% for row in leads_eventos_tab.rows %}
+                                <tr>
+                                    <td>{{ row.evento }}</td>
+                                    <td>{{ row.local_evento }}</td>
+                                    <td>{{ row.data_evento }}</td>
+                                    <td>{{ row.nome_lead }}</td>
+                                    <td>{{ row.instagram }}</td>
+                                    <td>{{ row.telefone_contato }}</td>
+                                    <td>{{ row.idade }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="7">Nenhum registro disponível.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted mb-0">Configure um painel mapeado de Leads Eventos para exibir esta aba.</p>
+    {% endif %}
+</div>
+{% elif dashboard_tab == 'analise_completa' %}
+<div>
+    {% if analise_completa_tab and analise_completa_tab.ready %}
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+            <div>
+                <h3 class="mb-1">Resumo Executivo</h3>
+                <p class="text-muted mb-0">Síntese dos cruzamentos entre tráfego pago, CRM e os relatórios já gerados.</p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if empresa %}
+                    <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Configurar Painéis</a>
+                    <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
+                        {% csrf_token %}
+                        <input type="hidden" name="empresa" value="{{ empresa.id }}">
+                        <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
+                        <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
+                        <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
+                        <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
+                        <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ form.data_inicio.value|default:'' }} a {{ form.data_fim.value|default:'' }}">
+                        <button type="submit" class="btn btn-dark">Gerar Relatório</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+        <div class="dashboard-tab-header">
+            <div>
+                <h3 class="mb-1">{{ analise_completa_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ analise_completa_tab.description }}</p>
+            </div>
+        </div>
+        <div class="row g-3 mt-1">
+            <div class="col-md-4"><div class="kpi-card"><span>Investimento Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.investimento_trafego|floatformat:2 }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Receita CRM</span><strong>R$ {{ analise_completa_tab.kpis.receita_crm_total|floatformat:2 }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Receita via Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.receita_trafego_estimada|floatformat:2 }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>ROAS Estimado</span><strong>{{ analise_completa_tab.kpis.roas_estimado|floatformat:2 }}x</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Vendas via Tráfego</span><strong>{{ analise_completa_tab.kpis.vendas_trafego_estimada }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Leads de Eventos</span><strong>{{ analise_completa_tab.kpis.leads_eventos }}</strong></div></div>
+        </div>
+        <div class="panel mt-4">
+            <h3>Insights</h3>
+            <ul class="mb-0">
+                {% for insight in analise_completa_tab.insights %}
+                    <li>{{ insight }}</li>
+                {% endfor %}
+            </ul>
+            <p class="text-muted small mt-3 mb-0">A receita atribuída a tráfego pago é estimada a partir dos campos Origem do Lead, Canal e Tag Lead no CRM.</p>
+        </div>
+        <div class="panel mt-4">
+            <h3>Relatórios Gerados</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Título</th><th>Período</th><th>Criado em</th><th></th></tr></thead>
+                    <tbody>
+                    {% for relatorio in relatorios_list %}
+                        <tr>
+                            <td>{{ relatorio.titulo }}</td>
+                            <td>{{ relatorio.periodo_inicio|date:'d/m/Y' }} - {{ relatorio.periodo_fim|date:'d/m/Y' }}</td>
+                            <td>{{ relatorio.criado_em|date:'d/m/Y H:i' }}</td>
+                            <td class="d-flex gap-2">
+                                <a class="btn btn-sm btn-outline-dark" href="{% url 'relatorios:detail' relatorio.pk %}">Abrir</a>
+                                {% if relatorio.pdf_arquivo %}
+                                    <a class="btn btn-sm btn-dark" href="{% url 'relatorios:pdf_export' relatorio.pk %}">PDF</a>
+                                {% else %}
+                                    <a class="btn btn-sm btn-outline-secondary disabled" href="#" tabindex="-1" aria-disabled="true">PDF</a>
+                                {% endif %}
+                                <a class="btn btn-sm btn-outline-danger" href="{% url 'relatorios:delete' relatorio.pk %}">Excluir</a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4">Nenhum relatório gerado ainda.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted mb-0">Configure ao menos Tráfego Pago e CRM Vendas para ter uma análise completa consistente.</p>
+    {% endif %}
+</div>
+{% elif dashboard_tab == 'concorrentes' %}
+<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+    <p class="text-muted mb-0">Base observável/importada de anúncios públicos dos concorrentes.</p>
+    <div class="d-flex gap-2">
+        <a href="{% url 'concorrentes:instagram_import' %}" class="btn btn-dark">Novo Concorrente</a>
+        <a href="{% url 'concorrentes:import' %}" class="btn btn-outline-dark">Importar Concorrentes</a>
+    </div>
+</div>
+<div class="panel">
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <div>
+            <h3 class="mb-1">Lista de Concorrentes</h3>
+            <p class="text-muted mb-0">Expanda ou recolha a lista para focar na análise digital quando precisar.</p>
+        </div>
+        <button class="btn btn-outline-dark btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#concorrentesListaCollapse" aria-expanded="true" aria-controls="concorrentesListaCollapse">
+            Expandir / recolher lista
+        </button>
+    </div>
+    <div class="collapse show mt-4" id="concorrentesListaCollapse">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>Concorrente</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th class="text-end">Ações</th></tr></thead>
+                <tbody>
+                {% for ad in concorrentes_list %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span>{{ ad.concorrente_nome }}</span>
+                                <span class="activity-pill {{ ad.activity_class }}">{{ ad.activity_label }}</span>
+                            </div>
+                        </td>
+                        <td>{{ ad.empresa.nome }}</td>
+                        <td>
+                            {% if ad.analysis %}
+                                {{ ad.analysis.criado_em|date:'d/m/Y H:i' }}
+                            {% elif ad.activity_label == 'Sem Avaliação Feita' %}
+                                -
+                            {% elif ad.data_referencia %}
+                                {{ ad.data_referencia|date:'d/m/Y' }} {{ ad.criado_em|date:'H:i' }}
+                            {% else %}
+                                {{ ad.criado_em|date:'d/m/Y H:i' }}
+                            {% endif %}
+                        </td>
+                        <td>{{ ad.plataforma }}</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'concorrentes:update' ad.pk %}">Editar</a>
+                            <a class="btn btn-sm btn-outline-danger" href="{% url 'concorrentes:delete' ad.pk %}">Excluir</a>
+                            {% if ad.has_analysis %}
+                                <a class="btn btn-sm btn-outline-dark" href="{{ ad.open_analysis_url }}">Ver análise</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5">Nenhum anúncio concorrente cadastrado.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 <div class="panel mt-4" id="analise-digital">
@@ -212,242 +477,72 @@
         </p>
     {% endif %}
 </div>
-{% elif dashboard_tab == 'crm_vendas' %}
-<div>
-    {% if crm_vendas_tab and crm_vendas_tab.ready %}
-        <div class="dashboard-tab-header">
-            <div>
-                <h3 class="mb-1">{{ crm_vendas_tab.title }}</h3>
-                <p class="text-muted mb-0">{{ crm_vendas_tab.description }}</p>
-            </div>
-            <span class="text-muted small">{{ crm_vendas_tab.config_name }}</span>
-        </div>
-        <div class="row g-3 mt-1">
-            <div class="col-md-3"><div class="kpi-card"><span>Registros</span><strong>{{ crm_vendas_tab.kpis.registros }}</strong></div></div>
-            <div class="col-md-3"><div class="kpi-card"><span>Vendas Fechadas</span><strong>{{ crm_vendas_tab.kpis.vendas_fechadas }}</strong></div></div>
-            <div class="col-md-3"><div class="kpi-card"><span>Receita Total</span><strong>R$ {{ crm_vendas_tab.kpis.receita_total|floatformat:2 }}</strong></div></div>
-            <div class="col-md-3"><div class="kpi-card"><span>Ticket Médio</span><strong>R$ {{ crm_vendas_tab.kpis.ticket_medio|floatformat:2 }}</strong></div></div>
-        </div>
-        <div class="row g-4 mt-1">
-            <div class="col-lg-4">
-                <div class="panel">
-                    <h3>Canais</h3>
-                    <ul class="mb-0">
-                        {% for label, count in crm_vendas_tab.channels %}
-                            <li>{{ label }}: {{ count }}</li>
-                        {% empty %}
-                            <li>Sem canais mapeados.</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="panel">
-                    <h3>Vendedores</h3>
-                    <ul class="mb-0">
-                        {% for label, count in crm_vendas_tab.sellers %}
-                            <li>{{ label }}: {{ count }}</li>
-                        {% empty %}
-                            <li>Sem vendedores mapeados.</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="panel">
-                    <h3>Observação</h3>
-                    <p class="text-muted mb-0">Os dados desta aba são lidos do arquivo configurado e filtrados pelo período quando a coluna de data está mapeada.</p>
-                </div>
-            </div>
-        </div>
-        <div class="panel mt-4">
-            <h3>Registros CRM</h3>
-            <div class="table-responsive">
-                <table class="table align-middle">
-                    <thead><tr><th>ID</th><th>Data</th><th>Lead</th><th>Canal</th><th>Valor</th><th>Vendedor</th><th>Status</th><th>Origem</th></tr></thead>
-                    <tbody>
-                    {% for row in crm_vendas_tab.rows %}
-                        <tr>
-                            <td>{{ row.id }}</td>
-                            <td>{{ row.data_contato }}</td>
-                            <td>{{ row.nome_lead }}</td>
-                            <td>{{ row.canal }}</td>
-                            <td>R$ {{ row.valor_venda }}</td>
-                            <td>{{ row.vendedor }}</td>
-                            <td>{{ row.status_fechamento }}</td>
-                            <td>{{ row.origem_lead }}</td>
-                        </tr>
-                    {% empty %}
-                        <tr><td colspan="8">Nenhum registro disponível.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    {% else %}
-        <p class="text-muted mb-0">Configure um arquivo mapeado de CRM Vendas para exibir esta aba.</p>
-    {% endif %}
-</div>
-{% elif dashboard_tab == 'analise_completa' %}
-<div>
-    {% if analise_completa_tab and analise_completa_tab.ready %}
-        <div class="dashboard-tab-header">
-            <div>
-                <h3 class="mb-1">{{ analise_completa_tab.title }}</h3>
-                <p class="text-muted mb-0">{{ analise_completa_tab.description }}</p>
-            </div>
-        </div>
-        <div class="row g-3 mt-1">
-            <div class="col-md-4"><div class="kpi-card"><span>Investimento Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.investimento_trafego|floatformat:2 }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Receita CRM</span><strong>R$ {{ analise_completa_tab.kpis.receita_crm_total|floatformat:2 }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Receita via Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.receita_trafego_estimada|floatformat:2 }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>ROAS Estimado</span><strong>{{ analise_completa_tab.kpis.roas_estimado|floatformat:2 }}x</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Vendas via Tráfego</span><strong>{{ analise_completa_tab.kpis.vendas_trafego_estimada }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Leads de Eventos</span><strong>{{ analise_completa_tab.kpis.leads_eventos }}</strong></div></div>
-        </div>
-        <div class="panel mt-4">
-            <h3>Insights</h3>
-            <ul class="mb-0">
-                {% for insight in analise_completa_tab.insights %}
-                    <li>{{ insight }}</li>
-                {% endfor %}
-            </ul>
-            <p class="text-muted small mt-3 mb-0">A receita atribuída a tráfego pago é estimada a partir dos campos Origem do Lead, Canal e Tag Lead no CRM.</p>
-        </div>
-    {% else %}
-        <p class="text-muted mb-0">Configure ao menos Tráfego Pago e CRM Vendas para ter uma análise completa consistente.</p>
-    {% endif %}
-</div>
-{% elif dashboard_tab == 'uploads' %}
-<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
-    <div>
-        {% if empresa %}
-            <p class="text-muted mb-0">Uploads da empresa <strong>{{ empresa.nome }}</strong>.</p>
-        {% else %}
-            <p class="text-muted mb-0">Selecione uma empresa para ver os uploads.</p>
-        {% endif %}
-    </div>
-    <div class="d-flex gap-2">
-        {% if empresa %}
-            <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Configurar Uploads</a>
-        {% endif %}
-        <a href="{% url 'campanhas:upload_create' %}" class="btn btn-dark">Novo upload</a>
-    </div>
-</div>
-<div class="panel">
-    <div class="table-responsive">
-        <table class="table align-middle">
-            <thead><tr><th>Empresa</th><th>Referência</th><th>Período</th><th>Criado em</th><th></th></tr></thead>
-            <tbody>
-            {% for upload in uploads_list %}
-                <tr>
-                    <td>{{ upload.empresa.nome }}</td>
-                    <td>{{ upload.nome_referencia }}</td>
-                    <td>{{ upload.get_periodo_tipo_display }}</td>
-                    <td>{{ upload.criado_em|date:'d/m/Y H:i' }}</td>
-                    <td class="d-flex gap-2">
-                        <a class="btn btn-sm btn-outline-dark" href="{% url 'campanhas:upload_detail' upload.pk %}">Abrir</a>
-                        <a class="btn btn-sm btn-outline-danger" href="{% url 'campanhas:upload_delete' upload.pk %}">Excluir</a>
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="5">Nenhum upload encontrado.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% elif dashboard_tab == 'concorrentes' %}
-<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
-    <p class="text-muted mb-0">Base observável/importada de anúncios públicos dos concorrentes.</p>
-    <div class="d-flex gap-2">
-        <a href="{% url 'concorrentes:instagram_import' %}" class="btn btn-dark">Novo Concorrente</a>
-        <a href="{% url 'concorrentes:import' %}" class="btn btn-outline-dark">Importar Concorrentes</a>
-    </div>
-</div>
-<div class="panel">
-    <div class="table-responsive">
-        <table class="table align-middle">
-            <thead><tr><th>Concorrente</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th class="text-end">Ações</th></tr></thead>
-            <tbody>
-            {% for ad in concorrentes_list %}
-                <tr>
-                    <td>
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <span>{{ ad.concorrente_nome }}</span>
-                            <span class="activity-pill {{ ad.activity_class }}">{{ ad.activity_label }}</span>
-                        </div>
-                    </td>
-                    <td>{{ ad.empresa.nome }}</td>
-                    <td>
-                        {% if ad.analysis %}
-                            {{ ad.analysis.criado_em|date:'d/m/Y H:i' }}
-                        {% elif ad.activity_label == 'Sem Avaliação Feita' %}
-                            -
-                        {% elif ad.data_referencia %}
-                            {{ ad.data_referencia|date:'d/m/Y' }} {{ ad.criado_em|date:'H:i' }}
-                        {% else %}
-                            {{ ad.criado_em|date:'d/m/Y H:i' }}
-                        {% endif %}
-                    </td>
-                    <td>{{ ad.plataforma }}</td>
-                    <td class="text-end">
-                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'concorrentes:update' ad.pk %}">Editar</a>
-                        <a class="btn btn-sm btn-outline-danger" href="{% url 'concorrentes:delete' ad.pk %}">Excluir</a>
-                        {% if ad.has_analysis %}
-                            <a class="btn btn-sm btn-outline-dark" href="{{ ad.open_analysis_url }}">Ver análise</a>
-                        {% endif %}
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="5">Nenhum anúncio concorrente cadastrado.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% elif dashboard_tab == 'relatorios' %}
-<div class="d-flex justify-content-between align-items-center mt-4 mb-3">
-    <p class="text-muted mb-0">Relatórios consolidados com KPIs, leitura competitiva e insights da IA.</p>
-    {% if empresa %}
-        <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
-            {% csrf_token %}
-            <input type="hidden" name="empresa" value="{{ empresa.id }}">
-            <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
-            <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
-            <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
-            <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
-            <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ form.data_inicio.value|default:'' }} a {{ form.data_fim.value|default:'' }}">
-            <button type="submit" class="btn btn-dark">Gerar Relatório</button>
-        </form>
-    {% endif %}
-</div>
-<div class="panel">
-    <div class="table-responsive">
-        <table class="table align-middle">
-            <thead><tr><th>Título</th><th>Empresa</th><th>Período</th><th>Criado em</th><th></th></tr></thead>
-            <tbody>
-            {% for relatorio in relatorios_list %}
-                <tr>
-                    <td>{{ relatorio.titulo }}</td>
-                    <td>{{ relatorio.empresa.nome }}</td>
-                    <td>{{ relatorio.periodo_inicio|date:'d/m/Y' }} - {{ relatorio.periodo_fim|date:'d/m/Y' }}</td>
-                    <td>{{ relatorio.criado_em|date:'d/m/Y H:i' }}</td>
-                    <td class="d-flex gap-2">
-                        <a class="btn btn-sm btn-outline-dark" href="{% url 'relatorios:detail' relatorio.pk %}">Abrir</a>
-                        <a class="btn btn-sm btn-outline-danger" href="{% url 'relatorios:delete' relatorio.pk %}">Excluir</a>
-                    </td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="5">Nenhum relatório gerado ainda.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
 {% endif %}
     </div>
 </div>
+
+{% if trafego_pago_tab and trafego_pago_tab.config_id %}
+<div class="modal fade {% if show_upload_modal_key == 'trafego_pago' %}show{% endif %}" id="novoUploadtrafego_pagoModal" tabindex="-1" aria-hidden="{% if show_upload_modal_key == 'trafego_pago' %}false{% else %}true{% endif %}" {% if show_upload_modal_key == 'trafego_pago' %}style="display:block;"{% endif %}>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Novo upload - {{ trafego_pago_tab.title }}</h5>
+                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=trafego_pago" class="btn-close" aria-label="Fechar"></a>
+                </div>
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="novo_upload_trafego">
+                    <div class="row g-3">
+                        <div class="col-md-6">{{ traffic_upload_form.nome_referencia.label_tag }}{{ traffic_upload_form.nome_referencia }}</div>
+                        <div class="col-12">{{ traffic_upload_form.arquivo.label_tag }}{{ traffic_upload_form.arquivo }}</div>
+                        <div class="col-md-4">{{ traffic_upload_form.periodo_tipo.label_tag }}{{ traffic_upload_form.periodo_tipo }}</div>
+                        <div class="col-md-4">{{ traffic_upload_form.data_inicio.label_tag }}{{ traffic_upload_form.data_inicio }}</div>
+                        <div class="col-md-4">{{ traffic_upload_form.data_fim.label_tag }}{{ traffic_upload_form.data_fim }}</div>
+                        {{ traffic_upload_form.empresa.as_hidden }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=trafego_pago" class="btn btn-outline-secondary">Cancelar</a>
+                    <button class="btn btn-dark" type="submit">Enviar arquivo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% if show_upload_modal_key == 'trafego_pago' %}<div class="modal-backdrop fade show"></div>{% endif %}
+{% endif %}
+
+{% for tab in dashboard_upload_tabs %}
+    {% if tab.key != 'trafego_pago' and tab.config_id %}
+        {% with painel_form=painel_upload_forms|get_item:tab.key %}
+            <div class="modal fade {% if show_upload_modal_key == tab.key %}show{% endif %}" id="novoUpload{{ tab.key }}Modal" tabindex="-1" aria-hidden="{% if show_upload_modal_key == tab.key %}false{% else %}true{% endif %}" {% if show_upload_modal_key == tab.key %}style="display:block;"{% endif %}>
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <form method="post" enctype="multipart/form-data">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Novo upload - {{ tab.title }}</h5>
+                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
+                            </div>
+                            <div class="modal-body">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="novo_upload_painel">
+                                <input type="hidden" name="panel_key" value="{{ tab.key }}">
+                                {{ painel_form.arquivo.label_tag }}{{ painel_form.arquivo }}
+                                {% if painel_form.arquivo.errors %}<div class="text-danger small mt-1">{{ painel_form.arquivo.errors|join:', ' }}</div>{% endif %}
+                            </div>
+                            <div class="modal-footer">
+                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
+                                <button class="btn btn-dark" type="submit">Enviar arquivo</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% if show_upload_modal_key == tab.key %}<div class="modal-backdrop fade show"></div>{% endif %}
+        {% endwith %}
+    {% endif %}
+{% endfor %}
 {% endblock %}
 {% block extra_js %}
 <script>
