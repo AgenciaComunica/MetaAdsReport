@@ -122,6 +122,7 @@ def upload_config_update(request, empresa_pk, config_pk):
             key = item['key']
             mapping_rows.append(
                 {
+                    'key': key,
                     'label': item['label'],
                     'required': item['required'],
                     'map_field': form[f'map__{key}'],
@@ -147,6 +148,7 @@ def upload_config_update(request, empresa_pk, config_pk):
                         }
                         for item in group['metrics']
                     ],
+                    'filter_field': form[f'filter_enabled__{group["key"]}'],
                 }
             )
 

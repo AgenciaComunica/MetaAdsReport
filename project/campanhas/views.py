@@ -15,7 +15,7 @@ from ia.models import AnaliseConcorrencial
 from relatorios.models import Relatorio
 
 from .forms import ComparePeriodForm, UploadCampanhaForm, UploadPainelArquivoForm
-from .models import UploadCampanha
+from .models import UploadCampanha, UploadPainel
 from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
     campaign_comparison_table,
@@ -159,6 +159,33 @@ def upload_campaign_delete(request, pk):
     )
 
 
+def panel_upload_delete(request, pk):
+    upload = get_object_or_404(UploadPainel.objects.select_related('configuracao__empresa'), pk=pk)
+    empresa = upload.configuracao.empresa
+    panel_key = request.GET.get('tab') or f'{upload.configuracao.tipo_documento}_{upload.configuracao.pk}'
+    if request.method == 'POST':
+        configuracao = upload.configuracao
+        was_current = configuracao.nome_arquivo_exemplo == upload.nome_arquivo
+        if upload.arquivo:
+            upload.arquivo.delete(save=False)
+        upload.delete()
+        if was_current:
+            latest_upload = configuracao.uploads_painel.order_by('-criado_em', '-pk').first()
+            if latest_upload:
+                configuracao.arquivo_exemplo = latest_upload.arquivo.name
+                configuracao.nome_arquivo_exemplo = latest_upload.nome_arquivo
+                configuracao.colunas_detectadas_json = latest_upload.colunas_detectadas_json
+                configuracao.preview_json = latest_upload.preview_json
+            else:
+                configuracao.arquivo_exemplo = ''
+                configuracao.nome_arquivo_exemplo = ''
+                configuracao.colunas_detectadas_json = []
+                configuracao.preview_json = []
+            configuracao.save(update_fields=['arquivo_exemplo', 'nome_arquivo_exemplo', 'colunas_detectadas_json', 'preview_json'])
+        messages.success(request, 'Upload removido com sucesso.')
+    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+
+
 def dashboard(request):
     dashboard_tab = request.GET.get('tab') or ''
     chart_metrics = ['resultados', 'investimento', 'impressoes', 'alcance', 'cliques', 'ctr', 'cpc', 'cpm', 'cpl']
@@ -260,7 +287,15 @@ def dashboard(request):
             competitor['activity_label'] = 'Sem Ads'
 
     dashboard_upload_tabs = (
-        build_dashboard_upload_tabs(empresa, queryset, current_start, current_end, previous_queryset=previous_qs)
+        build_dashboard_upload_tabs(
+            empresa,
+            queryset,
+            current_start,
+            current_end,
+            previous_start=previous_start,
+            previous_end=previous_end,
+            previous_queryset=previous_qs,
+        )
         if empresa
         else []
     )
@@ -327,11 +362,18 @@ def dashboard(request):
                 if painel_form.is_valid():
                     uploaded_file = painel_form.cleaned_data['arquivo']
                     preview = inspect_uploaded_file(uploaded_file, uploaded_file.name)
-                    configuracao.arquivo_exemplo = uploaded_file
+                    panel_upload = UploadPainel.objects.create(
+                        configuracao=configuracao,
+                        arquivo=uploaded_file,
+                        nome_arquivo=preview.file_name,
+                        colunas_detectadas_json=preview.columns,
+                        preview_json=preview.rows,
+                    )
+                    configuracao.arquivo_exemplo = panel_upload.arquivo.name
                     configuracao.nome_arquivo_exemplo = preview.file_name
                     configuracao.colunas_detectadas_json = preview.columns
                     configuracao.preview_json = preview.rows
-                    configuracao.save()
+                    configuracao.save(update_fields=['arquivo_exemplo', 'nome_arquivo_exemplo', 'colunas_detectadas_json', 'preview_json'])
                     messages.success(request, f'Arquivo enviado para o painel "{configuracao.nome}".')
                     return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': form_key})}")
                 show_upload_modal_key = form_key
@@ -376,6 +418,11 @@ def dashboard(request):
 
     relatorios_list = Relatorio.objects.select_related('empresa')
     relatorios_list = relatorios_list.filter(empresa=empresa) if empresa else relatorios_list
+    panel_uploads_list = (
+        UploadPainel.objects.filter(configuracao_id=active_upload_tab.get('config_id')).select_related('configuracao')
+        if active_upload_tab and active_upload_tab.get('config_id')
+        else UploadPainel.objects.none()
+    )
 
     context = {
         'dashboard_tab': dashboard_tab,
@@ -404,6 +451,7 @@ def dashboard(request):
         'active_upload_tab': active_upload_tab,
         'analise_completa_tab': dashboard_upload_tab_map.get('analise_completa'),
         'uploads_list': uploads_list,
+        'panel_uploads_list': panel_uploads_list,
         'concorrentes_list': concorrentes_list,
         'relatorios_list': relatorios_list,
     }

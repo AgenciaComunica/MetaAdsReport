@@ -38,7 +38,7 @@ class Empresa(models.Model):
 class ConfiguracaoUploadEmpresa(models.Model):
     class TipoDocumento(models.TextChoices):
         TRAFEGO_PAGO = 'trafego_pago', 'Tráfego Pago'
-        CRM_VENDAS = 'crm_vendas', 'CRM Vendas'
+        CRM_VENDAS = 'crm_vendas', 'Vendas'
         LEADS_EVENTOS = 'leads_eventos', 'Leads Eventos'
         REDES_SOCIAIS = 'redes_sociais', 'Redes Sociais'
 
@@ -52,6 +52,7 @@ class ConfiguracaoUploadEmpresa(models.Model):
     mapeamento_json = models.JSONField(default=dict, blank=True)
     campos_principais_json = models.JSONField(default=list, blank=True)
     metricas_painel_json = models.JSONField(default=list, blank=True)
+    configuracao_analise_json = models.JSONField(default=dict, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 

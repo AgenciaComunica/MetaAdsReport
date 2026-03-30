@@ -31,6 +31,7 @@ UPLOAD_FIELD_SCHEMAS = {
         {'key': 'data_contato', 'label': 'Data do Contato', 'required': True},
         {'key': 'nome_lead', 'label': 'Nome do Lead', 'required': True},
         {'key': 'informacao_contato', 'label': 'Informação do Contato', 'required': False},
+        {'key': 'ads_parametros_url', 'label': 'Ads (Parâmetros de URL)', 'required': False},
         {'key': 'canal', 'label': 'Canal', 'required': False},
         {'key': 'valor_venda', 'label': 'Valor da Venda', 'required': False},
         {'key': 'vendedor', 'label': 'Vendedor', 'required': False},
@@ -78,10 +79,20 @@ PANEL_METRIC_SCHEMAS = {
         {'key': 'taxa_resposta', 'label': 'Taxa de Resposta'},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS: [
-        {'key': 'registros', 'label': 'Registros'},
-        {'key': 'vendas_fechadas', 'label': 'Vendas Fechadas'},
         {'key': 'receita_total', 'label': 'Receita Total'},
+        {'key': 'vendas_concluidas', 'label': 'Vendas Concluídas'},
+        {'key': 'taxa_conversao', 'label': 'Taxa de Conversão'},
+        {'key': 'conversas', 'label': 'Conversas'},
         {'key': 'ticket_medio', 'label': 'Ticket Médio'},
+        {'key': 'trafego_pago_conversas', 'label': 'Tráfego Pago'},
+        {'key': 'organico_conversas', 'label': 'Orgânico'},
+        {'key': 'receita_trafego_pago', 'label': 'Receita Tráfego Pago'},
+        {'key': 'receita_organico', 'label': 'Receita Orgânico'},
+        {'key': 'status_fechamento', 'label': 'Status do Fechamento'},
+        {'key': 'temperatura_lead', 'label': 'Temperatura do Lead'},
+        {'key': 'vendas_concluidas_vendedor', 'label': 'Vendas Concluídas'},
+        {'key': 'valor_vendas_vendedor', 'label': 'Valor Vendas'},
+        {'key': 'atendimentos_vendedor', 'label': 'Atendimentos'},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS: [
         {'key': 'leads_total', 'label': 'Total de Leads'},
@@ -182,6 +193,54 @@ TRAFFIC_METRIC_TOOLTIPS = {
     'custo_por_resultado': 'Custo médio por conversão principal obtida.',
     'taxa_resposta': 'Percentual de respostas ou conversões em relação aos cliques gerados.',
 }
+CRM_PANEL_CATEGORY_DEFINITIONS = [
+    {
+        'key': 'resultado',
+        'label': 'Resultado',
+        'description': 'Indicadores principais do comercial com comparativo entre períodos.',
+        'metrics': ['receita_total', 'vendas_concluidas', 'taxa_conversao', 'conversas', 'ticket_medio'],
+    },
+    {
+        'key': 'origem',
+        'label': 'Origem',
+        'description': 'Comparativo entre tráfego pago e orgânico no período.',
+        'metrics': ['trafego_pago_conversas', 'organico_conversas', 'receita_trafego_pago', 'receita_organico'],
+    },
+    {
+        'key': 'status',
+        'label': 'Status',
+        'description': 'Distribuição atual e comparativo por status de fechamento.',
+        'metrics': ['status_fechamento'],
+    },
+    {
+        'key': 'temperatura',
+        'label': 'Temperatura Leads',
+        'description': 'Distribuição por tags/temperatura dos leads e comparativo entre períodos.',
+        'metrics': ['temperatura_lead'],
+    },
+    {
+        'key': 'vendedor',
+        'label': 'Vendedor',
+        'description': 'Comparativo individual por vendedor.',
+        'metrics': ['vendas_concluidas_vendedor', 'valor_vendas_vendedor', 'atendimentos_vendedor'],
+    },
+]
+CRM_METRIC_TOOLTIPS = {
+    'receita_total': 'Soma total do valor vendido no período.',
+    'vendas_concluidas': 'Quantidade de vendas fechadas no período.',
+    'taxa_conversao': 'Conversão entre conversas e vendas concluídas.',
+    'conversas': 'Total de conversas atendidas no período.',
+    'ticket_medio': 'Ticket médio do período.',
+    'trafego_pago_conversas': 'Conversas classificadas como tráfego pago.',
+    'organico_conversas': 'Conversas classificadas como orgânicas.',
+    'receita_trafego_pago': 'Receita vinda de leads classificados como tráfego pago.',
+    'receita_organico': 'Receita vinda de leads classificados como orgânicos.',
+    'status_fechamento': 'Comparativo por status de fechamento.',
+    'temperatura_lead': 'Distribuição das tags/temperatura configuradas no CRM.',
+    'vendas_concluidas_vendedor': 'Quantidade de vendas concluídas por vendedor.',
+    'valor_vendas_vendedor': 'Receita total gerada por vendedor.',
+    'atendimentos_vendedor': 'Total de atendimentos realizados por vendedor.',
+}
 
 
 @dataclass
@@ -227,6 +286,26 @@ def get_panel_metric_groups(tipo_documento):
                 }
             )
         return groups
+    if tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS:
+        metric_map = {item['key']: item for item in metrics}
+        groups = []
+        for category in CRM_PANEL_CATEGORY_DEFINITIONS:
+            groups.append(
+                {
+                    'key': category['key'],
+                    'label': category['label'],
+                    'description': category['description'],
+                    'metrics': [
+                        {
+                            **metric_map[key],
+                            'tooltip': CRM_METRIC_TOOLTIPS.get(key, ''),
+                        }
+                        for key in category['metrics']
+                        if key in metric_map
+                    ],
+                }
+            )
+        return groups
     return [
         {
             'key': 'geral',
@@ -251,6 +330,8 @@ def normalize_panel_metric_config(tipo_documento, raw_config):
             }
         categories = {}
         raw_categories = raw_config.get('categories') or {}
+        filters = {}
+        raw_filters = raw_config.get('filters') or {}
         for group in groups:
             group_key = group['key']
             has_any_metric = any(
@@ -259,11 +340,16 @@ def normalize_panel_metric_config(tipo_documento, raw_config):
             )
             raw_category_enabled = bool(raw_categories.get(group_key, has_any_metric))
             categories[group_key] = raw_category_enabled and has_any_metric
-        return {'categories': categories, 'metrics': metrics}
+            group_filter_config = raw_filters.get(group_key, {})
+            filters[group_key] = {
+                'enabled': bool(group_filter_config.get('enabled', False)),
+            }
+        return {'categories': categories, 'metrics': metrics, 'filters': filters}
 
     selected_keys = set(raw_config or metric_keys)
     return {
         'categories': {key: True for key in category_keys},
+        'filters': {key: {'enabled': False} for key in category_keys},
         'metrics': {
             key: {
                 'table': key in selected_keys,
@@ -298,6 +384,14 @@ def get_enabled_chart_metric_keys(tipo_documento, raw_config):
             if config['metrics'].get(metric['key'], {}).get('chart'):
                 enabled.append(metric['key'])
     return enabled
+
+
+def get_category_filter_enabled_map(tipo_documento, raw_config):
+    config = normalize_panel_metric_config(tipo_documento, raw_config)
+    return {
+        group['key']: bool((config.get('filters') or {}).get(group['key'], {}).get('enabled', False))
+        for group in get_panel_metric_groups(tipo_documento)
+    }
 
 
 def inspect_uploaded_file(file_obj_or_path, file_name=''):

@@ -71,6 +71,10 @@
                                 <h4 class="mb-1">{{ group.label }}</h4>
                                 <p class="text-muted mb-0">{{ group.description }}</p>
                             </div>
+                            <div class="form-check form-switch analysis-filter-switch mb-0">
+                                {{ group.filter_field }}
+                                <label class="form-check-label" for="{{ group.filter_field.id_for_label }}">Habilitar filtro</label>
+                            </div>
                         </div>
                         <div class="table-responsive mt-3">
                             <table class="table align-middle mb-0 analysis-config-table">
@@ -139,7 +143,19 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {{ row.map_field }}
+                                    {% if form.document_type == 'crm_vendas' and row.key == 'ads_parametros_url' %}
+                                        <div class="crm-traffic-map-row">
+                                            <div class="crm-traffic-map-select">
+                                                {{ row.map_field }}
+                                            </div>
+                                            <div class="crm-traffic-param-config">
+                                                {{ form.crm_origem_paga_contem }}
+                                                {% if form.crm_origem_paga_contem.errors %}<div class="text-danger small mt-1">{{ form.crm_origem_paga_contem.errors|join:', ' }}</div>{% endif %}
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        {{ row.map_field }}
+                                    {% endif %}
                                     {% if row.map_field.errors %}
                                         <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
                                     {% endif %}

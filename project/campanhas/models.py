@@ -27,6 +27,23 @@ class UploadCampanha(models.Model):
         return f'{self.empresa} - {self.nome_referencia}'
 
 
+class UploadPainel(models.Model):
+    configuracao = models.ForeignKey('empresas.ConfiguracaoUploadEmpresa', on_delete=models.CASCADE, related_name='uploads_painel')
+    arquivo = models.FileField(upload_to='empresas/painel-uploads/')
+    nome_arquivo = models.CharField(max_length=255)
+    colunas_detectadas_json = models.JSONField(default=list, blank=True)
+    preview_json = models.JSONField(default=list, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-criado_em']
+        verbose_name = 'Upload de Painel'
+        verbose_name_plural = 'Uploads de Painel'
+
+    def __str__(self):
+        return f'{self.configuracao.nome} - {self.nome_arquivo}'
+
+
 class CampanhaMetric(models.Model):
     upload = models.ForeignKey(UploadCampanha, on_delete=models.CASCADE, related_name='metricas')
     fingerprint = models.CharField(max_length=64, db_index=True, blank=True)

@@ -45,6 +45,31 @@
                         <h3 class="mb-1">{{ block.title }}</h3>
                         <p class="text-muted mb-0">{{ block.description }}</p>
                     </div>
+                    {% if block.filter_options %}
+                        <div class="crm-filter-dropdown" data-crm-filter-group="{{ block.key }}" data-crm-filter-storage="{{ active_upload_tab.key }}::{{ block.key }}">
+                            <button type="button" class="btn btn-sm btn-outline-dark" data-crm-filter-toggle>
+                                Filtrar itens
+                                <span class="crm-filter-count" data-crm-filter-count>{{ block.filter_options|length }}</span>
+                            </button>
+                            <div class="crm-filter-dropdown-menu d-none" data-crm-filter-menu>
+                                <div class="crm-filter-dropdown-head">
+                                    <button type="button" class="btn btn-sm btn-link p-0" data-crm-filter-select-all>Marcar todos</button>
+                                    <button type="button" class="btn btn-sm btn-link p-0" data-crm-filter-clear>Limpar</button>
+                                </div>
+                                <div class="crm-filter-search-wrap">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Buscar item..." data-crm-filter-search>
+                                </div>
+                                <div class="crm-filter-dropdown-list">
+                                    {% for option in block.filter_options %}
+                                        <label class="form-check mb-2" data-crm-filter-item>
+                                            <input class="form-check-input" type="checkbox" checked data-crm-filter-option="{{ option|escape }}">
+                                            <span class="form-check-label">{{ option }}</span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
                 {% if block.chart %}
                     <div class="mt-3">
@@ -56,22 +81,20 @@
                         <thead>
                             <tr>
                                 <th>Métrica</th>
-                                <th>Anterior</th>
-                                <th>Atual</th>
+                                <th>Anterior / Atual</th>
                                 <th>Variação</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in block.rows %}
-                                <tr>
+                                <tr data-crm-row-label="{{ row.label }}">
                                     <td>
                                         <span class="kpi-label">
                                             {{ row.label }}
                                             <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ row.tooltip }}">?</button>
                                         </span>
                                     </td>
-                                    <td>{{ row.previous_value }}</td>
-                                    <td><strong>{{ row.current_value }}</strong></td>
+                                    <td><strong>{{ row.period_value }}</strong></td>
                                     <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
                                 </tr>
                             {% endfor %}
@@ -111,6 +134,33 @@
         </table>
     </div>
 </div>
+<div class="panel mt-4">
+    <h3>Uploads Feitos</h3>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Arquivo</th><th>Referência</th><th>Período</th><th>Criado em</th><th>Ações</th></tr></thead>
+            <tbody>
+            {% for upload in uploads_list %}
+                <tr>
+                    <td>{{ upload.arquivo.name|default:"-" }}</td>
+                    <td>{{ upload.nome_referencia }}</td>
+                    <td>
+                        {% if upload.data_inicio and upload.data_fim %}
+                            {{ upload.data_inicio|date:"d/m/Y" }} - {{ upload.data_fim|date:"d/m/Y" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ upload.criado_em|date:"d/m/Y H:i" }}</td>
+                    <td><a class="btn btn-sm btn-outline-danger" href="{% url 'campanhas:upload_delete' upload.pk %}">Excluir</a></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Nenhum upload disponível.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% elif active_upload_tab and active_upload_tab.panel_type == 'crm_vendas' %}
 <div>
     {% if active_upload_tab and active_upload_tab.ready %}
@@ -124,69 +174,138 @@
                 <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
             </div>
         </div>
-        <div class="row g-3 mt-1">
-            {% for item in active_upload_tab.metric_cards %}
-                <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
+        <div class="row g-4 mt-1">
+            {% for block in active_upload_tab.category_blocks %}
+                <div class="{% if block.key == 'vendedor' %}col-12{% else %}col-lg-6{% endif %}">
+                    <div class="panel traffic-block-panel">
+                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                            <div>
+                                <h3 class="mb-1">{{ block.title }}</h3>
+                                <p class="text-muted mb-0">{{ block.description }}</p>
+                            </div>
+                            {% if block.filter_options %}
+                                <div class="crm-filter-dropdown" data-crm-filter-group="{{ block.key }}" data-crm-filter-storage="{{ active_upload_tab.key }}::{{ block.key }}">
+                                    <button type="button" class="btn btn-sm btn-outline-dark" data-crm-filter-toggle>
+                                        Filtrar itens
+                                        <span class="crm-filter-count" data-crm-filter-count>{{ block.filter_options|length }}</span>
+                                    </button>
+                                    <div class="crm-filter-dropdown-menu d-none" data-crm-filter-menu>
+                                        <div class="crm-filter-dropdown-head">
+                                            <button type="button" class="btn btn-sm btn-link p-0" data-crm-filter-select-all>Marcar todos</button>
+                                            <button type="button" class="btn btn-sm btn-link p-0" data-crm-filter-clear>Limpar</button>
+                                        </div>
+                                        <div class="crm-filter-search-wrap">
+                                            <input type="text" class="form-control form-control-sm" placeholder="Buscar item..." data-crm-filter-search>
+                                        </div>
+                                        <div class="crm-filter-dropdown-list">
+                                            {% for option in block.filter_options %}
+                                                <label class="form-check mb-2" data-crm-filter-item>
+                                                    <input class="form-check-input" type="checkbox" checked data-crm-filter-option="{{ option|escape }}">
+                                                    <span class="form-check-label">{{ option }}</span>
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% if block.key == 'vendedor' %}
+                            {% if block.chart %}
+                                <div class="mt-3">
+                                    <div id="crmCategoryChart-{{ block.chart.key }}" style="min-height: 320px;"></div>
+                                </div>
+                            {% endif %}
+                            {% if block.vendor_table %}
+                                <div class="table-responsive mt-3">
+                                    <table class="table align-middle traffic-summary-table mb-0">
+                                        <thead>
+                                            <tr>
+                                                {% for column in block.vendor_table.columns %}
+                                                    <th>{{ column }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in block.vendor_table.rows %}
+                                                <tr data-crm-row-label="{{ row.label }}">
+                                                    <td>{{ row.label }}</td>
+                                                    {% for cell in row.cells %}
+                                                        <td><strong>{{ cell.period_value }}</strong></td>
+                                                        <td class="{{ cell.variation_class }}">{{ cell.variation_value }}</td>
+                                                    {% endfor %}
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            {% if block.chart %}
+                                <div class="mt-3">
+                                    <div id="crmCategoryChart-{{ block.chart.key }}" style="min-height: {% if block.chart_type == 'pie' %}360px{% else %}280px{% endif %};"></div>
+                                </div>
+                            {% endif %}
+                            {% if block.rows %}
+                                <div class="table-responsive mt-3 {% if block.chart_type == 'pie' %}crm-status-table-wrap{% endif %}">
+                                    <table class="table align-middle traffic-summary-table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Métrica</th>
+                                                <th>Anterior / Atual</th>
+                                                <th>Variação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in block.rows %}
+                                                <tr data-crm-row-label="{{ row.label }}">
+                                                    <td {% if row.label_color %}style="color: {{ row.label_color }}; font-weight: 700;"{% endif %}>{{ row.label }}</td>
+                                                    <td><strong>{{ row.period_value }}</strong></td>
+                                                    <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="panel">
+                        <p class="text-muted mb-0">Ative métricas de tabela ou gráfico na configuração do painel para montar a aba de CRM.</p>
+                    </div>
+                </div>
             {% endfor %}
         </div>
-        <div class="row g-4 mt-1">
-            <div class="col-lg-4">
-                <div class="panel">
-                    <h3>Canais</h3>
-                    <ul class="mb-0">
-                        {% for label, count in active_upload_tab.channels %}
-                            <li>{{ label }}: {{ count }}</li>
-                        {% empty %}
-                            <li>Sem canais mapeados.</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="panel">
-                    <h3>Vendedores</h3>
-                    <ul class="mb-0">
-                        {% for label, count in active_upload_tab.sellers %}
-                            <li>{{ label }}: {{ count }}</li>
-                        {% empty %}
-                            <li>Sem vendedores mapeados.</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="panel">
-                    <h3>Observação</h3>
-                    <p class="text-muted mb-0">Os dados desta aba são lidos do arquivo configurado e filtrados pelo período quando a coluna de data está mapeada.</p>
-                </div>
-            </div>
-        </div>
+        {{ active_upload_tab.category_blocks|json_script:"crm-category-blocks-data" }}
         <div class="panel mt-4">
-            <h3>Registros CRM</h3>
+            <h3>Uploads do Painel</h3>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead><tr><th>ID</th><th>Data</th><th>Lead</th><th>Canal</th><th>Valor</th><th>Vendedor</th><th>Status</th><th>Origem</th></tr></thead>
+                    <thead><tr><th>Arquivo</th><th>Criado em</th><th>Colunas</th><th>Ações</th></tr></thead>
                     <tbody>
-                    {% for row in active_upload_tab.rows %}
+                    {% for upload in panel_uploads_list %}
                         <tr>
-                            <td>{{ row.id }}</td>
-                            <td>{{ row.data_contato }}</td>
-                            <td>{{ row.nome_lead }}</td>
-                            <td>{{ row.canal }}</td>
-                            <td>R$ {{ row.valor_venda }}</td>
-                            <td>{{ row.vendedor }}</td>
-                            <td>{{ row.status_fechamento }}</td>
-                            <td>{{ row.origem_lead }}</td>
+                            <td>{{ upload.nome_arquivo }}</td>
+                            <td>{{ upload.criado_em|date:"d/m/Y H:i" }}</td>
+                            <td>{{ upload.colunas_detectadas_json|length }}</td>
+                            <td>
+                                <form method="post" action="{% url 'campanhas:panel_upload_delete' upload.pk %}?empresa={{ empresa.pk }}&tab={{ active_upload_tab.key }}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                                </form>
+                            </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="8">Nenhum registro disponível.</td></tr>
+                        <tr><td colspan="4">Nenhum upload disponível.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     {% else %}
-        <p class="text-muted mb-0">Configure um arquivo mapeado de CRM Vendas para exibir esta aba.</p>
+        <p class="text-muted mb-0">Configure um arquivo mapeado de Vendas para exibir esta aba.</p>
     {% endif %}
 </div>
 {% elif active_upload_tab and active_upload_tab.panel_type == 'leads_eventos' %}
@@ -244,6 +363,31 @@
                         </table>
                     </div>
                 </div>
+            </div>
+        </div>
+        <div class="panel mt-4">
+            <h3>Uploads do Painel</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Arquivo</th><th>Criado em</th><th>Colunas</th><th>Ações</th></tr></thead>
+                    <tbody>
+                    {% for upload in panel_uploads_list %}
+                        <tr>
+                            <td>{{ upload.nome_arquivo }}</td>
+                            <td>{{ upload.criado_em|date:"d/m/Y H:i" }}</td>
+                            <td>{{ upload.colunas_detectadas_json|length }}</td>
+                            <td>
+                                <form method="post" action="{% url 'campanhas:panel_upload_delete' upload.pk %}?empresa={{ empresa.pk }}&tab={{ active_upload_tab.key }}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4">Nenhum upload disponível.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     {% else %}
@@ -304,6 +448,31 @@
                         </table>
                     </div>
                 </div>
+            </div>
+        </div>
+        <div class="panel mt-4">
+            <h3>Uploads do Painel</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Arquivo</th><th>Criado em</th><th>Colunas</th><th>Ações</th></tr></thead>
+                    <tbody>
+                    {% for upload in panel_uploads_list %}
+                        <tr>
+                            <td>{{ upload.nome_arquivo }}</td>
+                            <td>{{ upload.criado_em|date:"d/m/Y H:i" }}</td>
+                            <td>{{ upload.colunas_detectadas_json|length }}</td>
+                            <td>
+                                <form method="post" action="{% url 'campanhas:panel_upload_delete' upload.pk %}?empresa={{ empresa.pk }}&tab={{ active_upload_tab.key }}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4">Nenhum upload disponível.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     {% else %}
@@ -385,7 +554,7 @@
             </div>
         </div>
     {% else %}
-        <p class="text-muted mb-0">Configure ao menos Tráfego Pago e CRM Vendas para ter uma análise completa consistente.</p>
+        <p class="text-muted mb-0">Configure ao menos Tráfego Pago e Vendas para ter uma análise completa consistente.</p>
     {% endif %}
 </div>
 {% elif dashboard_tab == 'concorrentes' %}
@@ -636,33 +805,105 @@
       });
     });
 
-    const trafficBlocksPayloadNode = document.getElementById('traffic-blocks-data');
-    if (trafficBlocksPayloadNode) {
-      const trafficBlocks = JSON.parse(trafficBlocksPayloadNode.textContent);
-      trafficBlocks.forEach((block) => {
-        const chart = block.chart;
-        if (!chart) return;
-        const node = document.getElementById(`trafficBlockComparisonChart-${chart.key}`);
-        if (!node) return;
-        const apexChart = new ApexCharts(node, {
-          chart: {
-            type: 'bar',
-            height: 280,
-            toolbar: { show: false }
-          },
+    const readSavedFilterSelection = (blockKey) => {
+      const filterGroupNode = document.querySelector(`.crm-filter-dropdown[data-crm-filter-group="${blockKey}"]`);
+      const storageKey = filterGroupNode?.dataset.crmFilterStorage;
+      if (!storageKey) return null;
+      try {
+        const rawValue = localStorage.getItem(`dashboard-filter:${storageKey}`);
+        const parsed = rawValue ? JSON.parse(rawValue) : null;
+        return Array.isArray(parsed) ? parsed : null;
+      } catch (error) {
+        return null;
+      }
+    };
+    const persistFilterSelection = (blockKey, selectedOptions) => {
+      const filterGroupNode = document.querySelector(`.crm-filter-dropdown[data-crm-filter-group="${blockKey}"]`);
+      const storageKey = filterGroupNode?.dataset.crmFilterStorage;
+      if (!storageKey) return;
+      localStorage.setItem(`dashboard-filter:${storageKey}`, JSON.stringify(selectedOptions));
+    };
+    const getFilterGroupNode = (blockKey) => document.querySelector(`.crm-filter-dropdown[data-crm-filter-group="${blockKey}"]`);
+    const getSelectedOptions = (blockKey) => Array.from(document.querySelectorAll(`.crm-filter-dropdown[data-crm-filter-group="${blockKey}"] [data-crm-filter-option]`))
+      .filter((input) => input.checked)
+      .map((input) => input.getAttribute('data-crm-filter-option'));
+    const updateFilterCount = (blockKey) => {
+      const filterGroupNode = getFilterGroupNode(blockKey);
+      const countNode = filterGroupNode?.querySelector('[data-crm-filter-count]');
+      if (!countNode) return;
+      countNode.textContent = getSelectedOptions(blockKey).length;
+    };
+    const syncBlockTableRows = (blockKey, selectedOptions) => {
+      const blockNode = getFilterGroupNode(blockKey)?.closest('.traffic-block-panel');
+      if (!blockNode) return;
+      blockNode.querySelectorAll('[data-crm-row-label]').forEach((row) => {
+        const label = row.getAttribute('data-crm-row-label');
+        row.classList.toggle('d-none', !selectedOptions.includes(label));
+      });
+    };
+    const buildFilteredChart = (block, selectedOptions) => {
+      const chart = block.chart;
+      if (!chart) return null;
+      if (!selectedOptions.length) {
+        if (block.chart_type === 'pie') {
+          return { ...chart, labels: [], series: [], colors: [] };
+        }
+        return {
+          ...chart,
+          categories: [],
+          series: chart.series.map((serie) => ({ ...serie, data: [] })),
+        };
+      }
+      if (block.chart_type === 'pie') {
+        const indexes = (chart.labels || []).map((label, index) => selectedOptions.includes(label) ? index : -1).filter((index) => index >= 0);
+        return {
+          ...chart,
+          labels: indexes.map((index) => chart.labels[index]),
+          series: indexes.map((index) => chart.series[index]),
+          colors: indexes.map((index) => (chart.colors || [])[index]),
+        };
+      }
+      const indexes = (chart.categories || []).map((label, index) => selectedOptions.includes(String(label)) ? index : -1).filter((index) => index >= 0);
+      return {
+        ...chart,
+        categories: indexes.map((index) => chart.categories[index]),
+        series: chart.series.map((serie) => ({
+          ...serie,
+          data: indexes.map((index) => serie.data[index]),
+        })),
+      };
+    };
+    const renderBlockChart = (block, nodeId, chartStore) => {
+      const chart = block.filter_options?.length ? buildFilteredChart(block, getSelectedOptions(block.key)) : block.chart;
+      const node = document.getElementById(nodeId);
+      if (!node || !chart) return;
+      if (chartStore[block.key]) {
+        chartStore[block.key].destroy();
+      }
+      const chartType = block.chart_type || 'bar_compare';
+      let apexChart;
+      if (chartType === 'pie') {
+        apexChart = new ApexCharts(node, {
+          chart: { type: 'pie', height: 420, toolbar: { show: false } },
+          colors: chart.colors || ['#175cd3', '#2d6a4f', '#f59e0b', '#dc2626', '#7c3aed', '#0f766e'],
+          series: chart.series,
+          labels: chart.labels || [],
+          dataLabels: { enabled: true },
+          legend: { show: false, position: 'bottom' }
+        });
+      } else {
+        apexChart = new ApexCharts(node, {
+          chart: { type: 'bar', height: 280, toolbar: { show: false } },
           plotOptions: {
             bar: {
               horizontal: false,
-              columnWidth: '48%',
-              dataLabels: {
-                position: 'top'
-              }
+              columnWidth: chartType === 'bar_single' ? '42%' : '48%',
+              dataLabels: { position: 'top' }
             }
           },
+          colors: ['#175cd3', '#2d6a4f', '#c67a1a'],
           series: chart.series,
-          xaxis: {
-            categories: chart.categories || []
-          },
+          xaxis: { categories: chart.categories || [] },
           yaxis: {
             labels: {
               formatter(value) {
@@ -670,21 +911,17 @@
               }
             }
           },
-          legend: {
-            position: 'bottom'
-          },
+          legend: { position: 'bottom' },
           dataLabels: {
             enabled: true,
             textAnchor: 'middle',
             offsetY: -24,
             style: {
-              colors: ['#175cd3', '#2d6a4f'],
+              colors: ['#175cd3', '#2d6a4f', '#c67a1a'],
               fontSize: '11px',
               fontWeight: '700'
             },
-            background: {
-              enabled: false
-            },
+            background: { enabled: false },
             formatter(value) {
               return Number(value).toFixed(2);
             }
@@ -697,9 +934,113 @@
             }
           }
         });
-        apexChart.render();
+      }
+      apexChart.render();
+      chartStore[block.key] = apexChart;
+    };
+    const setupBlockFilter = (block, renderFn) => {
+      if (!block.filter_options?.length) return;
+      const filterGroupNode = getFilterGroupNode(block.key);
+      const toggleButton = filterGroupNode?.querySelector('[data-crm-filter-toggle]');
+      const menuNode = filterGroupNode?.querySelector('[data-crm-filter-menu]');
+      const selectAllButton = filterGroupNode?.querySelector('[data-crm-filter-select-all]');
+      const clearButton = filterGroupNode?.querySelector('[data-crm-filter-clear]');
+      const searchInput = filterGroupNode?.querySelector('[data-crm-filter-search]');
+      const savedSelection = readSavedFilterSelection(block.key);
+      if (savedSelection) {
+        filterGroupNode.querySelectorAll('[data-crm-filter-option]').forEach((input) => {
+          input.checked = savedSelection.includes(input.getAttribute('data-crm-filter-option'));
+        });
+      }
+      if (toggleButton && menuNode) {
+        toggleButton.addEventListener('click', () => {
+          document.querySelectorAll('[data-crm-filter-menu]').forEach((menu) => {
+            if (menu !== menuNode) menu.classList.add('d-none');
+          });
+          menuNode.classList.toggle('d-none');
+        });
+      }
+      if (selectAllButton) {
+        selectAllButton.addEventListener('click', () => {
+          filterGroupNode.querySelectorAll('[data-crm-filter-option]').forEach((input) => {
+            input.checked = true;
+          });
+          const selectedOptions = getSelectedOptions(block.key);
+          persistFilterSelection(block.key, selectedOptions);
+          updateFilterCount(block.key);
+          syncBlockTableRows(block.key, selectedOptions);
+          renderFn();
+        });
+      }
+      if (clearButton) {
+        clearButton.addEventListener('click', () => {
+          filterGroupNode.querySelectorAll('[data-crm-filter-option]').forEach((input) => {
+            input.checked = false;
+          });
+          persistFilterSelection(block.key, []);
+          updateFilterCount(block.key);
+          syncBlockTableRows(block.key, []);
+          renderFn();
+        });
+      }
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const searchTerm = searchInput.value.trim().toLowerCase();
+          filterGroupNode.querySelectorAll('[data-crm-filter-item]').forEach((itemNode) => {
+            const labelText = itemNode.textContent.trim().toLowerCase();
+            itemNode.classList.toggle('d-none', searchTerm && !labelText.includes(searchTerm));
+          });
+        });
+      }
+      filterGroupNode.querySelectorAll('[data-crm-filter-option]').forEach((input) => {
+        input.addEventListener('change', () => {
+          const selectedOptions = getSelectedOptions(block.key);
+          persistFilterSelection(block.key, selectedOptions);
+          updateFilterCount(block.key);
+          syncBlockTableRows(block.key, selectedOptions);
+          renderFn();
+        });
+      });
+      const initialSelection = getSelectedOptions(block.key);
+      updateFilterCount(block.key);
+      syncBlockTableRows(block.key, initialSelection);
+    };
+
+    const trafficBlocksPayloadNode = document.getElementById('traffic-blocks-data');
+    if (trafficBlocksPayloadNode) {
+      const trafficBlocks = JSON.parse(trafficBlocksPayloadNode.textContent);
+      const trafficCharts = {};
+      trafficBlocks.forEach((block) => {
+        const renderTrafficChart = () => {
+          if (block.chart) {
+            renderBlockChart(block, `trafficBlockComparisonChart-${block.chart.key}`, trafficCharts);
+          }
+        };
+        setupBlockFilter(block, renderTrafficChart);
+        renderTrafficChart();
       });
     }
+
+    const crmBlocksPayloadNode = document.getElementById('crm-category-blocks-data');
+    if (crmBlocksPayloadNode) {
+      const crmBlocks = JSON.parse(crmBlocksPayloadNode.textContent);
+      const crmCharts = {};
+      crmBlocks.forEach((block) => {
+        const renderCrmChart = () => {
+          if (block.chart) {
+            renderBlockChart(block, `crmCategoryChart-${block.chart.key}`, crmCharts);
+          }
+        };
+        setupBlockFilter(block, renderCrmChart);
+        renderCrmChart();
+      });
+    }
+
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.crm-filter-dropdown')) {
+        document.querySelectorAll('[data-crm-filter-menu]').forEach((menu) => menu.classList.add('d-none'));
+      }
+    });
 
   });
 </script>

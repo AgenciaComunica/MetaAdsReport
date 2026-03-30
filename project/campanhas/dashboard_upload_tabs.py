@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
+import re
+import unicodedata
 
 import pandas as pd
 
 from empresas.models import ConfiguracaoUploadEmpresa
 from empresas.upload_config_services import (
+    get_category_filter_enabled_map,
     get_enabled_chart_metric_keys,
     get_enabled_table_metric_keys,
     read_uploaded_dataframe,
 )
 
+from .models import UploadPainel
 from .services import campaign_table, summarize_metrics
 
 
@@ -99,9 +103,80 @@ TRAFFIC_PLAUSIBLE_VARIATION_LIMITS = {
     'custo_por_resultado': Decimal('15'),
     'taxa_resposta': Decimal('10'),
 }
+CRM_POSITIVE_WHEN_HIGHER = {
+    'receita_total',
+    'vendas_concluidas',
+    'taxa_conversao',
+    'conversas',
+    'ticket_medio',
+    'trafego_pago_conversas',
+    'organico_conversas',
+    'receita_trafego_pago',
+    'receita_organico',
+    'vendas_concluidas_vendedor',
+    'valor_vendas_vendedor',
+    'atendimentos_vendedor',
+}
+CRM_PLAUSIBLE_VARIATION_LIMITS = {
+    'receita_total': Decimal('15'),
+    'vendas_concluidas': Decimal('15'),
+    'taxa_conversao': Decimal('10'),
+    'conversas': Decimal('15'),
+    'ticket_medio': Decimal('12'),
+    'trafego_pago_conversas': Decimal('15'),
+    'organico_conversas': Decimal('15'),
+    'receita_trafego_pago': Decimal('15'),
+    'receita_organico': Decimal('15'),
+    'vendas_concluidas_vendedor': Decimal('15'),
+    'valor_vendas_vendedor': Decimal('15'),
+    'atendimentos_vendedor': Decimal('15'),
+}
+CRM_STATUS_COLOR_MAP = {
+    'venda concluida': '#2d6a4f',
+    'venda concluída': '#2d6a4f',
+    'retorno': '#175cd3',
+    'ausência de resposta': '#6b7280',
+    'ausencia de resposta': '#6b7280',
+    'pedido com +10 peças': '#0f766e',
+    'conhecimento com preço menor': '#f59e0b',
+    'cliente indeciso': '#7c3aed',
+    'indisponibilidade de data': '#0ea5e9',
+    'apenas passar valores': '#f97316',
+    'demora no atendimento': '#dc2626',
+    'fora do escopo': '#92400e',
+    'relação 0 - sem venda': '#475569',
+    'falta de identificação da necessidade no interesse': '#b45309',
+    'interação interna': '#4f46e5',
+    'não informado': '#94a3b8',
+}
+CRM_STATUS_COLOR_RULES = [
+    ('venda concluida', '#16A34A'),
+    ('retorno', '#2563EB'),
+    ('ausencia de resposta', '#9CA3AF'),
+    ('pedido com', '#F97316'),
+    ('nao aprovou o valor', '#DC2626'),
+    ('concorrente com preco menor', '#7C3AED'),
+    ('cliente indeciso', '#FACC15'),
+    ('indisponibilidade de data', '#0ea5e9'),
+    ('apenas saber valores', '#14B8A6'),
+    ('demora no atendimento', '#FB7185'),
+    ('fora do escopo', '#A855F7'),
+    ('reacao ig', '#A855F7'),
+    ('recusa de identificacao da marca clone', '#D97706'),
+    ('interacao interna', '#334155'),
+    ('nao informado', '#94a3b8'),
+]
+LEAD_TEMPERATURE_COLOR_RULES = [
+    ('cliente', '#16A34A'),
+    ('muito quente', '#A855F7'),
+    ('quente', '#DC2626'),
+    ('frio', '#2563EB'),
+    ('nao informado', '#94A3B8'),
+]
+LEAD_TEMPERATURE_DISPLAY_ORDER = ['Cliente', 'Muito Quente', 'Quente', 'Frio', 'Não informado']
 
 
-def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, period_end=None, previous_queryset=None):
+def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, period_end=None, previous_start=None, previous_end=None, previous_queryset=None):
     configs = list(empresa.configuracoes_upload.exclude(tipo_documento='').order_by('nome', 'pk'))
     tabs = []
     traffic_tabs = []
@@ -114,7 +189,7 @@ def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, pe
             tab = build_traffic_tab(config, traffic_queryset, previous_queryset=previous_queryset, key=key)
             traffic_tabs.append(tab)
         elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS:
-            tab = build_crm_tab(config, period_start, period_end, key=key)
+            tab = build_crm_tab(config, period_start, period_end, previous_start=previous_start, previous_end=previous_end, key=key)
             crm_tabs.append(tab)
         elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
             tab = build_leads_tab(config, period_start, period_end, key=key)
@@ -130,7 +205,7 @@ def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, pe
         tabs.append(
             build_complete_analysis_tab(
                 traffic_tabs[0] if traffic_tabs else _empty_tab('trafego_pago', 'Tráfego Pago'),
-                crm_tabs[0] if crm_tabs else _empty_tab('crm_vendas', 'CRM Vendas'),
+                crm_tabs[0] if crm_tabs else _empty_tab('crm_vendas', 'Vendas'),
                 leads_tabs[0] if leads_tabs else _empty_tab('leads_eventos', 'Leads Eventos'),
             )
         )
@@ -145,8 +220,9 @@ def build_traffic_tab(config, queryset, previous_queryset=None, key='trafego_pag
     metric_definitions = _build_traffic_metric_definitions(result_label)
     selected_table_keys = get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json) if config else []
     selected_chart_keys = get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json) if config else []
+    filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json) if config else {}
     previous_metrics = _build_traffic_metric_values(previous_summary, {})
-    block_cards = _build_traffic_blocks(derived_metrics, previous_metrics, metric_definitions, selected_table_keys)
+    block_cards = _build_traffic_blocks(derived_metrics, previous_metrics, metric_definitions, selected_table_keys, filter_enabled_map)
     block_comparison_charts = _build_traffic_block_comparison_charts(derived_metrics, previous_metrics, metric_definitions, selected_chart_keys)
     chart_map = {chart['key']: chart for chart in block_comparison_charts}
     for block in block_cards:
@@ -167,44 +243,36 @@ def build_traffic_tab(config, queryset, previous_queryset=None, key='trafego_pag
     }
 
 
-def build_crm_tab(config, period_start=None, period_end=None, key='crm_vendas'):
+def build_crm_tab(config, period_start=None, period_end=None, previous_start=None, previous_end=None, key='crm_vendas'):
     if not config:
-        return _empty_tab('crm_vendas', 'CRM Vendas')
+        return _empty_tab('crm_vendas', 'Vendas')
     rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_contato')
-    total_revenue = sum((_to_decimal(row.get('valor_venda')) for row in rows), Decimal('0'))
+    previous_rows = _read_mapped_rows(config, period_start=previous_start, period_end=previous_end, date_key='data_contato')
     closed_status = {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}
-    sales_rows = [row for row in rows if str(row.get('status_fechamento', '')).strip().lower() in closed_status]
-    channels = _top_values(rows, 'canal')
-    sellers = _top_values(rows, 'vendedor')
-    kpis = {
-        'registros': len(rows),
-        'vendas_fechadas': len(sales_rows),
-        'receita_total': total_revenue,
-        'ticket_medio': (total_revenue / Decimal(len(sales_rows))) if sales_rows else Decimal('0'),
-    }
+    selected_table_keys = set(get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json))
+    selected_chart_keys = set(get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json))
+    filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json)
+    current_summary = _crm_period_summary(rows, closed_status, config)
+    previous_summary = _crm_period_summary(previous_rows, closed_status, config)
+    category_blocks = _build_crm_category_blocks(
+        selected_table_keys,
+        selected_chart_keys,
+        current_summary,
+        previous_summary,
+        filter_enabled_map,
+    )
     return {
         'key': key,
         'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS,
         'title': config.nome,
         'config_id': config.pk,
         'configured': True,
-        'ready': bool(rows),
+        'ready': bool(config.mapeamento_json),
         'config_name': config.nome,
         'description': 'Leitura do arquivo configurado para CRM e vendas.',
         'rows': rows[:20],
-        'kpis': kpis,
-        'metric_cards': _build_metric_cards(
-            kpis,
-            get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json),
-            {
-                'registros': ('Registros', lambda value: str(value)),
-                'vendas_fechadas': ('Vendas Fechadas', lambda value: str(value)),
-                'receita_total': ('Receita Total', lambda value: f'R$ {value:.2f}'),
-                'ticket_medio': ('Ticket Médio', lambda value: f'R$ {value:.2f}'),
-            },
-        ),
-        'channels': channels,
-        'sellers': sellers,
+        'kpis': current_summary['geral'],
+        'category_blocks': category_blocks,
     }
 
 
@@ -309,6 +377,357 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
     }
 
 
+def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None):
+    blocks = []
+    selected_chart_keys = set(selected_chart_keys or [])
+    selected_table_keys = set(selected_table_keys or [])
+    filter_enabled_map = filter_enabled_map or {}
+
+    resultado_metrics = [
+        ('receita_total', 'Receita Total', True, ''),
+        ('vendas_concluidas', 'Vendas Concluídas', False, ''),
+        ('taxa_conversao', 'Taxa de Conversão', False, '%'),
+        ('conversas', 'Conversas', False, ''),
+        ('ticket_medio', 'Ticket Médio', True, ''),
+    ]
+    resultado_rows = _crm_comparison_rows(resultado_metrics, current_summary['geral'], previous_summary['geral'], selected_table_keys)
+    resultado_metric_keys = {item[0] for item in resultado_metrics}
+    resultado_chart_keys = {key for key in selected_chart_keys if key in resultado_metric_keys}
+    if not resultado_chart_keys:
+        resultado_chart_keys = {key for key in selected_table_keys if key in resultado_metric_keys}
+    resultado_chart = _crm_comparison_chart('crm_resultado', 'Resultado', resultado_metrics, current_summary['geral'], previous_summary['geral'], resultado_chart_keys)
+    if resultado_rows or resultado_chart:
+        blocks.append(
+            {
+                'key': 'resultado',
+                'title': 'Resultado',
+                'description': 'Comparativo principal entre os períodos do comercial.',
+                'rows': resultado_rows,
+                'chart': resultado_chart,
+                'chart_type': 'bar_compare',
+                'filter_options': [row['label'] for row in resultado_rows] if filter_enabled_map.get('resultado') else [],
+            }
+        )
+
+    origem_metrics = [
+        ('trafego_pago_conversas', 'Tráfego Pago', False, ''),
+        ('organico_conversas', 'Orgânico', False, ''),
+        ('receita_trafego_pago', 'Receita Tráfego Pago', True, ''),
+        ('receita_organico', 'Receita Orgânico', True, ''),
+    ]
+    origem_rows = _crm_comparison_rows(origem_metrics, current_summary['origem'], previous_summary['origem'], selected_table_keys)
+    origem_metric_keys = {item[0] for item in origem_metrics}
+    origem_chart_keys = {key for key in selected_chart_keys if key in origem_metric_keys}
+    if not origem_chart_keys:
+        origem_chart_keys = {key for key in selected_table_keys if key in origem_metric_keys}
+    origem_chart = _crm_comparison_chart('crm_origem', 'Origem', origem_metrics, current_summary['origem'], previous_summary['origem'], origem_chart_keys)
+    if origem_rows or origem_chart:
+        blocks.append(
+            {
+                'key': 'origem',
+                'title': 'Origem',
+                'description': 'Separação entre tráfego pago e orgânico, em conversas e receita.',
+                'rows': origem_rows,
+                'chart': origem_chart,
+                'chart_type': 'bar_compare',
+                'filter_options': [row['label'] for row in origem_rows] if filter_enabled_map.get('origem') else [],
+            }
+        )
+
+    status_rows = _crm_status_comparison_rows(
+        current_summary['status_counts'],
+        previous_summary['status_counts'],
+        'status_fechamento' in selected_table_keys,
+    )
+    status_chart_enabled = 'status_fechamento' in selected_chart_keys or ('status_fechamento' in selected_table_keys and 'status_fechamento' not in selected_chart_keys)
+    status_chart = _crm_status_pie_chart(current_summary['status']) if status_chart_enabled else None
+    if status_rows or status_chart:
+        blocks.append(
+            {
+                'key': 'status',
+                'title': 'Status',
+                'description': 'Distribuição atual em pizza e comparação por status na tabela.',
+                'rows': status_rows,
+                'chart': status_chart,
+                'chart_type': 'pie',
+                'filter_options': [row['label'] for row in status_rows],
+            }
+        )
+
+    temperatura_rows = _crm_status_comparison_rows(
+        current_summary['temperatura_counts'],
+        previous_summary['temperatura_counts'],
+        'temperatura_lead' in selected_table_keys,
+        color_fn=_crm_temperature_color,
+    )
+    temperatura_chart_enabled = 'temperatura_lead' in selected_chart_keys or ('temperatura_lead' in selected_table_keys and 'temperatura_lead' not in selected_chart_keys)
+    temperatura_chart = _crm_distribution_pie_chart(current_summary['temperatura'], 'crm_temperatura', 'Temperatura Leads', _crm_temperature_color) if temperatura_chart_enabled else None
+    if temperatura_rows or temperatura_chart:
+        blocks.append(
+            {
+                'key': 'temperatura',
+                'title': 'Temperatura Leads',
+                'description': 'Distribuição atual em pizza e comparação por tags/temperatura na tabela.',
+                'rows': temperatura_rows,
+                'chart': temperatura_chart,
+                'chart_type': 'pie',
+                'filter_options': [row['label'] for row in temperatura_rows] if filter_enabled_map.get('temperatura') else [],
+            }
+        )
+
+    vendedor_rows = _crm_vendor_comparison_rows(current_summary['vendedores'], previous_summary['vendedores'], selected_table_keys)
+    vendedor_metric_keys = {'vendas_concluidas_vendedor', 'valor_vendas_vendedor', 'atendimentos_vendedor'}
+    vendedor_chart_keys = {key for key in selected_chart_keys if key in vendedor_metric_keys}
+    if not vendedor_chart_keys:
+        vendedor_chart_keys = {key for key in selected_table_keys if key in vendedor_metric_keys}
+    vendedor_chart = _crm_vendor_chart(current_summary['vendedores'], previous_summary['vendedores'], vendedor_chart_keys)
+    if vendedor_rows or vendedor_chart:
+        blocks.append(
+            {
+                'key': 'vendedor',
+                'title': 'Vendedor',
+                'description': 'Comparativo por vendedor em vendas concluídas, valor vendido e atendimentos.',
+                'vendor_table': vendedor_rows,
+                'chart': vendedor_chart,
+                'chart_type': 'bar_single',
+                'filter_options': [row['label'] for row in vendedor_rows.get('rows', [])],
+            }
+        )
+
+    return blocks
+
+
+def _crm_comparison_rows(metric_defs, current_values, previous_values, selected_table_keys):
+    rows = []
+    for key, label, currency, suffix in metric_defs:
+        if key not in selected_table_keys:
+            continue
+        current_value = current_values.get(key, Decimal('0'))
+        previous_value = previous_values.get(key, Decimal('0'))
+        variation_absolute = current_value - previous_value
+        variation_percent = (variation_absolute / previous_value * Decimal('100')) if previous_value else None
+        rows.append(
+            {
+                'label': label,
+                'period_value': f"{_format_crm_metric(previous_value, currency, suffix)} / {_format_crm_metric(current_value, currency, suffix)}",
+                'previous_value': _format_crm_metric(previous_value, currency, suffix),
+                'current_value': _format_crm_metric(current_value, currency, suffix),
+                'variation_value': _format_variation(variation_absolute, variation_percent, key),
+                'variation_class': _resolve_crm_variation_class(key, variation_absolute, variation_percent),
+            }
+        )
+    return rows
+
+
+def _crm_comparison_chart(key, title, metric_defs, current_values, previous_values, selected_chart_keys):
+    categories = []
+    current_data = []
+    previous_data = []
+    for metric_key, label, _, _ in metric_defs:
+        if metric_key not in selected_chart_keys:
+            continue
+        categories.append(label)
+        current_data.append(_decimal_to_float(current_values.get(metric_key, Decimal('0'))))
+        previous_data.append(_decimal_to_float(previous_values.get(metric_key, Decimal('0'))))
+    if not categories:
+        return None
+    return {
+        'key': key,
+        'title': title,
+        'categories': categories,
+        'series': [
+            {'name': 'Período anterior', 'data': previous_data},
+            {'name': 'Período atual', 'data': current_data},
+        ],
+    }
+
+
+def _crm_status_comparison_rows(current_status_counts, previous_status_counts, include_table, color_fn=None):
+    if not include_table:
+        return []
+    status_labels = sorted(set(current_status_counts.keys()) | set(previous_status_counts.keys()))
+    rows = []
+    for label in status_labels:
+        current_value = Decimal(current_status_counts.get(label, 0))
+        previous_value = Decimal(previous_status_counts.get(label, 0))
+        variation_absolute = current_value - previous_value
+        variation_percent = (variation_absolute / previous_value * Decimal('100')) if previous_value else None
+        rows.append(
+            {
+                'label': label,
+                'label_color': color_fn(label) if color_fn else _crm_status_color(label),
+                'period_value': f'{int(previous_value)} / {int(current_value)}',
+                'previous_value': str(int(previous_value)),
+                'current_value': str(int(current_value)),
+                'variation_value': _format_variation(variation_absolute, variation_percent, 'conversas'),
+                'variation_class': _resolve_crm_variation_class('conversas', variation_absolute, variation_percent),
+            }
+        )
+    return rows
+
+
+def _crm_distribution_pie_chart(current_distribution, key, title, color_fn):
+    if not current_distribution:
+        return None
+    labels = list(current_distribution.keys())
+    data = [_decimal_to_float(current_distribution[label]) for label in labels]
+    return {
+        'key': key,
+        'title': title,
+        'labels': labels,
+        'series': data,
+        'colors': [color_fn(label) for label in labels],
+    }
+
+
+def _crm_status_pie_chart(current_status):
+    return _crm_distribution_pie_chart(current_status, 'crm_status', 'Status', _crm_status_color)
+
+
+def _crm_vendor_comparison_rows(current_vendors, previous_vendors, selected_table_keys):
+    metric_map = {
+        'vendas_concluidas_vendedor': ('Vendas Concluídas', 'vendas_concluidas', lambda value: str(int(value))),
+        'valor_vendas_vendedor': ('Valor Vendas', 'receita', lambda value: f'R$ {value:.2f}'),
+        'atendimentos_vendedor': ('Atendimentos', 'atendimentos', lambda value: str(int(value))),
+    }
+    if not any(key in selected_table_keys for key in metric_map):
+        return []
+    vendor_labels = sorted(set(current_vendors.keys()) | set(previous_vendors.keys()))
+    columns = ['Vendedor']
+    for key in metric_map:
+        if key in selected_table_keys:
+            metric_label, _, _ = metric_map[key]
+            columns.extend([metric_label, 'Variação'])
+    rows = []
+    for label in vendor_labels:
+        current_item = current_vendors.get(label, {})
+        previous_item = previous_vendors.get(label, {})
+        row = {'label': label, 'cells': []}
+        for key, (_, base_key, formatter) in metric_map.items():
+            if key not in selected_table_keys:
+                continue
+            previous_value = previous_item.get(base_key, Decimal('0'))
+            current_value = current_item.get(base_key, Decimal('0'))
+            variation_absolute = current_value - previous_value
+            variation_percent = (variation_absolute / previous_value * Decimal('100')) if previous_value else None
+            row['cells'].append(
+                {
+                    'period_value': f"{formatter(previous_value)} / {formatter(current_value)}",
+                    'variation_value': _format_variation(variation_absolute, variation_percent, key),
+                    'variation_class': _resolve_crm_variation_class(key, variation_absolute, variation_percent),
+                }
+            )
+        rows.append(row)
+    return {'columns': columns, 'rows': rows}
+
+
+def _crm_vendor_chart(current_vendors, previous_vendors, selected_chart_keys):
+    categories = sorted(set(current_vendors.keys()) | set(previous_vendors.keys())) or ['Sem vendedor']
+    series = []
+    if 'vendas_concluidas_vendedor' in selected_chart_keys:
+        series.append(
+            {
+                'name': 'Vendas Concluídas · Anterior',
+                'data': [_decimal_to_float(previous_vendors.get(label, {}).get('vendas_concluidas', Decimal('0'))) for label in categories] or [0],
+            }
+        )
+        series.append(
+            {
+                'name': 'Vendas Concluídas · Atual',
+                'data': [_decimal_to_float(current_vendors.get(label, {}).get('vendas_concluidas', Decimal('0'))) for label in categories] or [0],
+            }
+        )
+    if 'valor_vendas_vendedor' in selected_chart_keys:
+        series.append(
+            {
+                'name': 'Valor Vendas · Anterior',
+                'data': [_decimal_to_float(previous_vendors.get(label, {}).get('receita', Decimal('0'))) for label in categories] or [0],
+            }
+        )
+        series.append(
+            {
+                'name': 'Valor Vendas · Atual',
+                'data': [_decimal_to_float(current_vendors.get(label, {}).get('receita', Decimal('0'))) for label in categories] or [0],
+            }
+        )
+    if 'atendimentos_vendedor' in selected_chart_keys:
+        series.append(
+            {
+                'name': 'Atendimentos · Anterior',
+                'data': [_decimal_to_float(previous_vendors.get(label, {}).get('atendimentos', Decimal('0'))) for label in categories] or [0],
+            }
+        )
+        series.append(
+            {
+                'name': 'Atendimentos · Atual',
+                'data': [_decimal_to_float(current_vendors.get(label, {}).get('atendimentos', Decimal('0'))) for label in categories] or [0],
+            }
+        )
+    if not series:
+        return None
+    return {
+        'key': 'crm_vendedor',
+        'title': 'Vendedor',
+        'categories': categories,
+        'series': series,
+    }
+
+
+def _format_crm_metric(value, currency=False, suffix=''):
+    if currency:
+        return f'R$ {value:.2f}'
+    if suffix == '%':
+        return f'{value:.2f}%'
+    return f'{value:.2f}' if isinstance(value, Decimal) and value != value.to_integral_value() else str(int(value))
+
+
+def _crm_status_color(label):
+    normalized = _normalize_status_label(label)
+    if normalized in CRM_STATUS_COLOR_MAP:
+        return CRM_STATUS_COLOR_MAP[normalized]
+    for term, color in CRM_STATUS_COLOR_RULES:
+        if term in normalized:
+            return color
+    return '#175cd3'
+
+
+def _crm_temperature_color(label):
+    normalized = _normalize_status_label(label)
+    for term, color in LEAD_TEMPERATURE_COLOR_RULES:
+        if term in normalized:
+            return color
+    return '#175cd3'
+
+
+def _normalize_lead_temperature_label(value):
+    raw_text = str(value or '').strip()
+    if not raw_text:
+        return 'Não informado'
+    text = unicodedata.normalize('NFKD', raw_text).encode('ascii', 'ignore').decode('ascii').lower()
+    parts = [part.strip() for part in re.split(r'[,;|/]+', text) if part.strip()]
+    normalized_parts = parts or [text.strip()]
+    if any('cliente' in part for part in normalized_parts):
+        return 'Cliente'
+    if any('muito quente' in part for part in normalized_parts):
+        return 'Muito Quente'
+    if any('quente' in part for part in normalized_parts):
+        return 'Quente'
+    if any('frio' in part for part in normalized_parts):
+        return 'Frio'
+    return 'Não informado'
+
+
+def _sort_temperature_counts(counts):
+    ordered = {}
+    for label in LEAD_TEMPERATURE_DISPLAY_ORDER:
+        if label in counts:
+            ordered[label] = counts[label]
+    for label, value in counts.items():
+        if label not in ordered:
+            ordered[label] = value
+    return ordered
+
+
 def _empty_tab(key, title):
     return {
         'key': key,
@@ -322,19 +741,21 @@ def _empty_tab(key, title):
 
 
 def _read_mapped_rows(config, period_start=None, period_end=None, date_key=''):
-    if not config or not config.arquivo_exemplo or not config.mapeamento_json:
+    if not config or not config.mapeamento_json:
         return []
-    dataframe = read_uploaded_dataframe(config.arquivo_exemplo.path, config.nome_arquivo_exemplo or config.arquivo_exemplo.name)
     rows = []
-    for _, source_row in dataframe.iterrows():
-        row = {}
-        for field_key, column_name in (config.mapeamento_json or {}).items():
-            row[field_key] = _serialize_value(source_row.get(column_name, ''))
-        if date_key and period_start and period_end:
-            row_date = _parse_date(row.get(date_key))
-            if row_date is not None and not (period_start <= row_date <= period_end):
-                continue
-        rows.append(row)
+    uploads = UploadPainel.objects.filter(configuracao=config).order_by('-criado_em', '-pk')
+    for upload in uploads:
+        dataframe = read_uploaded_dataframe(upload.arquivo.path, upload.nome_arquivo or upload.arquivo.name)
+        for _, source_row in dataframe.iterrows():
+            row = {}
+            for field_key, column_name in (config.mapeamento_json or {}).items():
+                row[field_key] = _serialize_value(source_row.get(column_name, ''))
+            if date_key and period_start and period_end:
+                row_date = _parse_date(row.get(date_key))
+                if row_date is not None and not (period_start <= row_date <= period_end):
+                    continue
+            rows.append(row)
     return rows
 
 
@@ -375,6 +796,15 @@ def _to_decimal(value):
         return Decimal('0')
 
 
+def _decimal_to_float(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _top_values(rows, key):
     counts = {}
     for row in rows:
@@ -383,6 +813,146 @@ def _top_values(rows, key):
             continue
         counts[value] = counts.get(value, 0) + 1
     return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:5]
+
+
+def _crm_period_summary(rows, closed_status, config):
+    conversations = Decimal(len(rows))
+    vendas_concluidas = Decimal(sum(1 for row in rows if _crm_is_closed_sale(row, closed_status)))
+    receita_total = sum((_to_decimal(row.get('valor_venda')) for row in rows), Decimal('0'))
+    ticket_medio = (receita_total / vendas_concluidas) if vendas_concluidas else Decimal('0')
+    taxa_conversao = (vendas_concluidas / conversations * Decimal('100')) if conversations else Decimal('0')
+
+    paid_rows = [row for row in rows if _crm_is_paid_row(row, config)]
+    organic_rows = [row for row in rows if not _crm_is_paid_row(row, config)]
+    origem = {
+        'trafego_pago_conversas': Decimal(len(paid_rows)),
+        'organico_conversas': Decimal(len(organic_rows)),
+        'receita_trafego_pago': sum((_to_decimal(row.get('valor_venda')) for row in paid_rows), Decimal('0')),
+        'receita_organico': sum((_to_decimal(row.get('valor_venda')) for row in organic_rows), Decimal('0')),
+    }
+
+    status_counts = {}
+    for row in rows:
+        label = str(row.get('status_fechamento', '')).strip() or 'Não informado'
+        status_counts[label] = status_counts.get(label, 0) + 1
+    status = {}
+    total_status = sum(status_counts.values())
+    for label, count in status_counts.items():
+        status[label] = (Decimal(count) / Decimal(total_status) * Decimal('100')) if total_status else Decimal('0')
+
+    temperatura_counts = {}
+    for row in rows:
+        label = _normalize_lead_temperature_label(row.get('tag_lead', ''))
+        temperatura_counts[label] = temperatura_counts.get(label, 0) + 1
+    temperatura_counts = _sort_temperature_counts(temperatura_counts)
+    temperatura = {}
+    total_temperatura = sum(temperatura_counts.values())
+    for label, count in temperatura_counts.items():
+        temperatura[label] = (Decimal(count) / Decimal(total_temperatura) * Decimal('100')) if total_temperatura else Decimal('0')
+
+    vendedores = {}
+    for row in rows:
+        label = str(row.get('vendedor', '')).strip() or 'Não informado'
+        item = vendedores.setdefault(label, {'atendimentos': Decimal('0'), 'vendas_concluidas': Decimal('0'), 'receita': Decimal('0'), 'performance': Decimal('0'), 'ticket_medio': Decimal('0')})
+        item['atendimentos'] += 1
+        if _crm_is_closed_sale(row, closed_status):
+            item['vendas_concluidas'] += 1
+        item['receita'] += _to_decimal(row.get('valor_venda'))
+    for item in vendedores.values():
+        item['performance'] = (item['vendas_concluidas'] / item['atendimentos'] * Decimal('100')) if item['atendimentos'] else Decimal('0')
+        item['ticket_medio'] = (item['receita'] / item['vendas_concluidas']) if item['vendas_concluidas'] else Decimal('0')
+
+    return {
+        'geral': {
+            'receita_total': receita_total,
+            'vendas_concluidas': vendas_concluidas,
+            'taxa_conversao': taxa_conversao,
+            'conversas': conversations,
+            'ticket_medio': ticket_medio,
+        },
+        'origem': origem,
+        'status': status,
+        'status_counts': status_counts,
+        'temperatura': temperatura,
+        'temperatura_counts': temperatura_counts,
+        'vendedores': vendedores,
+    }
+
+
+def _crm_is_paid_row(row, config):
+    url = str(row.get('ads_parametros_url', '')).strip().lower()
+    contains_value = str((config.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')).strip().lower()
+    return (url.startswith('https://www.') if url else False) or (contains_value and contains_value in url)
+
+
+def _crm_is_closed_sale(row, closed_status):
+    status_text = _normalize_status_label(row.get('status_fechamento', ''))
+    revenue = _to_decimal(row.get('valor_venda'))
+    if revenue > 0:
+        return True
+    if status_text in closed_status:
+        return True
+    return any(term in status_text for term in ('venda concluida', 'venda concluída', 'fechado', 'ganho', 'vendido'))
+
+
+def _normalize_status_label(value):
+    text = str(value or '').strip().lower()
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    text = re.sub(r'^\s*\d+\s*-\s*', '', text)
+    return text.strip()
+
+
+
+
+def _sum_values(rows, group_key, value_key):
+    grouped = {}
+    for row in rows:
+        label = str(row.get(group_key, '')).strip() or 'Não informado'
+        grouped[label] = grouped.get(label, Decimal('0')) + _to_decimal(row.get(value_key))
+    return sorted(grouped.items(), key=lambda item: (-item[1], item[0]))[:8]
+
+
+def _crm_status_percent(rows):
+    counts = {}
+    total = 0
+    for row in rows:
+        label = str(row.get('status_fechamento', '')).strip() or 'Não informado'
+        counts[label] = counts.get(label, 0) + 1
+        total += 1
+    if not total:
+        return []
+    return sorted(
+        [(label, Decimal(count) / Decimal(total) * Decimal('100')) for label, count in counts.items()],
+        key=lambda item: (-item[1], item[0]),
+    )[:8]
+
+
+def _crm_gap_vendas(rows, closed_status):
+    status_sales = sum(1 for row in rows if str(row.get('status_fechamento', '')).strip().lower() in closed_status)
+    filled_sales = sum(1 for row in rows if _to_decimal(row.get('valor_venda')) > 0)
+    return {
+        'status_sales': status_sales,
+        'filled_sales': filled_sales,
+        'gap': abs(status_sales - filled_sales),
+    }
+
+
+def _crm_source_breakdown(rows, config):
+    contains_value = str((config.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')).strip().lower()
+    paid = 0
+    organic = 0
+    for row in rows:
+        url = str(row.get('ads_parametros_url', '')).strip().lower()
+        is_paid = False
+        if url.startswith('https://www.'):
+            is_paid = True
+        if contains_value and contains_value in url:
+            is_paid = True
+        if is_paid:
+            paid += 1
+        else:
+            organic += 1
+    return {'paid': paid, 'organic': organic}
 
 
 def _is_paid_traffic_sale(row):
@@ -460,9 +1030,10 @@ def _build_traffic_metric_values(summary, previous_summary):
     }
 
 
-def _build_traffic_blocks(metric_values, previous_metrics, metric_definitions, selected_keys):
+def _build_traffic_blocks(metric_values, previous_metrics, metric_definitions, selected_keys, filter_enabled_map=None):
     blocks = []
     selected_set = set(selected_keys or [])
+    filter_enabled_map = filter_enabled_map or {}
     for block in TRAFFIC_BLOCK_DEFINITIONS:
         block_metric_keys = [key for key in block['metrics'] if key in selected_set]
         if not block_metric_keys:
@@ -480,6 +1051,7 @@ def _build_traffic_blocks(metric_values, previous_metrics, metric_definitions, s
                     'key': key,
                     'label': definition['label'],
                     'tooltip': definition['tooltip'],
+                    'period_value': f"{definition['formatter'](previous_value)} / {definition['formatter'](current_value)}",
                     'current_value': definition['formatter'](current_value),
                     'previous_value': definition['formatter'](previous_value),
                     'variation_value': _format_variation(variation_absolute, variation_percent, key),
@@ -493,6 +1065,7 @@ def _build_traffic_blocks(metric_values, previous_metrics, metric_definitions, s
                 'description': block['description'],
                 'highlighted': block['highlighted'],
                 'rows': rows,
+                'filter_options': [row['label'] for row in rows] if filter_enabled_map.get(block['key']) else [],
             }
         )
     return blocks
@@ -563,6 +1136,17 @@ def _format_variation(absolute, percent, key):
         absolute_text = f'{absolute:.2f}x'
     elif key == 'score_relevancia':
         absolute_text = f'{absolute:.1f}'
+    elif key in {
+        'vendas_concluidas',
+        'conversas',
+        'trafego_pago_conversas',
+        'organico_conversas',
+        'vendas_concluidas_vendedor',
+        'atendimentos_vendedor',
+    }:
+        absolute_text = str(int(absolute))
+    elif key in {'receita_total', 'ticket_medio', 'receita_trafego_pago', 'receita_organico', 'valor_vendas_vendedor'}:
+        absolute_text = f'R$ {absolute:.2f}'
     else:
         absolute_text = f'{absolute:.2f}' if isinstance(absolute, Decimal) else str(absolute)
     if percent is None:
@@ -581,6 +1165,21 @@ def _resolve_variation_class(key, absolute, percent):
     if favorable is None:
         return 'text-muted'
     threshold = TRAFFIC_PLAUSIBLE_VARIATION_LIMITS.get(key, Decimal('10'))
+    if percent is None:
+        return 'text-info' if favorable else 'text-warning'
+    intensity = abs(percent)
+    if favorable:
+        return 'text-info' if intensity <= threshold else 'text-success'
+    return 'text-warning' if intensity <= threshold else 'text-danger'
+
+
+def _resolve_crm_variation_class(key, absolute, percent):
+    if absolute == 0:
+        return 'text-muted'
+    if key not in CRM_POSITIVE_WHEN_HIGHER:
+        return 'text-muted'
+    threshold = CRM_PLAUSIBLE_VARIATION_LIMITS.get(key, Decimal('10'))
+    favorable = absolute > 0
     if percent is None:
         return 'text-info' if favorable else 'text-warning'
     intensity = abs(percent)

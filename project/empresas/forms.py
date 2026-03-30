@@ -128,6 +128,16 @@ class EmpresaForm(forms.ModelForm):
 
 
 class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
+    crm_origem_paga_contem = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Ex.: utm_source=meta, gclid, fbclid. Se a URL começar com https://www. ou contiver esse parâmetro, será tráfego pago.',
+            }
+        ),
+    )
+
     class Meta:
         model = ConfiguracaoUploadEmpresa
         fields = ['nome', 'tipo_documento', 'arquivo_exemplo']
@@ -154,12 +164,20 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             if self.is_bound and self.data.get(self.add_prefix('tipo_documento'))
             else self.instance.tipo_documento
         )
+        self.fields['crm_origem_paga_contem'].initial = (self.instance.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')
         self.mapping_enabled = bool(columns) and bool(self.document_type)
         self.require_mapping = require_mapping and self.mapping_enabled
         metric_config = normalize_panel_metric_config(self.document_type, self.instance.metricas_painel_json)
 
         if self.document_type:
             for group in get_panel_metric_groups(self.document_type):
+                filter_state = (metric_config.get('filters') or {}).get(group['key'], {'enabled': False})
+                self.fields[f'filter_enabled__{group["key"]}'] = forms.BooleanField(
+                    required=False,
+                    label=f'Habilitar filtro em {group["label"]}',
+                    initial=filter_state.get('enabled', False),
+                    widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
+                )
                 for metric_def in group['metrics']:
                     key = metric_def['key']
                     metric_state = metric_config['metrics'].get(key, {'table': True, 'chart': True})
@@ -239,9 +257,9 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
 
     def _build_metric_config(self, cleaned_data):
         if not self.document_type:
-            return {'categories': {}, 'metrics': {}}
+            return {'categories': {}, 'metrics': {}, 'filters': {}}
 
-        metricas = {'categories': {}, 'metrics': {}}
+        metricas = {'categories': {}, 'metrics': {}, 'filters': {}}
         for group in get_panel_metric_groups(self.document_type):
             group_key = group['key']
             group_is_active = False
@@ -256,6 +274,9 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 if table_enabled or chart_enabled:
                     group_is_active = True
             metricas['categories'][group_key] = group_is_active
+            metricas['filters'][group_key] = {
+                'enabled': bool(cleaned_data.get(f'filter_enabled__{group_key}')),
+            }
         return metricas
 
     def save_configuration(self, preview=None):
@@ -276,6 +297,10 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         instance.mapeamento_json = mapping
         instance.campos_principais_json = principais
         instance.metricas_painel_json = metricas
+        instance.configuracao_analise_json = {
+            **(instance.configuracao_analise_json or {}),
+            'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
+        }
         if preview:
             instance.colunas_detectadas_json = preview.columns
             instance.preview_json = preview.rows
@@ -292,6 +317,10 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         instance.nome_arquivo_exemplo = preview.file_name
         instance.mapeamento_json = {}
         instance.campos_principais_json = []
+        instance.configuracao_analise_json = {
+            **(instance.configuracao_analise_json or {}),
+            'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
+        }
         instance.save()
         return instance
 
