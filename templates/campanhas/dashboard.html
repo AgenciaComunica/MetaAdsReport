@@ -46,6 +46,11 @@
                         <p class="text-muted mb-0">{{ block.description }}</p>
                     </div>
                 </div>
+                {% if block.chart %}
+                    <div class="mt-3">
+                        <div id="trafficBlockComparisonChart-{{ block.chart.key }}" style="min-height: 280px;"></div>
+                    </div>
+                {% endif %}
                 <div class="table-responsive mt-3">
                     <table class="table align-middle traffic-summary-table mb-0">
                         <thead>
@@ -77,18 +82,7 @@
         </div>
     {% endfor %}
 </div>
-
-<div class="row g-4 mt-1">
-    {% for chart in trafego_pago_tab.block_comparison_charts %}
-        <div class="col-lg-6">
-            <div class="panel traffic-block-panel {% if chart.highlighted %}is-results{% endif %}">
-                <h3 class="mb-3">{{ chart.title }}</h3>
-                <div id="trafficBlockComparisonChart-{{ chart.key }}" style="min-height: 280px;"></div>
-            </div>
-        </div>
-    {% endfor %}
-</div>
-{{ trafego_pago_tab.block_comparison_charts|json_script:"traffic-block-comparison-charts-data" }}
+{{ trafego_pago_tab.metric_blocks|json_script:"traffic-blocks-data" }}
 <div class="row g-4 mt-1">
 </div>
 <div class="panel mt-4">
@@ -662,10 +656,12 @@
       });
     });
 
-    const blockComparisonPayloadNode = document.getElementById('traffic-block-comparison-charts-data');
-    if (blockComparisonPayloadNode) {
-      const blockCharts = JSON.parse(blockComparisonPayloadNode.textContent);
-      blockCharts.forEach((chart) => {
+    const trafficBlocksPayloadNode = document.getElementById('traffic-blocks-data');
+    if (trafficBlocksPayloadNode) {
+      const trafficBlocks = JSON.parse(trafficBlocksPayloadNode.textContent);
+      trafficBlocks.forEach((block) => {
+        const chart = block.chart;
+        if (!chart) return;
         const node = document.getElementById(`trafficBlockComparisonChart-${chart.key}`);
         if (!node) return;
         const apexChart = new ApexCharts(node, {

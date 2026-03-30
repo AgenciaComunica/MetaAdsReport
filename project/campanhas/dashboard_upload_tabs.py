@@ -129,6 +129,9 @@ def build_traffic_tab(config, queryset, previous_queryset=None):
     previous_metrics = _build_traffic_metric_values(previous_summary, {})
     block_cards = _build_traffic_blocks(derived_metrics, previous_metrics, metric_definitions, selected_table_keys)
     block_comparison_charts = _build_traffic_block_comparison_charts(derived_metrics, previous_metrics, metric_definitions, selected_chart_keys)
+    chart_map = {chart['key']: chart for chart in block_comparison_charts}
+    for block in block_cards:
+        block['chart'] = chart_map.get(block['key'])
     return {
         'key': 'trafego_pago',
         'title': config.nome if config else 'Tráfego Pago',
@@ -140,7 +143,6 @@ def build_traffic_tab(config, queryset, previous_queryset=None):
         'kpis': summary,
         'result_label': result_label,
         'metric_blocks': block_cards,
-        'block_comparison_charts': block_comparison_charts,
         'campaign_rows': campaign_table(queryset),
     }
 
