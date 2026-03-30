@@ -140,6 +140,48 @@ LEGACY_FIELD_SCHEMAS = {
 }
 
 UPLOAD_TYPE_CHOICES = list(ConfiguracaoUploadEmpresa.TipoDocumento.choices)
+TRAFFIC_PANEL_CATEGORY_DEFINITIONS = [
+    {
+        'key': 'resultados',
+        'label': 'Resultados',
+        'description': 'Bloco principal de conversão, preparado para múltiplas plataformas e objetivos.',
+        'metrics': ['resultado_principal', 'custo_por_resultado', 'taxa_resposta'],
+    },
+    {
+        'key': 'custo_investimento',
+        'label': 'Custo e Investimento',
+        'description': 'Controle financeiro do período e eficiência básica do investimento.',
+        'metrics': ['investimento', 'cpm', 'cpc', 'cpl'],
+    },
+    {
+        'key': 'performance_anuncios',
+        'label': 'Performance dos Anúncios',
+        'description': 'Entrega, alcance e capacidade de gerar ação ao longo do funil.',
+        'metrics': ['impressoes', 'alcance', 'ctr', 'taxa_conversao', 'frequencia'],
+    },
+    {
+        'key': 'qualidade_relevancia',
+        'label': 'Qualidade e Relevância',
+        'description': 'Leitura sintética da saúde do criativo e da pressão de mídia.',
+        'metrics': ['score_relevancia', 'cpm_relativo'],
+    },
+]
+TRAFFIC_METRIC_TOOLTIPS = {
+    'investimento': 'Valor total investido em mídia no período selecionado.',
+    'cpm': 'Custo médio para cada mil impressões entregues.',
+    'cpc': 'Custo médio por clique gerado pelos anúncios.',
+    'cpl': 'Custo por lead ou custo por resultado principal captado.',
+    'impressoes': 'Quantidade total de exibições dos anúncios.',
+    'alcance': 'Quantidade de pessoas únicas alcançadas.',
+    'ctr': 'Percentual de cliques em relação às impressões.',
+    'taxa_conversao': 'Percentual de resultados em relação aos cliques.',
+    'frequencia': 'Média de vezes que cada pessoa impactada viu o anúncio.',
+    'score_relevancia': 'Indicador sintético calculado com base em CTR, CPM, CPC e frequência.',
+    'cpm_relativo': 'Compara o CPM atual com o período anterior. Abaixo de 1,00x é melhor.',
+    'resultado_principal': 'Conversão principal do painel, genérica e preparada para diferentes objetivos.',
+    'custo_por_resultado': 'Custo médio por conversão principal obtida.',
+    'taxa_resposta': 'Percentual de respostas ou conversões em relação aos cliques gerados.',
+}
 
 
 @dataclass
@@ -161,6 +203,93 @@ def get_type_label(tipo_documento):
 
 def get_panel_metric_schema(tipo_documento):
     return PANEL_METRIC_SCHEMAS.get(tipo_documento, [])
+
+
+def get_panel_metric_groups(tipo_documento):
+    metrics = get_panel_metric_schema(tipo_documento)
+    if tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
+        metric_map = {item['key']: item for item in metrics}
+        groups = []
+        for category in TRAFFIC_PANEL_CATEGORY_DEFINITIONS:
+            groups.append(
+                {
+                    'key': category['key'],
+                    'label': category['label'],
+                    'description': category['description'],
+                    'metrics': [
+                        {
+                            **metric_map[key],
+                            'tooltip': TRAFFIC_METRIC_TOOLTIPS.get(key, ''),
+                        }
+                        for key in category['metrics']
+                        if key in metric_map
+                    ],
+                }
+            )
+        return groups
+    return [
+        {
+            'key': 'geral',
+            'label': 'Resumo',
+            'description': 'Ative as métricas que deseja exibir no painel.',
+            'metrics': [{**item, 'tooltip': ''} for item in metrics],
+        }
+    ]
+
+
+def normalize_panel_metric_config(tipo_documento, raw_config):
+    groups = get_panel_metric_groups(tipo_documento)
+    metric_keys = [metric['key'] for group in groups for metric in group['metrics']]
+    category_keys = [group['key'] for group in groups]
+    if isinstance(raw_config, dict):
+        categories = {
+            key: bool((raw_config.get('categories') or {}).get(key, True))
+            for key in category_keys
+        }
+        metrics = {}
+        for key in metric_keys:
+            metric_state = (raw_config.get('metrics') or {}).get(key, {})
+            metrics[key] = {
+                'table': bool(metric_state.get('table', True)),
+                'chart': bool(metric_state.get('chart', True)),
+            }
+        return {'categories': categories, 'metrics': metrics}
+
+    selected_keys = set(raw_config or metric_keys)
+    return {
+        'categories': {key: True for key in category_keys},
+        'metrics': {
+            key: {
+                'table': key in selected_keys,
+                'chart': key in selected_keys,
+            }
+            for key in metric_keys
+        },
+    }
+
+
+def get_enabled_table_metric_keys(tipo_documento, raw_config):
+    config = normalize_panel_metric_config(tipo_documento, raw_config)
+    enabled = []
+    for group in get_panel_metric_groups(tipo_documento):
+        if not config['categories'].get(group['key'], True):
+            continue
+        for metric in group['metrics']:
+            if config['metrics'].get(metric['key'], {}).get('table'):
+                enabled.append(metric['key'])
+    return enabled
+
+
+def get_enabled_chart_metric_keys(tipo_documento, raw_config):
+    config = normalize_panel_metric_config(tipo_documento, raw_config)
+    enabled = []
+    for group in get_panel_metric_groups(tipo_documento):
+        if not config['categories'].get(group['key'], True):
+            continue
+        for metric in group['metrics']:
+            if config['metrics'].get(metric['key'], {}).get('chart'):
+                enabled.append(metric['key'])
+    return enabled
 
 
 def inspect_uploaded_file(file_obj_or_path, file_name=''):

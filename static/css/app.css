@@ -517,6 +517,65 @@ body {
     flex: 1;
 }
 
+.upload-config-page {
+    box-sizing: border-box;
+    margin: 0 auto;
+    max-width: 1440px;
+    overflow-x: hidden;
+    width: 100%;
+}
+
+.upload-config-page .panel {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.upload-config-page .table-responsive {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.analysis-config-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(320px, 1fr));
+}
+
+.analysis-config-group {
+    background: rgba(255, 255, 255, 0.7);
+    box-sizing: border-box;
+    border-radius: 16px;
+    min-width: 0;
+    padding: 1rem 1.1rem;
+}
+
+.analysis-config-group .table {
+    min-width: 0;
+}
+
+.analysis-config-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.analysis-config-table th:first-child,
+.analysis-config-table td:first-child {
+    width: auto;
+}
+
+.analysis-config-table th:nth-child(2),
+.analysis-config-table th:nth-child(3),
+.analysis-config-table td:nth-child(2),
+.analysis-config-table td:nth-child(3) {
+    width: 120px;
+}
+
+@media (max-width: 1400px) {
+    .analysis-config-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .company-search-wrap {
     max-width: 360px;
     width: 100%;

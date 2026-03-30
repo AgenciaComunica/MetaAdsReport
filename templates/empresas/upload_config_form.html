@@ -1,7 +1,14 @@
 {% extends 'base.html' %}
 {% load empresas_extras %}
 {% block page_title %}Configurar Painel{% endblock %}
+{% block page_actions %}
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Voltar para Configurações</a>
+        <button class="btn btn-dark" type="submit" form="configurarPainelForm" name="action" value="salvar">Salvar configuração</button>
+    </div>
+{% endblock %}
 {% block content %}
+<div class="upload-config-page">
 <div class="panel mt-4">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
@@ -15,7 +22,6 @@
                 {% endif %}
             </p>
         </div>
-        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Voltar</a>
     </div>
 </div>
 
@@ -52,100 +58,141 @@
             {% endif %}
         </div>
     </div>
-</form>
-
-<div class="panel mt-4">
-    <h3 class="mb-3">Análise do Painel</h3>
-    {% if metric_rows %}
-        <p class="text-muted small">Selecione as métricas que devem aparecer nesta aba do dashboard.</p>
-        <div class="row g-3">
-            {% for row in metric_rows %}
-                <div class="col-md-6">
-                    <div class="form-check">
-                        {{ row.field }}
-                        <label class="form-check-label" for="{{ row.field.id_for_label }}">{{ row.label }}</label>
+    <div class="panel mt-4">
+        <h3 class="mb-3">Análise do Painel</h3>
+        {% if metric_groups %}
+            <p class="text-muted small">Selecione as métricas que devem aparecer nesta aba do dashboard.</p>
+            <p class="text-muted small">Cada métrica pode aparecer na Tabela, no Gráfico ou nos dois. Você também pode desligar a categoria inteira.</p>
+            <div class="analysis-config-grid">
+                {% for group in metric_groups %}
+                    <div class="panel analysis-config-group">
+                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                            <div>
+                                <h4 class="mb-1">{{ group.label }}</h4>
+                                <p class="text-muted mb-0">{{ group.description }}</p>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                {{ group.category_field }}
+                                <label class="form-check-label" for="{{ group.category_field.id_for_label }}">Ativar categoria</label>
+                            </div>
+                        </div>
+                        <div class="table-responsive mt-3">
+                            <table class="table align-middle mb-0 analysis-config-table">
+                                <thead>
+                                    <tr>
+                                        <th>Métrica</th>
+                                        <th class="text-center">Tabela</th>
+                                        <th class="text-center">Gráfico</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for metric in group.metrics %}
+                                        <tr>
+                                            <td>
+                                                <span class="kpi-label">
+                                                    {{ metric.label }}
+                                                    {% if metric.tooltip %}
+                                                        <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ metric.tooltip }}">?</button>
+                                                    {% endif %}
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0">
+                                                    {{ metric.table_field }}
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0">
+                                                    {{ metric.chart_field }}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            {% endfor %}
-        </div>
-    {% elif form.tipo_documento.value or configuracao.tipo_documento %}
-        <p class="text-muted mb-0">Escolha um tipo de painel para liberar a configuração das métricas.</p>
-    {% else %}
-        <p class="text-muted mb-0">Defina o tipo do painel para configurar as métricas exibidas.</p>
-    {% endif %}
-</div>
+                {% endfor %}
+            </div>
+        {% elif form.tipo_documento.value or configuracao.tipo_documento %}
+            <p class="text-muted mb-0">Escolha um tipo de painel para liberar a configuração das métricas.</p>
+        {% else %}
+            <p class="text-muted mb-0">Defina o tipo do painel para configurar as métricas exibidas.</p>
+        {% endif %}
+    </div>
 
-<div class="panel mt-4">
-    <h3 class="mb-3">Mapeamento do Sistema</h3>
-    {% if show_mapping %}
-        <div class="table-responsive">
-            <table class="table align-middle upload-mapping-table">
-                <thead>
-                    <tr>
-                        <th>Campo do sistema</th>
-                        <th>Campo do arquivo</th>
-                        <th class="text-center">Principal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in mapping_rows %}
+    <div class="panel mt-4">
+        <h3 class="mb-3">Mapeamento do Sistema</h3>
+        {% if show_mapping %}
+            <div class="table-responsive">
+                <table class="table align-middle upload-mapping-table">
+                    <thead>
                         <tr>
-                            <td>
-                                <strong>{{ row.label }}</strong>
-                                {% if row.required %}
-                                    <span class="badge text-bg-dark ms-2">Obrigatório</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {{ row.map_field }}
-                                {% if row.map_field.errors %}
-                                    <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                <div class="form-check d-inline-flex justify-content-center">
-                                    {{ row.primary_field }}
-                                </div>
-                            </td>
+                            <th>Campo do sistema</th>
+                            <th>Campo do arquivo</th>
+                            <th class="text-center">Principal</th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <button class="btn btn-dark mt-3" type="submit" form="configurarPainelForm" name="action" value="salvar">Salvar configuração</button>
-    {% else %}
-        <div class="upload-config-empty-state">
-            <p class="mb-0 text-muted">O mapeamento do sistema aparece depois que você envia o arquivo e clica em <strong>Mapear</strong>.</p>
-        </div>
-    {% endif %}
-</div>
-
-<div class="panel mt-4">
-    <h3 class="mb-3">Leitura prévia do arquivo</h3>
-    {% if preview_columns %}
-        <p class="text-muted mb-2">Colunas detectadas: {{ preview_columns|join:', ' }}</p>
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        {% for column in preview_columns %}
-                            <th>{{ column }}</th>
+                    </thead>
+                    <tbody>
+                        {% for row in mapping_rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ row.label }}</strong>
+                                    {% if row.required %}
+                                        <span class="badge text-bg-dark ms-2">Obrigatório</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ row.map_field }}
+                                    {% if row.map_field.errors %}
+                                        <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="form-check d-inline-flex justify-content-center">
+                                        {{ row.primary_field }}
+                                    </div>
+                                </td>
+                            </tr>
                         {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in preview_rows %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="upload-config-empty-state">
+                <p class="mb-0 text-muted">O mapeamento do sistema aparece depois que você envia o arquivo e clica em <strong>Mapear</strong>.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="panel mt-4">
+        <h3 class="mb-3">Leitura prévia do arquivo</h3>
+        {% if preview_columns %}
+            <p class="text-muted mb-2">Colunas detectadas: {{ preview_columns|join:', ' }}</p>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
                         <tr>
                             {% for column in preview_columns %}
-                                <td>{{ row|get_item:column }}</td>
+                                <th>{{ column }}</th>
                             {% endfor %}
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <p class="text-muted mb-0">O preview do arquivo aparece depois da ação Mapear.</p>
-    {% endif %}
+                    </thead>
+                    <tbody>
+                        {% for row in preview_rows %}
+                            <tr>
+                                {% for column in preview_columns %}
+                                    <td>{{ row|get_item:column }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted mb-0">O preview do arquivo aparece depois da ação Mapear.</p>
+        {% endif %}
+    </div>
+</form>
 </div>
 {% endblock %}

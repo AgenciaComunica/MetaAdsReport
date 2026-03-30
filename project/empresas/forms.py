@@ -2,7 +2,7 @@ from django import forms
 import json
 
 from .models import ConfiguracaoUploadEmpresa, Empresa
-from .upload_config_services import get_field_schema, get_panel_metric_schema
+from .upload_config_services import get_field_schema, get_panel_metric_groups, get_panel_metric_schema, normalize_panel_metric_config
 
 
 SEGMENTO_CHOICES = [
@@ -156,17 +156,32 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         )
         self.mapping_enabled = bool(columns) and bool(self.document_type)
         self.require_mapping = require_mapping and self.mapping_enabled
-        selected_metrics = set(self.instance.metricas_painel_json or [])
+        metric_config = normalize_panel_metric_config(self.document_type, self.instance.metricas_painel_json)
 
         if self.document_type:
-            for metric_def in get_panel_metric_schema(self.document_type):
-                key = metric_def['key']
-                self.fields[f'metric__{key}'] = forms.BooleanField(
+            for group in get_panel_metric_groups(self.document_type):
+                group_key = group['key']
+                self.fields[f'metric_category__{group_key}'] = forms.BooleanField(
                     required=False,
-                    label=metric_def['label'],
-                    initial=(key in selected_metrics) or not selected_metrics,
-                    widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+                    label=group['label'],
+                    initial=metric_config['categories'].get(group_key, True),
+                    widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
                 )
+                for metric_def in group['metrics']:
+                    key = metric_def['key']
+                    metric_state = metric_config['metrics'].get(key, {'table': True, 'chart': True})
+                    self.fields[f'metric_table__{key}'] = forms.BooleanField(
+                        required=False,
+                        label=f'{metric_def["label"]} - Tabela',
+                        initial=metric_state.get('table', True),
+                        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
+                    )
+                    self.fields[f'metric_chart__{key}'] = forms.BooleanField(
+                        required=False,
+                        label=f'{metric_def["label"]} - Gráfico',
+                        initial=metric_state.get('chart', True),
+                        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
+                    )
 
         if not self.mapping_enabled:
             return
@@ -203,13 +218,33 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 self.add_error(f'map__{key}', f'A coluna "{mapped_column}" já foi usada em outro campo do sistema.')
             selected_columns[mapped_column] = key
 
+        if self.document_type:
+            has_table = False
+            has_chart = False
+            for group in get_panel_metric_groups(self.document_type):
+                group_enabled = cleaned_data.get(f'metric_category__{group["key"]}')
+                if not group_enabled:
+                    continue
+                for metric in group['metrics']:
+                    key = metric['key']
+                    if cleaned_data.get(f'metric_table__{key}'):
+                        has_table = True
+                    if cleaned_data.get(f'metric_chart__{key}'):
+                        has_chart = True
+            if not has_table:
+                raise forms.ValidationError('Ative ao menos uma métrica para Tabela.')
+            if not has_chart:
+                raise forms.ValidationError('Ative ao menos uma métrica para Gráfico.')
+
         return cleaned_data
 
     def save_configuration(self, preview=None):
         instance = self.save(commit=False)
+        instance.nome = self.cleaned_data.get('nome', instance.nome)
+        instance.tipo_documento = self.cleaned_data.get('tipo_documento', instance.tipo_documento)
         mapping = {}
         principais = []
-        metricas = []
+        metricas = {'categories': {}, 'metrics': {}}
         for field_def in get_field_schema(instance.tipo_documento):
             key = field_def['key']
             mapped_column = self.cleaned_data.get(f'map__{key}')
@@ -218,10 +253,15 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             if self.cleaned_data.get(f'primary__{key}'):
                 principais.append(key)
 
-        for metric_def in get_panel_metric_schema(instance.tipo_documento):
-            key = metric_def['key']
-            if self.cleaned_data.get(f'metric__{key}'):
-                metricas.append(key)
+        for group in get_panel_metric_groups(instance.tipo_documento):
+            group_key = group['key']
+            metricas['categories'][group_key] = bool(self.cleaned_data.get(f'metric_category__{group_key}'))
+            for metric_def in group['metrics']:
+                key = metric_def['key']
+                metricas['metrics'][key] = {
+                    'table': bool(self.cleaned_data.get(f'metric_table__{key}')),
+                    'chart': bool(self.cleaned_data.get(f'metric_chart__{key}')),
+                }
 
         instance.mapeamento_json = mapping
         instance.campos_principais_json = principais
@@ -235,6 +275,8 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
 
     def save_preview(self, preview):
         instance = self.save(commit=False)
+        instance.nome = self.cleaned_data.get('nome', instance.nome)
+        instance.tipo_documento = self.cleaned_data.get('tipo_documento', instance.tipo_documento)
         instance.colunas_detectadas_json = preview.columns
         instance.preview_json = preview.rows
         instance.nome_arquivo_exemplo = preview.file_name

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from .forms import ConfiguracaoUploadEmpresaForm, EmpresaForm, NovaConfiguracaoUploadForm
 from .models import ConfiguracaoUploadEmpresa, Empresa
-from .upload_config_services import get_field_schema, get_panel_metric_schema, inspect_uploaded_file
+from .upload_config_services import get_field_schema, get_panel_metric_groups, inspect_uploaded_file
 
 
 def empresa_list(request):
@@ -129,13 +129,25 @@ def upload_config_update(request, empresa_pk, config_pk):
                 }
             )
 
-    metric_rows = []
+    metric_groups = []
     if form.document_type:
-        for item in get_panel_metric_schema(form.document_type):
-            metric_rows.append(
+        for group in get_panel_metric_groups(form.document_type):
+            metric_groups.append(
                 {
-                    'label': item['label'],
-                    'field': form[f'metric__{item["key"]}'],
+                    'key': group['key'],
+                    'label': group['label'],
+                    'description': group['description'],
+                    'category_field': form[f'metric_category__{group["key"]}'],
+                    'metrics': [
+                        {
+                            'key': item['key'],
+                            'label': item['label'],
+                            'tooltip': item.get('tooltip', ''),
+                            'table_field': form[f'metric_table__{item["key"]}'],
+                            'chart_field': form[f'metric_chart__{item["key"]}'],
+                        }
+                        for item in group['metrics']
+                    ],
                 }
             )
 
@@ -146,7 +158,7 @@ def upload_config_update(request, empresa_pk, config_pk):
         'preview_rows': preview.rows if preview else configuracao.preview_json,
         'preview_columns': preview.columns if preview else configuracao.colunas_detectadas_json,
         'mapping_rows': mapping_rows,
-        'metric_rows': metric_rows,
+        'metric_groups': metric_groups,
         'show_mapping': bool((preview.columns if preview else configuracao.colunas_detectadas_json) and form.document_type),
         'has_example_file': bool(configuracao.arquivo_exemplo or configuracao.nome_arquivo_exemplo),
     }

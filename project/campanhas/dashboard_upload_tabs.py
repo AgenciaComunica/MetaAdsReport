@@ -5,7 +5,11 @@ from decimal import Decimal, InvalidOperation
 import pandas as pd
 
 from empresas.models import ConfiguracaoUploadEmpresa
-from empresas.upload_config_services import read_uploaded_dataframe
+from empresas.upload_config_services import (
+    get_enabled_chart_metric_keys,
+    get_enabled_table_metric_keys,
+    read_uploaded_dataframe,
+)
 
 from .services import campaign_table, summarize_metrics
 
@@ -120,10 +124,11 @@ def build_traffic_tab(config, queryset, previous_queryset=None):
     result_label = _resolve_result_label(config)
     derived_metrics = _build_traffic_metric_values(summary, previous_summary)
     metric_definitions = _build_traffic_metric_definitions(result_label)
-    selected_keys = list(config.metricas_painel_json or []) if config else []
+    selected_table_keys = get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json) if config else []
+    selected_chart_keys = get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json) if config else []
     previous_metrics = _build_traffic_metric_values(previous_summary, {})
-    block_cards = _build_traffic_blocks(derived_metrics, previous_metrics, metric_definitions, selected_keys)
-    block_comparison_charts = _build_traffic_block_comparison_charts(derived_metrics, previous_metrics, metric_definitions, selected_keys)
+    block_cards = _build_traffic_blocks(derived_metrics, previous_metrics, metric_definitions, selected_table_keys)
+    block_comparison_charts = _build_traffic_block_comparison_charts(derived_metrics, previous_metrics, metric_definitions, selected_chart_keys)
     return {
         'key': 'trafego_pago',
         'title': config.nome if config else 'Tráfego Pago',
@@ -167,7 +172,7 @@ def build_crm_tab(config, period_start=None, period_end=None):
         'kpis': kpis,
         'metric_cards': _build_metric_cards(
             kpis,
-            config.metricas_painel_json,
+            get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json),
             {
                 'registros': ('Registros', lambda value: str(value)),
                 'vendas_fechadas': ('Vendas Fechadas', lambda value: str(value)),
@@ -203,7 +208,7 @@ def build_leads_tab(config, period_start=None, period_end=None):
         'kpis': kpis,
         'metric_cards': _build_metric_cards(
             kpis,
-            config.metricas_painel_json,
+            get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json),
             {
                 'leads_total': ('Total de Leads', lambda value: str(value)),
                 'eventos_total': ('Eventos', lambda value: str(value)),
@@ -236,7 +241,7 @@ def build_social_tab(config, period_start=None, period_end=None):
         'kpis': kpis,
         'metric_cards': _build_metric_cards(
             kpis,
-            config.metricas_painel_json,
+            get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json),
             {
                 'perfis_total': ('Perfis', lambda value: str(value)),
                 'seguidores_total': ('Seguidores', lambda value: str(int(value) if value == int(value) else value)),
