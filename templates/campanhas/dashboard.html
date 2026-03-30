@@ -407,58 +407,83 @@
                 <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
             </div>
         </div>
-        <div class="row g-3 mt-1">
-            {% for item in active_upload_tab.metric_cards %}
-                <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
-            {% endfor %}
-        </div>
         <div class="row g-4 mt-1">
-            <div class="col-lg-4">
-                <div class="panel">
-                    <h3>Redes Monitoradas</h3>
-                    <ul class="mb-0">
-                        {% for label, count in active_upload_tab.social_networks %}
-                            <li>{{ label }}: {{ count }}</li>
-                        {% empty %}
-                            <li>Sem redes mapeadas.</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            <div class="col-lg-8">
-                <div class="panel">
-                    <h3>Registros de Redes Sociais</h3>
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead><tr><th>Rede</th><th>Perfil</th><th>Seguidores</th><th>Publicações</th><th>Alcance</th><th>Engajamento</th></tr></thead>
-                            <tbody>
-                            {% for row in active_upload_tab.rows %}
-                                <tr>
-                                    <td>{{ row.rede_social }}</td>
-                                    <td>{{ row.perfil }}</td>
-                                    <td>{{ row.seguidores }}</td>
-                                    <td>{{ row.publicacoes }}</td>
-                                    <td>{{ row.alcance }}</td>
-                                    <td>{{ row.engajamento }}</td>
-                                </tr>
-                            {% empty %}
-                                <tr><td colspan="6">Nenhum registro disponível.</td></tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
+            {% for block in active_upload_tab.category_blocks %}
+                <div class="col-lg-6">
+                    <div class="panel traffic-block-panel">
+                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                            <div>
+                                <h3 class="mb-1">{{ block.title }}</h3>
+                                <p class="text-muted mb-0">{{ block.description }}</p>
+                            </div>
+                            {% if block.filter_options %}
+                                <div class="crm-filter-dropdown" data-crm-filter-group="{{ block.key }}" data-crm-filter-storage="{{ active_upload_tab.key }}::{{ block.key }}">
+                                    <button type="button" class="btn btn-sm btn-outline-dark" data-crm-filter-toggle>
+                                        Filtrar itens
+                                        <span class="crm-filter-count" data-crm-filter-count>{{ block.filter_options|length }}</span>
+                                    </button>
+                                    <div class="crm-filter-dropdown-menu d-none" data-crm-filter-menu>
+                                        <div class="crm-filter-dropdown-head">
+                                            <button type="button" class="btn btn-sm btn-link p-0" data-crm-filter-select-all>Marcar todos</button>
+                                            <button type="button" class="btn btn-sm btn-link p-0" data-crm-filter-clear>Limpar</button>
+                                        </div>
+                                        <div class="crm-filter-search-wrap">
+                                            <input type="text" class="form-control form-control-sm" placeholder="Buscar item..." data-crm-filter-search>
+                                        </div>
+                                        <div class="crm-filter-dropdown-list">
+                                            {% for option in block.filter_options %}
+                                                <label class="form-check mb-2" data-crm-filter-item>
+                                                    <input class="form-check-input" type="checkbox" checked data-crm-filter-option="{{ option|escape }}">
+                                                    <span class="form-check-label">{{ option }}</span>
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% if block.chart %}
+                            <div class="mt-3">
+                                <div id="socialCategoryChart-{{ block.chart.key }}" style="min-height: 280px;"></div>
+                            </div>
+                        {% endif %}
+                        {% if block.rows %}
+                            <div class="table-responsive mt-3">
+                                <table class="table align-middle traffic-summary-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Métrica</th>
+                                            <th>Anterior / Atual</th>
+                                            <th>Variação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in block.rows %}
+                                            <tr data-crm-row-label="{{ row.label }}">
+                                                <td>{{ row.label }}</td>
+                                                <td><strong>{{ row.period_value }}</strong></td>
+                                                <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
-            </div>
+            {% endfor %}
         </div>
+        {{ active_upload_tab.category_blocks|json_script:"social-category-blocks-data" }}
         <div class="panel mt-4">
             <h3>Uploads do Painel</h3>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead><tr><th>Arquivo</th><th>Criado em</th><th>Colunas</th><th>Ações</th></tr></thead>
+                    <thead><tr><th>Arquivo</th><th>Tipo</th><th>Criado em</th><th>Colunas</th><th>Ações</th></tr></thead>
                     <tbody>
                     {% for upload in panel_uploads_list %}
                         <tr>
                             <td>{{ upload.nome_arquivo }}</td>
+                            <td>{{ upload.get_tipo_upload_display|default:'-' }}</td>
                             <td>{{ upload.criado_em|date:"d/m/Y H:i" }}</td>
                             <td>{{ upload.colunas_detectadas_json|length }}</td>
                             <td>
@@ -469,7 +494,7 @@
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="4">Nenhum upload disponível.</td></tr>
+                        <tr><td colspan="5">Nenhum upload disponível.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -743,6 +768,14 @@
                                 {% with painel_form=painel_upload_forms|get_item:tab.key %}
                                     <input type="hidden" name="action" value="novo_upload_painel">
                                     <input type="hidden" name="panel_key" value="{{ tab.key }}">
+                                    {% if tab.panel_type == 'redes_sociais' %}
+                                        <div class="mb-3">
+                                            {{ painel_form.tipo_upload.label_tag }}{{ painel_form.tipo_upload }}
+                                            {% if painel_form.tipo_upload.errors %}<div class="text-danger small mt-1">{{ painel_form.tipo_upload.errors|join:', ' }}</div>{% endif %}
+                                        </div>
+                                    {% else %}
+                                        {{ painel_form.tipo_upload }}
+                                    {% endif %}
                                     {{ painel_form.arquivo.label_tag }}{{ painel_form.arquivo }}
                                     {% if painel_form.arquivo.errors %}<div class="text-danger small mt-1">{{ painel_form.arquivo.errors|join:', ' }}</div>{% endif %}
                                 {% endwith %}
@@ -1033,6 +1066,21 @@
         };
         setupBlockFilter(block, renderCrmChart);
         renderCrmChart();
+      });
+    }
+
+    const socialBlocksPayloadNode = document.getElementById('social-category-blocks-data');
+    if (socialBlocksPayloadNode) {
+      const socialBlocks = JSON.parse(socialBlocksPayloadNode.textContent);
+      const socialCharts = {};
+      socialBlocks.forEach((block) => {
+        const renderSocialChart = () => {
+          if (block.chart) {
+            renderBlockChart(block, `socialCategoryChart-${block.chart.key}`, socialCharts);
+          }
+        };
+        setupBlockFilter(block, renderSocialChart);
+        renderSocialChart();
       });
     }
 

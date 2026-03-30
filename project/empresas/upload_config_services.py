@@ -49,15 +49,23 @@ UPLOAD_FIELD_SCHEMAS = {
         {'key': 'idade', 'label': 'Idade', 'required': False},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS: [
-        {'key': 'rede_social', 'label': 'Rede Social', 'required': True},
-        {'key': 'perfil', 'label': 'Perfil', 'required': True},
-        {'key': 'url_perfil', 'label': 'URL do Perfil', 'required': False},
-        {'key': 'data_referencia', 'label': 'Data de Referência', 'required': False},
-        {'key': 'seguidores', 'label': 'Seguidores', 'required': False},
-        {'key': 'publicacoes', 'label': 'Publicações', 'required': False},
+        {'key': 'id_publicacao', 'label': 'ID da Publicação', 'required': True},
+        {'key': 'data_publicacao', 'label': 'Data de Publicação', 'required': True},
+        {'key': 'tipo_conteudo', 'label': 'Tipo de Conteúdo', 'required': False},
+        {'key': 'descricao', 'label': 'Descrição', 'required': False},
+        {'key': 'link_permanente', 'label': 'Link Permanente', 'required': False},
+        {'key': 'visualizacoes', 'label': 'Visualizações', 'required': False},
         {'key': 'alcance', 'label': 'Alcance', 'required': False},
-        {'key': 'impressoes', 'label': 'Impressões', 'required': False},
-        {'key': 'engajamento', 'label': 'Engajamento', 'required': False},
+        {'key': 'curtidas', 'label': 'Curtidas', 'required': False},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos', 'required': False},
+        {'key': 'comentarios', 'label': 'Comentários', 'required': False},
+        {'key': 'salvamentos', 'label': 'Salvamentos', 'required': False},
+        {'key': 'respostas', 'label': 'Respostas', 'required': False},
+        {'key': 'cliques_link', 'label': 'Cliques no Link', 'required': False},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil', 'required': False},
+        {'key': 'navegacao', 'label': 'Navegação', 'required': False},
+        {'key': 'toques_figurinha', 'label': 'Toques em Figurinhas', 'required': False},
+        {'key': 'seguimentos', 'label': 'Seguimentos', 'required': False},
     ],
 }
 
@@ -100,10 +108,26 @@ PANEL_METRIC_SCHEMAS = {
         {'key': 'idade_media', 'label': 'Idade Média'},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS: [
-        {'key': 'perfis_total', 'label': 'Perfis'},
-        {'key': 'seguidores_total', 'label': 'Seguidores'},
-        {'key': 'publicacoes_total', 'label': 'Publicações'},
-        {'key': 'engajamento_total', 'label': 'Engajamento'},
+        {'key': 'quantidade_publicacoes', 'label': 'Quantidade de Publicações'},
+        {'key': 'visualizacoes', 'label': 'Visualizações'},
+        {'key': 'alcance', 'label': 'Alcance'},
+        {'key': 'curtidas', 'label': 'Curtidas'},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos'},
+        {'key': 'quantidade_posts', 'label': 'Quantidade de Posts'},
+        {'key': 'visualizacoes_posts', 'label': 'Visualizações dos Posts'},
+        {'key': 'alcance_posts', 'label': 'Alcance dos Posts'},
+        {'key': 'curtidas_posts', 'label': 'Curtidas dos Posts'},
+        {'key': 'compartilhamentos_posts', 'label': 'Compartilhamentos dos Posts'},
+        {'key': 'quantidade_stories', 'label': 'Quantidade de Stories'},
+        {'key': 'visualizacoes_stories', 'label': 'Visualizações dos Stories'},
+        {'key': 'alcance_stories', 'label': 'Alcance dos Stories'},
+        {'key': 'curtidas_stories', 'label': 'Curtidas dos Stories'},
+        {'key': 'compartilhamentos_stories', 'label': 'Compartilhamentos dos Stories'},
+        {'key': 'comentarios', 'label': 'Comentários'},
+        {'key': 'salvamentos', 'label': 'Salvamentos'},
+        {'key': 'respostas', 'label': 'Respostas'},
+        {'key': 'cliques_link', 'label': 'Cliques no Link'},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil'},
     ],
 }
 
@@ -241,6 +265,54 @@ CRM_METRIC_TOOLTIPS = {
     'valor_vendas_vendedor': 'Receita total gerada por vendedor.',
     'atendimentos_vendedor': 'Total de atendimentos realizados por vendedor.',
 }
+SOCIAL_PANEL_CATEGORY_DEFINITIONS = [
+    {
+        'key': 'visao_geral',
+        'label': 'Visão Geral',
+        'description': 'Desempenho consolidado do conteúdo orgânico no período.',
+        'metrics': ['quantidade_publicacoes', 'visualizacoes', 'alcance', 'curtidas', 'compartilhamentos'],
+    },
+    {
+        'key': 'posts',
+        'label': 'Posts',
+        'description': 'Desempenho consolidado apenas dos conteúdos do tipo post.',
+        'metrics': ['quantidade_posts', 'visualizacoes_posts', 'alcance_posts', 'curtidas_posts', 'compartilhamentos_posts'],
+    },
+    {
+        'key': 'stories',
+        'label': 'Stories',
+        'description': 'Desempenho consolidado apenas dos conteúdos do tipo story.',
+        'metrics': ['quantidade_stories', 'visualizacoes_stories', 'alcance_stories', 'curtidas_stories', 'compartilhamentos_stories'],
+    },
+    {
+        'key': 'engajamento',
+        'label': 'Engajamento',
+        'description': 'Indicadores complementares de interação e resposta.',
+        'metrics': ['curtidas', 'compartilhamentos', 'comentarios', 'salvamentos', 'respostas', 'cliques_link', 'visitas_perfil'],
+    },
+]
+SOCIAL_METRIC_TOOLTIPS = {
+    'quantidade_publicacoes': 'Total de publicações válidas importadas no período.',
+    'visualizacoes': 'Soma total de visualizações no período.',
+    'alcance': 'Soma total de alcance no período.',
+    'curtidas': 'Soma total de curtidas no período.',
+    'compartilhamentos': 'Soma total de compartilhamentos no período.',
+    'quantidade_posts': 'Total de registros classificados como post.',
+    'visualizacoes_posts': 'Visualizações apenas de posts.',
+    'alcance_posts': 'Alcance apenas de posts.',
+    'curtidas_posts': 'Curtidas apenas de posts.',
+    'compartilhamentos_posts': 'Compartilhamentos apenas de posts.',
+    'quantidade_stories': 'Total de registros classificados como story.',
+    'visualizacoes_stories': 'Visualizações apenas de stories.',
+    'alcance_stories': 'Alcance apenas de stories.',
+    'curtidas_stories': 'Curtidas apenas de stories.',
+    'compartilhamentos_stories': 'Compartilhamentos apenas de stories.',
+    'comentarios': 'Total de comentários no período.',
+    'salvamentos': 'Total de salvamentos no período.',
+    'respostas': 'Total de respostas no período.',
+    'cliques_link': 'Total de cliques em links no período.',
+    'visitas_perfil': 'Total de visitas ao perfil no período.',
+}
 
 
 @dataclass
@@ -299,6 +371,26 @@ def get_panel_metric_groups(tipo_documento):
                         {
                             **metric_map[key],
                             'tooltip': CRM_METRIC_TOOLTIPS.get(key, ''),
+                        }
+                        for key in category['metrics']
+                        if key in metric_map
+                    ],
+                }
+            )
+        return groups
+    if tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+        metric_map = {item['key']: item for item in metrics}
+        groups = []
+        for category in SOCIAL_PANEL_CATEGORY_DEFINITIONS:
+            groups.append(
+                {
+                    'key': category['key'],
+                    'label': category['label'],
+                    'description': category['description'],
+                    'metrics': [
+                        {
+                            **metric_map[key],
+                            'tooltip': SOCIAL_METRIC_TOOLTIPS.get(key, ''),
                         }
                         for key in category['metrics']
                         if key in metric_map

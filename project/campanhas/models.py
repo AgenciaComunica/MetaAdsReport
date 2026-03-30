@@ -28,8 +28,14 @@ class UploadCampanha(models.Model):
 
 
 class UploadPainel(models.Model):
+    class TipoUpload(models.TextChoices):
+        GENERICO = '', 'Não definido'
+        POSTS = 'posts', 'Posts'
+        STORIES = 'stories', 'Stories'
+
     configuracao = models.ForeignKey('empresas.ConfiguracaoUploadEmpresa', on_delete=models.CASCADE, related_name='uploads_painel')
     arquivo = models.FileField(upload_to='empresas/painel-uploads/')
+    tipo_upload = models.CharField(max_length=20, choices=TipoUpload.choices, blank=True)
     nome_arquivo = models.CharField(max_length=255)
     colunas_detectadas_json = models.JSONField(default=list, blank=True)
     preview_json = models.JSONField(default=list, blank=True)

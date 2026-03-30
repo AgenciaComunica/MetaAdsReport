@@ -131,6 +131,29 @@ CRM_PLAUSIBLE_VARIATION_LIMITS = {
     'valor_vendas_vendedor': Decimal('15'),
     'atendimentos_vendedor': Decimal('15'),
 }
+SOCIAL_POSITIVE_WHEN_HIGHER = {
+    'quantidade_publicacoes',
+    'visualizacoes',
+    'alcance',
+    'curtidas',
+    'compartilhamentos',
+    'quantidade_posts',
+    'visualizacoes_posts',
+    'alcance_posts',
+    'curtidas_posts',
+    'compartilhamentos_posts',
+    'quantidade_stories',
+    'visualizacoes_stories',
+    'alcance_stories',
+    'curtidas_stories',
+    'compartilhamentos_stories',
+    'comentarios',
+    'salvamentos',
+    'respostas',
+    'cliques_link',
+    'visitas_perfil',
+}
+SOCIAL_PLAUSIBLE_VARIATION_LIMITS = {key: Decimal('15') for key in SOCIAL_POSITIVE_WHEN_HIGHER}
 CRM_STATUS_COLOR_MAP = {
     'venda concluida': '#2d6a4f',
     'venda concluída': '#2d6a4f',
@@ -195,7 +218,7 @@ def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, pe
             tab = build_leads_tab(config, period_start, period_end, key=key)
             leads_tabs.append(tab)
         elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
-            tab = build_social_tab(config, period_start, period_end, key=key)
+            tab = build_social_tab(config, period_start, period_end, previous_start=previous_start, previous_end=previous_end, key=key)
             social_tabs.append(tab)
         else:
             continue
@@ -311,38 +334,30 @@ def build_leads_tab(config, period_start=None, period_end=None, key='leads_event
     }
 
 
-def build_social_tab(config, period_start=None, period_end=None, key='redes_sociais'):
+def build_social_tab(config, period_start=None, period_end=None, previous_start=None, previous_end=None, key='redes_sociais'):
     if not config:
         return _empty_tab('redes_sociais', 'Redes Sociais')
-    rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_referencia')
-    kpis = {
-        'perfis_total': len({row.get('perfil') for row in rows if row.get('perfil')}),
-        'seguidores_total': sum((_to_decimal(row.get('seguidores')) for row in rows), Decimal('0')),
-        'publicacoes_total': sum((_to_decimal(row.get('publicacoes')) for row in rows), Decimal('0')),
-        'engajamento_total': sum((_to_decimal(row.get('engajamento')) for row in rows), Decimal('0')),
-    }
+    rows = _read_social_rows(config, period_start=period_start, period_end=period_end)
+    previous_start = None
+    previous_end = None
+    selected_table_keys = set(get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json))
+    selected_chart_keys = set(get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json))
+    filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json)
+    current_summary = _social_period_summary(rows)
+    previous_rows = _read_social_rows(config, period_start=previous_start, period_end=previous_end)
+    previous_summary = _social_period_summary(previous_rows)
+    category_blocks = _build_social_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map)
     return {
         'key': key,
         'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS,
         'title': config.nome,
         'config_id': config.pk,
         'configured': True,
-        'ready': bool(rows),
+        'ready': bool((config.mapeamento_json or {}).get('posts') or (config.mapeamento_json or {}).get('stories')),
         'config_name': config.nome,
-        'description': 'Indicadores importados para monitoramento de redes sociais.',
+        'description': 'Comparativo do desempenho orgânico entre período atual e anterior, baseado apenas em uploads reais.',
         'rows': rows[:20],
-        'kpis': kpis,
-        'metric_cards': _build_metric_cards(
-            kpis,
-            get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json),
-            {
-                'perfis_total': ('Perfis', lambda value: str(value)),
-                'seguidores_total': ('Seguidores', lambda value: str(int(value) if value == int(value) else value)),
-                'publicacoes_total': ('Publicações', lambda value: str(int(value) if value == int(value) else value)),
-                'engajamento_total': ('Engajamento', lambda value: str(int(value) if value == int(value) else value)),
-            },
-        ),
-        'social_networks': _top_values(rows, 'rede_social'),
+        'category_blocks': category_blocks,
     }
 
 
@@ -373,6 +388,130 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
             f'Receita total no CRM: R$ {total_revenue:.2f}',
             f'Receita estimada de leads marcados como tráfego pago: R$ {paid_revenue:.2f}',
             f'ROAS estimado com base no CRM: {roas:.2f}x' if investment else 'ROAS estimado indisponível sem investimento em tráfego pago.',
+        ],
+    }
+
+
+def _build_social_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None):
+    filter_enabled_map = filter_enabled_map or {}
+    blocks = []
+    definitions = [
+        (
+            'visao_geral',
+            'Visão Geral',
+            'Bloco principal consolidado do desempenho social.',
+            [
+                ('quantidade_publicacoes', 'Quantidade de Publicações', False, ''),
+                ('visualizacoes', 'Visualizações', False, ''),
+                ('alcance', 'Alcance', False, ''),
+                ('curtidas', 'Curtidas', False, ''),
+                ('compartilhamentos', 'Compartilhamentos', False, ''),
+            ],
+            ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+        ),
+        (
+            'posts',
+            'Posts',
+            'Desempenho consolidado apenas dos conteúdos do tipo post.',
+            [
+                ('quantidade_posts', 'Quantidade de Posts', False, ''),
+                ('visualizacoes_posts', 'Visualizações dos Posts', False, ''),
+                ('alcance_posts', 'Alcance dos Posts', False, ''),
+                ('curtidas_posts', 'Curtidas dos Posts', False, ''),
+                ('compartilhamentos_posts', 'Compartilhamentos dos Posts', False, ''),
+            ],
+            ['quantidade_posts', 'visualizacoes_posts', 'alcance_posts'],
+        ),
+        (
+            'stories',
+            'Stories',
+            'Desempenho consolidado apenas dos conteúdos do tipo story.',
+            [
+                ('quantidade_stories', 'Quantidade de Stories', False, ''),
+                ('visualizacoes_stories', 'Visualizações dos Stories', False, ''),
+                ('alcance_stories', 'Alcance dos Stories', False, ''),
+                ('curtidas_stories', 'Curtidas dos Stories', False, ''),
+                ('compartilhamentos_stories', 'Compartilhamentos dos Stories', False, ''),
+            ],
+            ['quantidade_stories', 'visualizacoes_stories', 'alcance_stories'],
+        ),
+        (
+            'engajamento',
+            'Engajamento',
+            'Indicadores complementares de interação.',
+            [
+                ('curtidas', 'Curtidas', False, ''),
+                ('compartilhamentos', 'Compartilhamentos', False, ''),
+                ('comentarios', 'Comentários', False, ''),
+                ('salvamentos', 'Salvamentos', False, ''),
+                ('respostas', 'Respostas', False, ''),
+                ('cliques_link', 'Cliques no Link', False, ''),
+                ('visitas_perfil', 'Visitas ao Perfil', False, ''),
+            ],
+            ['curtidas', 'compartilhamentos', 'comentarios'],
+        ),
+    ]
+    for key, title, description, metric_defs, chart_defaults in definitions:
+        rows = _social_comparison_rows(metric_defs, current_summary, previous_summary, selected_table_keys)
+        metric_keys = {item[0] for item in metric_defs}
+        chart_keys = [item for item in chart_defaults if item in selected_chart_keys]
+        if not chart_keys:
+            chart_keys = [key_item for key_item, _, _, _ in metric_defs if key_item in selected_table_keys]
+        chart = _social_comparison_chart(f'social_{key}', title, metric_defs, current_summary, previous_summary, chart_keys)
+        if rows or chart:
+            blocks.append(
+                {
+                    'key': key,
+                    'title': title,
+                    'description': description,
+                    'rows': rows,
+                    'chart': chart,
+                    'chart_type': 'bar_compare',
+                    'filter_options': [row['label'] for row in rows] if filter_enabled_map.get(key) else [],
+                }
+            )
+    return blocks
+
+
+def _social_comparison_rows(metric_defs, current_values, previous_values, selected_table_keys):
+    rows = []
+    for key, label, currency, suffix in metric_defs:
+        if key not in selected_table_keys:
+            continue
+        current_value = current_values.get(key, Decimal('0'))
+        previous_value = previous_values.get(key, Decimal('0'))
+        variation_absolute = current_value - previous_value
+        variation_percent = (variation_absolute / previous_value * Decimal('100')) if previous_value else None
+        rows.append(
+            {
+                'label': label,
+                'period_value': f"{_format_social_metric(previous_value, currency, suffix)} / {_format_social_metric(current_value, currency, suffix)}",
+                'variation_value': _format_variation(variation_absolute, variation_percent, key),
+                'variation_class': _resolve_social_variation_class(key, variation_absolute, variation_percent),
+            }
+        )
+    return rows
+
+
+def _social_comparison_chart(key, title, metric_defs, current_values, previous_values, selected_chart_keys):
+    categories = []
+    current_data = []
+    previous_data = []
+    for metric_key, label, _, _ in metric_defs:
+        if metric_key not in selected_chart_keys:
+            continue
+        categories.append(label)
+        current_data.append(_decimal_to_float(current_values.get(metric_key, Decimal('0'))))
+        previous_data.append(_decimal_to_float(previous_values.get(metric_key, Decimal('0'))))
+    if not categories:
+        return None
+    return {
+        'key': key,
+        'title': title,
+        'categories': categories,
+        'series': [
+            {'name': 'Período anterior', 'data': previous_data},
+            {'name': 'Período atual', 'data': current_data},
         ],
     }
 
@@ -681,6 +820,14 @@ def _format_crm_metric(value, currency=False, suffix=''):
     return f'{value:.2f}' if isinstance(value, Decimal) and value != value.to_integral_value() else str(int(value))
 
 
+def _format_social_metric(value, currency=False, suffix=''):
+    if currency:
+        return f'R$ {value:.2f}'
+    if suffix == '%':
+        return f'{value:.2f}%'
+    return f'{value:.2f}' if isinstance(value, Decimal) and value != value.to_integral_value() else str(int(value))
+
+
 def _crm_status_color(label):
     normalized = _normalize_status_label(label)
     if normalized in CRM_STATUS_COLOR_MAP:
@@ -756,6 +903,36 @@ def _read_mapped_rows(config, period_start=None, period_end=None, date_key=''):
                 if row_date is not None and not (period_start <= row_date <= period_end):
                     continue
             rows.append(row)
+    return rows
+
+
+def _read_social_rows(config, period_start=None, period_end=None):
+    if not config or not config.mapeamento_json:
+        return []
+    deduped_rows = {}
+    uploads = UploadPainel.objects.filter(configuracao=config).order_by('-criado_em', '-pk')
+    for upload in uploads:
+        upload_type = getattr(upload, 'tipo_upload', '') or _normalize_social_content_type('', '', upload.nome_arquivo)
+        social_mapping = (config.mapeamento_json or {}).get(upload_type, {})
+        if not social_mapping:
+            continue
+        dataframe = read_uploaded_dataframe(upload.arquivo.path, upload.nome_arquivo or upload.arquivo.name)
+        for _, source_row in dataframe.iterrows():
+            row = {}
+            for field_key, column_name in social_mapping.items():
+                row[field_key] = _serialize_value(source_row.get(column_name, ''))
+            row['tipo_conteudo_normalizado'] = _normalize_social_content_type(
+                row.get('tipo_conteudo', ''),
+                getattr(upload, 'tipo_upload', ''),
+                upload.nome_arquivo,
+            )
+            row_date = _parse_date(row.get('data_publicacao'))
+            if period_start and period_end and row_date is not None and not (period_start <= row_date <= period_end):
+                continue
+            dedupe_key = str(row.get('id_publicacao', '')).strip() or f"{upload.pk}:{source_row.name}"
+            deduped_rows[dedupe_key] = row
+    rows = list(deduped_rows.values())
+    rows.sort(key=lambda item: _parse_date(item.get('data_publicacao')) or pd.Timestamp.min.date(), reverse=True)
     return rows
 
 
@@ -879,10 +1056,53 @@ def _crm_period_summary(rows, closed_status, config):
     }
 
 
+def _social_period_summary(rows):
+    def sum_key(dataset, field):
+        return sum((_to_decimal(item.get(field)) for item in dataset), Decimal('0'))
+
+    posts = [row for row in rows if row.get('tipo_conteudo_normalizado') == 'post']
+    stories = [row for row in rows if row.get('tipo_conteudo_normalizado') == 'story']
+    return {
+        'quantidade_publicacoes': Decimal(len(rows)),
+        'visualizacoes': sum_key(rows, 'visualizacoes'),
+        'alcance': sum_key(rows, 'alcance'),
+        'curtidas': sum_key(rows, 'curtidas'),
+        'compartilhamentos': sum_key(rows, 'compartilhamentos'),
+        'quantidade_posts': Decimal(len(posts)),
+        'visualizacoes_posts': sum_key(posts, 'visualizacoes'),
+        'alcance_posts': sum_key(posts, 'alcance'),
+        'curtidas_posts': sum_key(posts, 'curtidas'),
+        'compartilhamentos_posts': sum_key(posts, 'compartilhamentos'),
+        'quantidade_stories': Decimal(len(stories)),
+        'visualizacoes_stories': sum_key(stories, 'visualizacoes'),
+        'alcance_stories': sum_key(stories, 'alcance'),
+        'curtidas_stories': sum_key(stories, 'curtidas'),
+        'compartilhamentos_stories': sum_key(stories, 'compartilhamentos'),
+        'comentarios': sum_key(rows, 'comentarios'),
+        'salvamentos': sum_key(rows, 'salvamentos'),
+        'respostas': sum_key(rows, 'respostas'),
+        'cliques_link': sum_key(rows, 'cliques_link'),
+        'visitas_perfil': sum_key(rows, 'visitas_perfil'),
+    }
+
+
 def _crm_is_paid_row(row, config):
     url = str(row.get('ads_parametros_url', '')).strip().lower()
     contains_value = str((config.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')).strip().lower()
     return (url.startswith('https://www.') if url else False) or (contains_value and contains_value in url)
+
+
+def _normalize_social_content_type(value, upload_type='', file_name=''):
+    normalized = _normalize_status_label(value)
+    file_hint = _normalize_status_label(file_name)
+    upload_hint = _normalize_status_label(upload_type)
+    if any(term in normalized for term in ('story', 'stories', 'storie')):
+        return 'story'
+    if any(term in normalized for term in ('post', 'feed', 'photo', 'foto', 'carousel', 'carrossel')):
+        return 'post'
+    if 'stories' in upload_hint or 'story' in upload_hint or 'stories' in file_hint or 'story' in file_hint:
+        return 'story'
+    return 'post'
 
 
 def _crm_is_closed_sale(row, closed_status):
@@ -1143,6 +1363,26 @@ def _format_variation(absolute, percent, key):
         'organico_conversas',
         'vendas_concluidas_vendedor',
         'atendimentos_vendedor',
+        'quantidade_publicacoes',
+        'visualizacoes',
+        'alcance',
+        'curtidas',
+        'compartilhamentos',
+        'quantidade_posts',
+        'visualizacoes_posts',
+        'alcance_posts',
+        'curtidas_posts',
+        'compartilhamentos_posts',
+        'quantidade_stories',
+        'visualizacoes_stories',
+        'alcance_stories',
+        'curtidas_stories',
+        'compartilhamentos_stories',
+        'comentarios',
+        'salvamentos',
+        'respostas',
+        'cliques_link',
+        'visitas_perfil',
     }:
         absolute_text = str(int(absolute))
     elif key in {'receita_total', 'ticket_medio', 'receita_trafego_pago', 'receita_organico', 'valor_vendas_vendedor'}:
@@ -1179,6 +1419,21 @@ def _resolve_crm_variation_class(key, absolute, percent):
     if key not in CRM_POSITIVE_WHEN_HIGHER:
         return 'text-muted'
     threshold = CRM_PLAUSIBLE_VARIATION_LIMITS.get(key, Decimal('10'))
+    favorable = absolute > 0
+    if percent is None:
+        return 'text-info' if favorable else 'text-warning'
+    intensity = abs(percent)
+    if favorable:
+        return 'text-info' if intensity <= threshold else 'text-success'
+    return 'text-warning' if intensity <= threshold else 'text-danger'
+
+
+def _resolve_social_variation_class(key, absolute, percent):
+    if absolute == 0:
+        return 'text-muted'
+    if key not in SOCIAL_POSITIVE_WHEN_HIGHER:
+        return 'text-muted'
+    threshold = SOCIAL_PLAUSIBLE_VARIATION_LIMITS.get(key, Decimal('10'))
     favorable = absolute > 0
     if percent is None:
         return 'text-info' if favorable else 'text-warning'

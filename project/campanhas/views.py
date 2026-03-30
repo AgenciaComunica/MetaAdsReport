@@ -361,10 +361,12 @@ def dashboard(request):
                 painel_upload_forms[form_key] = painel_form
                 if painel_form.is_valid():
                     uploaded_file = painel_form.cleaned_data['arquivo']
+                    tipo_upload = painel_form.cleaned_data.get('tipo_upload', '')
                     preview = inspect_uploaded_file(uploaded_file, uploaded_file.name)
                     panel_upload = UploadPainel.objects.create(
                         configuracao=configuracao,
                         arquivo=uploaded_file,
+                        tipo_upload=tipo_upload,
                         nome_arquivo=preview.file_name,
                         colunas_detectadas_json=preview.columns,
                         preview_json=preview.rows,

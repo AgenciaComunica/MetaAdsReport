@@ -128,6 +128,11 @@ class EmpresaForm(forms.ModelForm):
 
 
 class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
+    SOCIAL_MAPPING_TYPES = (
+        ('posts', 'Posts'),
+        ('stories', 'Stories'),
+    )
+
     crm_origem_paga_contem = forms.CharField(
         required=False,
         widget=forms.TextInput(
@@ -136,6 +141,11 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 'placeholder': 'Ex.: utm_source=meta, gclid, fbclid. Se a URL começar com https://www. ou contiver esse parâmetro, será tráfego pago.',
             }
         ),
+    )
+    social_example_kind = forms.ChoiceField(
+        required=False,
+        choices=SOCIAL_MAPPING_TYPES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
     )
 
     class Meta:
@@ -157,15 +167,26 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         require_mapping = kwargs.pop('require_mapping', True)
         super().__init__(*args, **kwargs)
         self.fields['tipo_documento'].required = True
-        choices = [('', 'Selecione uma coluna')] + [(column, column) for column in columns]
-        principais = set(self.instance.campos_principais_json or [])
         self.document_type = (
             self.data.get(self.add_prefix('tipo_documento'))
             if self.is_bound and self.data.get(self.add_prefix('tipo_documento'))
             else self.instance.tipo_documento
         )
+        self.is_social_panel = self.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS
+        stored_analysis = self.instance.configuracao_analise_json or {}
+        self.social_columns = columns if isinstance(columns, dict) else {}
+        self.social_example_kind_value = (
+            self.data.get(self.add_prefix('social_example_kind'))
+            if self.is_bound and self.data.get(self.add_prefix('social_example_kind'))
+            else stored_analysis.get('social_example_kind', 'posts')
+        )
+        choices = [('', 'Selecione uma coluna')] + [(column, column) for column in (columns if isinstance(columns, list) else [])]
+        principais = set(self.instance.campos_principais_json or [])
         self.fields['crm_origem_paga_contem'].initial = (self.instance.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')
+        self.fields['social_example_kind'].initial = self.social_example_kind_value
         self.mapping_enabled = bool(columns) and bool(self.document_type)
+        if self.is_social_panel:
+            self.mapping_enabled = any(self.social_columns.values())
         self.require_mapping = require_mapping and self.mapping_enabled
         metric_config = normalize_panel_metric_config(self.document_type, self.instance.metricas_painel_json)
 
@@ -197,6 +218,30 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         if not self.mapping_enabled:
             return
 
+        if self.is_social_panel:
+            social_mappings = self.instance.mapeamento_json if isinstance(self.instance.mapeamento_json, dict) else {}
+            social_primaries = self.instance.campos_principais_json if isinstance(self.instance.campos_principais_json, dict) else {}
+            for social_type, _ in self.SOCIAL_MAPPING_TYPES:
+                social_choices = [('', 'Selecione uma coluna')] + [(column, column) for column in self.social_columns.get(social_type, [])]
+                social_mapping = social_mappings.get(social_type, {}) if isinstance(social_mappings.get(social_type, {}), dict) else {}
+                social_primary = set(social_primaries.get(social_type, [])) if isinstance(social_primaries.get(social_type, []), list) else set()
+                for field_def in get_field_schema(self.document_type):
+                    key = field_def['key']
+                    self.fields[f'map__{social_type}__{key}'] = forms.ChoiceField(
+                        choices=social_choices,
+                        required=False,
+                        label=field_def['label'],
+                        initial=social_mapping.get(key, ''),
+                        widget=forms.Select(attrs={'class': 'form-select'}),
+                    )
+                    self.fields[f'primary__{social_type}__{key}'] = forms.BooleanField(
+                        required=False,
+                        label='Principal',
+                        initial=(key in social_primary) or field_def['required'],
+                        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+                    )
+            return
+
         for field_def in get_field_schema(self.document_type):
             key = field_def['key']
             self.fields[f'map__{key}'] = forms.ChoiceField(
@@ -219,6 +264,41 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         if not self.mapping_enabled:
             if self.document_type:
                 cleaned_data['metricas_painel_json'] = self._build_metric_config(cleaned_data)
+            return cleaned_data
+
+        if self.is_social_panel:
+            for social_type, social_label in self.SOCIAL_MAPPING_TYPES:
+                selected_columns = {}
+                has_any_mapping = False
+                for field_def in get_field_schema(self.document_type):
+                    key = field_def['key']
+                    mapped_column = cleaned_data.get(f'map__{social_type}__{key}')
+                    if not mapped_column:
+                        continue
+                    has_any_mapping = True
+                    previous_key = selected_columns.get(mapped_column)
+                    if previous_key:
+                        self.add_error(f'map__{social_type}__{key}', f'A coluna "{mapped_column}" já foi usada em outro campo do sistema.')
+                    selected_columns[mapped_column] = key
+                if has_any_mapping:
+                    for field_def in get_field_schema(self.document_type):
+                        if field_def['required'] and not cleaned_data.get(f'map__{social_type}__{field_def["key"]}'):
+                            self.add_error(f'map__{social_type}__{field_def["key"]}', f'Preencha o campo obrigatório de {social_label}.')
+            if self.document_type:
+                cleaned_data['metricas_painel_json'] = self._build_metric_config(cleaned_data)
+                for group in get_panel_metric_groups(self.document_type):
+                    group_has_any_metric = any(
+                        cleaned_data.get(f'metric_table__{metric["key"]}') or cleaned_data.get(f'metric_chart__{metric["key"]}')
+                        for metric in group['metrics']
+                    )
+                    if not group_has_any_metric:
+                        continue
+                    has_table = any(cleaned_data.get(f'metric_table__{metric["key"]}') for metric in group['metrics'])
+                    has_chart = any(cleaned_data.get(f'metric_chart__{metric["key"]}') for metric in group['metrics'])
+                    if not has_table:
+                        raise forms.ValidationError(f'Ative ao menos uma métrica de Tabela em "{group["label"]}".')
+                    if not has_chart:
+                        raise forms.ValidationError(f'Ative ao menos uma métrica de Gráfico em "{group["label"]}".')
             return cleaned_data
 
         for field_def in get_field_schema(cleaned_data.get('tipo_documento') or self.document_type):
@@ -283,28 +363,63 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         instance = self.save(commit=False)
         instance.nome = self.cleaned_data.get('nome', instance.nome)
         instance.tipo_documento = self.cleaned_data.get('tipo_documento', instance.tipo_documento)
-        mapping = {}
-        principais = []
         metricas = self.cleaned_data.get('metricas_painel_json') or {'categories': {}, 'metrics': {}}
-        for field_def in get_field_schema(instance.tipo_documento):
-            key = field_def['key']
-            mapped_column = self.cleaned_data.get(f'map__{key}')
-            if mapped_column:
-                mapping[key] = mapped_column
-            if self.cleaned_data.get(f'primary__{key}'):
-                principais.append(key)
-
-        instance.mapeamento_json = mapping
-        instance.campos_principais_json = principais
+        if self.is_social_panel:
+            mapping = {}
+            principais = {}
+            for social_type, _ in self.SOCIAL_MAPPING_TYPES:
+                social_mapping = {}
+                social_primary = []
+                for field_def in get_field_schema(instance.tipo_documento):
+                    key = field_def['key']
+                    mapped_column = self.cleaned_data.get(f'map__{social_type}__{key}')
+                    if mapped_column:
+                        social_mapping[key] = mapped_column
+                    if self.cleaned_data.get(f'primary__{social_type}__{key}'):
+                        social_primary.append(key)
+                if social_mapping:
+                    mapping[social_type] = social_mapping
+                if social_primary:
+                    principais[social_type] = social_primary
+            instance.mapeamento_json = mapping
+            instance.campos_principais_json = principais
+        else:
+            mapping = {}
+            principais = []
+            for field_def in get_field_schema(instance.tipo_documento):
+                key = field_def['key']
+                mapped_column = self.cleaned_data.get(f'map__{key}')
+                if mapped_column:
+                    mapping[key] = mapped_column
+                if self.cleaned_data.get(f'primary__{key}'):
+                    principais.append(key)
+            instance.mapeamento_json = mapping
+            instance.campos_principais_json = principais
         instance.metricas_painel_json = metricas
         instance.configuracao_analise_json = {
             **(instance.configuracao_analise_json or {}),
             'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
+            'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
         }
         if preview:
-            instance.colunas_detectadas_json = preview.columns
-            instance.preview_json = preview.rows
-            instance.nome_arquivo_exemplo = preview.file_name
+            if self.is_social_panel:
+                target_kind = self.cleaned_data.get('social_example_kind', 'posts')
+                analysis_config = instance.configuracao_analise_json or {}
+                social_previews = analysis_config.get('social_previews', {})
+                social_previews[target_kind] = {
+                    'columns': preview.columns,
+                    'rows': preview.rows,
+                    'file_name': preview.file_name,
+                }
+                analysis_config['social_previews'] = social_previews
+                instance.configuracao_analise_json = analysis_config
+                instance.colunas_detectadas_json = []
+                instance.preview_json = []
+                instance.nome_arquivo_exemplo = ''
+            else:
+                instance.colunas_detectadas_json = preview.columns
+                instance.preview_json = preview.rows
+                instance.nome_arquivo_exemplo = preview.file_name
         instance.save()
         return instance
 
@@ -312,15 +427,33 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         instance = self.save(commit=False)
         instance.nome = self.cleaned_data.get('nome', instance.nome)
         instance.tipo_documento = self.cleaned_data.get('tipo_documento', instance.tipo_documento)
-        instance.colunas_detectadas_json = preview.columns
-        instance.preview_json = preview.rows
-        instance.nome_arquivo_exemplo = preview.file_name
-        instance.mapeamento_json = {}
-        instance.campos_principais_json = []
-        instance.configuracao_analise_json = {
-            **(instance.configuracao_analise_json or {}),
-            'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
-        }
+        if self.is_social_panel:
+            analysis_config = {
+                **(instance.configuracao_analise_json or {}),
+                'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
+                'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
+            }
+            social_previews = analysis_config.get('social_previews', {})
+            social_previews[self.cleaned_data.get('social_example_kind', 'posts')] = {
+                'columns': preview.columns,
+                'rows': preview.rows,
+                'file_name': preview.file_name,
+            }
+            analysis_config['social_previews'] = social_previews
+            instance.configuracao_analise_json = analysis_config
+            instance.colunas_detectadas_json = []
+            instance.preview_json = []
+            instance.nome_arquivo_exemplo = ''
+        else:
+            instance.colunas_detectadas_json = preview.columns
+            instance.preview_json = preview.rows
+            instance.nome_arquivo_exemplo = preview.file_name
+            instance.mapeamento_json = {}
+            instance.campos_principais_json = []
+            instance.configuracao_analise_json = {
+                **(instance.configuracao_analise_json or {}),
+                'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
+            }
         instance.save()
         return instance
 

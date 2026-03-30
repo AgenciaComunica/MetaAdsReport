@@ -68,6 +68,7 @@ def upload_config_update(request, empresa_pk, config_pk):
     uploaded_file = request.FILES.get('arquivo_exemplo')
     preview = None
     preview_error = None
+    social_previews = (configuracao.configuracao_analise_json or {}).get('social_previews', {}) if configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS else {}
     if uploaded_file:
         try:
             preview = inspect_uploaded_file(uploaded_file, uploaded_file.name)
@@ -85,7 +86,14 @@ def upload_config_update(request, empresa_pk, config_pk):
         request.POST or None,
         request.FILES or None,
         instance=configuracao,
-        columns=preview.columns if preview else configuracao.colunas_detectadas_json,
+        columns=(
+            {
+                **{kind: data.get('columns', []) for kind, data in social_previews.items()},
+                **({request.POST.get('social_example_kind', 'posts'): preview.columns} if preview and (request.POST.get('tipo_documento') == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS or configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS) else {}),
+            }
+            if (request.POST.get('tipo_documento') == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS or configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS)
+            else (preview.columns if preview else configuracao.colunas_detectadas_json)
+        ),
         require_mapping=require_mapping,
     )
     if preview_error:
@@ -117,18 +125,45 @@ def upload_config_update(request, empresa_pk, config_pk):
             return redirect('empresas:upload_config_update', empresa_pk=empresa.pk, config_pk=configuracao.pk)
 
     mapping_rows = []
+    mapping_sections = []
     if form.mapping_enabled:
-        for item in get_field_schema(form.document_type):
-            key = item['key']
-            mapping_rows.append(
-                {
-                    'key': key,
-                    'label': item['label'],
-                    'required': item['required'],
-                    'map_field': form[f'map__{key}'],
-                    'primary_field': form[f'primary__{key}'],
-                }
-            )
+        if form.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+            for social_type, social_label in form.SOCIAL_MAPPING_TYPES:
+                section_rows = []
+                for item in get_field_schema(form.document_type):
+                    key = item['key']
+                    section_rows.append(
+                        {
+                            'key': key,
+                            'label': item['label'],
+                            'required': item['required'],
+                            'map_field': form[f'map__{social_type}__{key}'],
+                            'primary_field': form[f'primary__{social_type}__{key}'],
+                        }
+                    )
+                preview_data = ((configuracao.configuracao_analise_json or {}).get('social_previews', {}) or {}).get(social_type, {})
+                mapping_sections.append(
+                    {
+                        'key': social_type,
+                        'label': social_label,
+                        'rows': section_rows,
+                        'preview_columns': preview_data.get('columns', []),
+                        'preview_rows': preview_data.get('rows', []),
+                        'file_name': preview_data.get('file_name', ''),
+                    }
+                )
+        else:
+            for item in get_field_schema(form.document_type):
+                key = item['key']
+                mapping_rows.append(
+                    {
+                        'key': key,
+                        'label': item['label'],
+                        'required': item['required'],
+                        'map_field': form[f'map__{key}'],
+                        'primary_field': form[f'primary__{key}'],
+                    }
+                )
 
     metric_groups = []
     if form.document_type:
@@ -159,8 +194,13 @@ def upload_config_update(request, empresa_pk, config_pk):
         'preview_rows': preview.rows if preview else configuracao.preview_json,
         'preview_columns': preview.columns if preview else configuracao.colunas_detectadas_json,
         'mapping_rows': mapping_rows,
+        'mapping_sections': mapping_sections,
         'metric_groups': metric_groups,
-        'show_mapping': bool((preview.columns if preview else configuracao.colunas_detectadas_json) and form.document_type),
+        'show_mapping': (
+            any(section['preview_columns'] for section in mapping_sections)
+            if form.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS
+            else bool((preview.columns if preview else configuracao.colunas_detectadas_json) and form.document_type)
+        ),
         'has_example_file': bool(configuracao.arquivo_exemplo or configuracao.nome_arquivo_exemplo),
     }
     return render(request, 'empresas/upload_config_form.html', context)

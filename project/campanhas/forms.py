@@ -4,7 +4,7 @@ from django.http import QueryDict
 from empresas.models import Empresa
 from empresas.models import ConfiguracaoUploadEmpresa
 
-from .models import UploadCampanha
+from .models import UploadCampanha, UploadPainel
 
 class UploadCampanhaForm(forms.ModelForm):
     class Meta:
@@ -35,6 +35,11 @@ class UploadCampanhaForm(forms.ModelForm):
 
 
 class UploadPainelArquivoForm(forms.Form):
+    tipo_upload = forms.ChoiceField(
+        required=False,
+        choices=UploadPainel.TipoUpload.choices,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
     arquivo = forms.FileField(
         label='Arquivo',
         widget=forms.FileInput(
@@ -48,6 +53,17 @@ class UploadPainelArquivoForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.configuracao = kwargs.pop('configuracao', None)
         super().__init__(*args, **kwargs)
+        self.fields['tipo_upload'].choices = [('', 'Selecione o tipo do upload')]
+        self.fields['tipo_upload'].widget = forms.Select(attrs={'class': 'form-select'})
+        if self.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+            self.fields['tipo_upload'].choices += [
+                ('posts', 'Posts'),
+                ('stories', 'Stories'),
+            ]
+            self.fields['tipo_upload'].required = True
+            self.fields['tipo_upload'].label = 'Tipo do upload'
+        else:
+            self.fields['tipo_upload'].widget = forms.HiddenInput()
 
     @property
     def tipo_documento(self):

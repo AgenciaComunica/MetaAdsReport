@@ -45,6 +45,12 @@
                 {{ form.arquivo_exemplo.label_tag }}{{ form.arquivo_exemplo }}
                 {% if form.arquivo_exemplo.errors %}<div class="text-danger small mt-1">{{ form.arquivo_exemplo.errors|join:', ' }}</div>{% endif %}
             </div>
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="mb-3">
+                    {{ form.social_example_kind.label_tag }}{{ form.social_example_kind }}
+                    {% if form.social_example_kind.errors %}<div class="text-danger small mt-1">{{ form.social_example_kind.errors|join:', ' }}</div>{% endif %}
+                </div>
+            {% endif %}
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <button class="btn btn-outline-dark" type="submit" name="action" value="mapear">Mapear</button>
                 {% if has_example_file %}
@@ -124,52 +130,109 @@
     <div class="panel mt-4">
         <h3 class="mb-3">Mapeamento do Sistema</h3>
         {% if show_mapping %}
-            <div class="table-responsive">
-                <table class="table align-middle upload-mapping-table">
-                    <thead>
-                        <tr>
-                            <th>Campo do sistema</th>
-                            <th>Campo do arquivo</th>
-                            <th class="text-center">Principal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in mapping_rows %}
-                            <tr>
-                                <td>
-                                    <strong>{{ row.label }}</strong>
-                                    {% if row.required %}
-                                        <span class="badge text-bg-dark ms-2">Obrigatório</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if form.document_type == 'crm_vendas' and row.key == 'ads_parametros_url' %}
-                                        <div class="crm-traffic-map-row">
-                                            <div class="crm-traffic-map-select">
-                                                {{ row.map_field }}
-                                            </div>
-                                            <div class="crm-traffic-param-config">
-                                                {{ form.crm_origem_paga_contem }}
-                                                {% if form.crm_origem_paga_contem.errors %}<div class="text-danger small mt-1">{{ form.crm_origem_paga_contem.errors|join:', ' }}</div>{% endif %}
-                                            </div>
-                                        </div>
-                                    {% else %}
-                                        {{ row.map_field }}
-                                    {% endif %}
-                                    {% if row.map_field.errors %}
-                                        <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <div class="form-check d-inline-flex justify-content-center">
-                                        {{ row.primary_field }}
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="row g-4">
+                    {% for section in mapping_sections %}
+                        <div class="col-lg-6">
+                            <div class="panel h-100">
+                                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                                    <div>
+                                        <h4 class="mb-1">{{ section.label }}</h4>
+                                        <p class="text-muted mb-0">
+                                            {% if section.file_name %}
+                                                Arquivo exemplo: {{ section.file_name }}
+                                            {% else %}
+                                                Faça o mapeamento específico para {{ section.label|lower }}.
+                                            {% endif %}
+                                        </p>
                                     </div>
-                                </td>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table align-middle upload-mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Campo do sistema</th>
+                                                <th>Campo do arquivo</th>
+                                                <th class="text-center">Principal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in section.rows %}
+                                                <tr>
+                                                    <td>
+                                                        <strong>{{ row.label }}</strong>
+                                                        {% if row.required %}
+                                                            <span class="badge text-bg-dark ms-2">Obrigatório</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {{ row.map_field }}
+                                                        {% if row.map_field.errors %}
+                                                            <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <div class="form-check d-inline-flex justify-content-center">
+                                                            {{ row.primary_field }}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table align-middle upload-mapping-table">
+                        <thead>
+                            <tr>
+                                <th>Campo do sistema</th>
+                                <th>Campo do arquivo</th>
+                                <th class="text-center">Principal</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {% for row in mapping_rows %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ row.label }}</strong>
+                                        {% if row.required %}
+                                            <span class="badge text-bg-dark ms-2">Obrigatório</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if form.document_type == 'crm_vendas' and row.key == 'ads_parametros_url' %}
+                                            <div class="crm-traffic-map-row">
+                                                <div class="crm-traffic-map-select">
+                                                    {{ row.map_field }}
+                                                </div>
+                                                <div class="crm-traffic-param-config">
+                                                    {{ form.crm_origem_paga_contem }}
+                                                    {% if form.crm_origem_paga_contem.errors %}<div class="text-danger small mt-1">{{ form.crm_origem_paga_contem.errors|join:', ' }}</div>{% endif %}
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            {{ row.map_field }}
+                                        {% endif %}
+                                        {% if row.map_field.errors %}
+                                            <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check d-inline-flex justify-content-center">
+                                            {{ row.primary_field }}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
         {% else %}
             <div class="upload-config-empty-state">
                 <p class="mb-0 text-muted">O mapeamento do sistema aparece depois que você envia o arquivo e clica em <strong>Mapear</strong>.</p>
@@ -179,7 +242,42 @@
 
     <div class="panel mt-4">
         <h3 class="mb-3">Leitura prévia do arquivo</h3>
-        {% if preview_columns %}
+        {% if form.document_type == 'redes_sociais' %}
+            <div class="row g-4">
+                {% for section in mapping_sections %}
+                    <div class="col-lg-6">
+                        <div class="panel h-100">
+                            <h4 class="mb-3">{{ section.label }}</h4>
+                            {% if section.preview_columns %}
+                                <p class="text-muted mb-2">Colunas detectadas: {{ section.preview_columns|join:', ' }}</p>
+                                <div class="table-responsive">
+                                    <table class="table align-middle">
+                                        <thead>
+                                            <tr>
+                                                {% for column in section.preview_columns %}
+                                                    <th>{{ column }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in section.preview_rows %}
+                                                <tr>
+                                                    {% for column in section.preview_columns %}
+                                                        <td>{{ row|get_item:column }}</td>
+                                                    {% endfor %}
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <p class="text-muted mb-0">O preview de {{ section.label|lower }} aparece depois da ação Mapear.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% elif preview_columns %}
             <p class="text-muted mb-2">Colunas detectadas: {{ preview_columns|join:', ' }}</p>
             <div class="table-responsive">
                 <table class="table align-middle">
