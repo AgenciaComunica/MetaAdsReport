@@ -47,19 +47,35 @@ UPLOAD_FIELD_SCHEMAS = {
         {'key': 'telefone_contato', 'label': 'Telefone de Contato', 'required': False},
         {'key': 'idade', 'label': 'Idade', 'required': False},
     ],
+    ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS: [
+        {'key': 'rede_social', 'label': 'Rede Social', 'required': True},
+        {'key': 'perfil', 'label': 'Perfil', 'required': True},
+        {'key': 'url_perfil', 'label': 'URL do Perfil', 'required': False},
+        {'key': 'data_referencia', 'label': 'Data de Referência', 'required': False},
+        {'key': 'seguidores', 'label': 'Seguidores', 'required': False},
+        {'key': 'publicacoes', 'label': 'Publicações', 'required': False},
+        {'key': 'alcance', 'label': 'Alcance', 'required': False},
+        {'key': 'impressoes', 'label': 'Impressões', 'required': False},
+        {'key': 'engajamento', 'label': 'Engajamento', 'required': False},
+    ],
 }
 
 PANEL_METRIC_SCHEMAS = {
     ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO: [
         {'key': 'investimento', 'label': 'Investimento'},
+        {'key': 'cpm', 'label': 'CPM'},
+        {'key': 'cpc', 'label': 'CPC'},
+        {'key': 'cpl', 'label': 'CPL'},
         {'key': 'impressoes', 'label': 'Impressões'},
         {'key': 'alcance', 'label': 'Alcance'},
-        {'key': 'cliques', 'label': 'Cliques'},
         {'key': 'ctr', 'label': 'CTR'},
-        {'key': 'cpc', 'label': 'CPC'},
-        {'key': 'cpm', 'label': 'CPM'},
-        {'key': 'resultados', 'label': 'Resultados'},
-        {'key': 'cpl', 'label': 'CPL'},
+        {'key': 'taxa_conversao', 'label': 'Taxa de Conversão'},
+        {'key': 'frequencia', 'label': 'Frequência'},
+        {'key': 'score_relevancia', 'label': 'Score de Relevância'},
+        {'key': 'cpm_relativo', 'label': 'CPM Relativo'},
+        {'key': 'resultado_principal', 'label': 'Resultado Principal'},
+        {'key': 'custo_por_resultado', 'label': 'Custo por Resultado'},
+        {'key': 'taxa_resposta', 'label': 'Taxa de Resposta'},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS: [
         {'key': 'registros', 'label': 'Registros'},
@@ -71,6 +87,12 @@ PANEL_METRIC_SCHEMAS = {
         {'key': 'leads_total', 'label': 'Total de Leads'},
         {'key': 'eventos_total', 'label': 'Eventos'},
         {'key': 'idade_media', 'label': 'Idade Média'},
+    ],
+    ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS: [
+        {'key': 'perfis_total', 'label': 'Perfis'},
+        {'key': 'seguidores_total', 'label': 'Seguidores'},
+        {'key': 'publicacoes_total', 'label': 'Publicações'},
+        {'key': 'engajamento_total', 'label': 'Engajamento'},
     ],
 }
 

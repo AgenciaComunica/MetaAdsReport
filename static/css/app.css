@@ -486,6 +486,37 @@ body {
     margin-bottom: 1rem;
 }
 
+.traffic-block-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.traffic-block-panel.is-results {
+    border-color: #2d6a4f;
+}
+
+.traffic-summary-table th,
+.traffic-summary-table td {
+    font-size: .92rem;
+    vertical-align: middle;
+}
+
+.traffic-summary-table thead th {
+    color: var(--muted);
+    font-size: .74rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.traffic-summary-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.traffic-block-panel .table-responsive {
+    flex: 1;
+}
+
 .company-search-wrap {
     max-width: 360px;
     width: 100%;

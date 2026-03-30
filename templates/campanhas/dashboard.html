@@ -2,6 +2,11 @@
 {% load ia_formatting %}
 {% load empresas_extras %}
 {% block page_title %}Dashboard{% endblock %}
+{% block page_actions %}
+    {% if empresa %}
+        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Configurar Painéis</a>
+    {% endif %}
+{% endblock %}
 {% block content %}
 <div class="panel mt-4 form-panel">
     <form method="get" class="row g-3" id="dashboardFiltersForm">
@@ -24,59 +29,67 @@
 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
     <div>
         <h3 class="mb-1">{{ trafego_pago_tab.title|default:'Tráfego Pago' }}</h3>
-        <p class="text-muted mb-0">Dados consolidados do painel de tráfego pago.</p>
+        <p class="text-muted mb-0">Painel escalável para mídia paga, com foco em eficiência, qualidade e conversão.</p>
     </div>
     {% if trafego_pago_tab and trafego_pago_tab.config_id %}
         <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadtrafego_pagoModal">Novo upload</button>
     {% endif %}
 </div>
-<div class="mt-4">
-    <div class="row g-3">
-        {% for item in trafego_pago_tab.metric_cards %}
-            <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
-        {% endfor %}
-    </div>
-</div>
+
 <div class="row g-4 mt-1">
-    <div class="col-lg-7">
-        <div class="panel metric-slider-panel">
-            <div class="metric-slider-header">
-                <h3 id="metricChartTitle">Resultados por campanha</h3>
-                <select id="metricChartSelect" class="form-select metric-select">
-                    {% for chart in stacked_campaign_charts %}
-                        <option value="{{ forloop.counter0 }}">{{ chart.metric_label }}</option>
-                    {% endfor %}
-                </select>
+    {% for block in trafego_pago_tab.metric_blocks %}
+        <div class="col-lg-6">
+            <div class="panel traffic-block-panel {% if block.highlighted %}is-results{% endif %}">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h3 class="mb-1">{{ block.title }}</h3>
+                        <p class="text-muted mb-0">{{ block.description }}</p>
+                    </div>
+                </div>
+                <div class="table-responsive mt-3">
+                    <table class="table align-middle traffic-summary-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Métrica</th>
+                                <th>Anterior</th>
+                                <th>Atual</th>
+                                <th>Variação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in block.rows %}
+                                <tr>
+                                    <td>
+                                        <span class="kpi-label">
+                                            {{ row.label }}
+                                            <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ row.tooltip }}">?</button>
+                                        </span>
+                                    </td>
+                                    <td>{{ row.previous_value }}</td>
+                                    <td><strong>{{ row.current_value }}</strong></td>
+                                    <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div id="stackedCampaignChart" style="min-height: 320px;"></div>
-            {{ stacked_campaign_charts|json_script:"stacked-campaign-charts-data" }}
         </div>
-    </div>
-    <div class="col-lg-5">
-        <div class="panel">
-            <h3>Comparativo entre períodos</h3>
-            <div class="table-responsive">
-                <table class="table align-middle">
-                    <thead><tr><th>Métrica</th><th>Anterior</th><th>Atual</th><th>Variação</th></tr></thead>
-                    <tbody>
-                    {% for row in comparison_rows %}
-                        <tr>
-                            <td>{{ row.label }}</td>
-                            <td>{{ row.anterior|floatformat:2 }}</td>
-                            <td>{{ row.atual|floatformat:2 }}</td>
-                            <td class="{{ row.variation_class }}">
-                                {{ row.variacao_absoluta|floatformat:2 }}
-                                {% if row.variacao_percentual is not None %} ({{ row.variacao_percentual|floatformat:2 }}%){% endif %}
-                            </td>
-                        </tr>
-                    {% empty %}
-                        <tr><td colspan="4">Informe também um período anterior para comparar.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
+    {% endfor %}
+</div>
+
+<div class="row g-4 mt-1">
+    {% for chart in trafego_pago_tab.block_comparison_charts %}
+        <div class="col-lg-6">
+            <div class="panel traffic-block-panel {% if chart.highlighted %}is-results{% endif %}">
+                <h3 class="mb-3">{{ chart.title }}</h3>
+                <div id="trafficBlockComparisonChart-{{ chart.key }}" style="min-height: 280px;"></div>
             </div>
         </div>
-    </div>
+    {% endfor %}
+</div>
+{{ trafego_pago_tab.block_comparison_charts|json_script:"traffic-block-comparison-charts-data" }}
+<div class="row g-4 mt-1">
 </div>
 <div class="panel mt-4">
     <h3>Tabela por campanha</h3>
@@ -243,6 +256,66 @@
         <p class="text-muted mb-0">Configure um painel mapeado de Leads Eventos para exibir esta aba.</p>
     {% endif %}
 </div>
+{% elif dashboard_tab == 'redes_sociais' %}
+<div>
+    {% if redes_sociais_tab and redes_sociais_tab.ready %}
+        <div class="dashboard-tab-header">
+            <div>
+                <h3 class="mb-1">{{ redes_sociais_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ redes_sociais_tab.description }}</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="text-muted small">{{ redes_sociais_tab.config_name }}</span>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadredes_sociaisModal">Novo upload</button>
+            </div>
+        </div>
+        <div class="row g-3 mt-1">
+            {% for item in redes_sociais_tab.metric_cards %}
+                <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
+            {% endfor %}
+        </div>
+        <div class="row g-4 mt-1">
+            <div class="col-lg-4">
+                <div class="panel">
+                    <h3>Redes Monitoradas</h3>
+                    <ul class="mb-0">
+                        {% for label, count in redes_sociais_tab.social_networks %}
+                            <li>{{ label }}: {{ count }}</li>
+                        {% empty %}
+                            <li>Sem redes mapeadas.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="panel">
+                    <h3>Registros de Redes Sociais</h3>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead><tr><th>Rede</th><th>Perfil</th><th>Seguidores</th><th>Publicações</th><th>Alcance</th><th>Engajamento</th></tr></thead>
+                            <tbody>
+                            {% for row in redes_sociais_tab.rows %}
+                                <tr>
+                                    <td>{{ row.rede_social }}</td>
+                                    <td>{{ row.perfil }}</td>
+                                    <td>{{ row.seguidores }}</td>
+                                    <td>{{ row.publicacoes }}</td>
+                                    <td>{{ row.alcance }}</td>
+                                    <td>{{ row.engajamento }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="6">Nenhum registro disponível.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted mb-0">Configure um painel mapeado de Redes Sociais para exibir esta aba.</p>
+    {% endif %}
+</div>
 {% elif dashboard_tab == 'analise_completa' %}
 <div>
     {% if analise_completa_tab and analise_completa_tab.ready %}
@@ -253,7 +326,6 @@
             </div>
             <div class="d-flex gap-2">
                 {% if empresa %}
-                    <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Configurar Painéis</a>
                     <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
                         {% csrf_token %}
                         <input type="hidden" name="empresa" value="{{ empresa.id }}">
@@ -343,7 +415,7 @@
     <div class="collapse show mt-4" id="concorrentesListaCollapse">
         <div class="table-responsive">
             <table class="table align-middle">
-                <thead><tr><th>Concorrente</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th class="text-end">Ações</th></tr></thead>
+                <thead><tr><th>Concorrente</th><th>Score</th><th>Empresa</th><th>Última avaliação</th><th>Plataforma</th><th class="text-end">Ações</th></tr></thead>
                 <tbody>
                 {% for ad in concorrentes_list %}
                     <tr>
@@ -353,6 +425,7 @@
                                 <span class="activity-pill {{ ad.activity_class }}">{{ ad.activity_label }}</span>
                             </div>
                         </td>
+                        <td><span class="activity-pill {{ ad.score_digital_class }}">{{ ad.score_digital_label }}</span></td>
                         <td>{{ ad.empresa.nome }}</td>
                         <td>
                             {% if ad.analysis %}
@@ -375,7 +448,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="5">Nenhum anúncio concorrente cadastrado.</td></tr>
+                    <tr><td colspan="6">Nenhum anúncio concorrente cadastrado.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -589,61 +662,69 @@
       });
     });
 
-    const chartNode = document.getElementById('stackedCampaignChart');
-    const payloadNode = document.getElementById('stacked-campaign-charts-data');
-    if (!chartNode || !payloadNode) return;
+    const blockComparisonPayloadNode = document.getElementById('traffic-block-comparison-charts-data');
+    if (blockComparisonPayloadNode) {
+      const blockCharts = JSON.parse(blockComparisonPayloadNode.textContent);
+      blockCharts.forEach((chart) => {
+        const node = document.getElementById(`trafficBlockComparisonChart-${chart.key}`);
+        if (!node) return;
+        const apexChart = new ApexCharts(node, {
+          chart: {
+            type: 'bar',
+            height: 280,
+            toolbar: { show: false }
+          },
+          plotOptions: {
+            bar: {
+              horizontal: false,
+              columnWidth: '48%',
+              dataLabels: {
+                position: 'top'
+              }
+            }
+          },
+          series: chart.series,
+          xaxis: {
+            categories: chart.categories || []
+          },
+          yaxis: {
+            labels: {
+              formatter(value) {
+                return Number(value).toFixed(2);
+              }
+            }
+          },
+          legend: {
+            position: 'bottom'
+          },
+          dataLabels: {
+            enabled: true,
+            textAnchor: 'middle',
+            offsetY: -24,
+            style: {
+              colors: ['#175cd3', '#2d6a4f'],
+              fontSize: '11px',
+              fontWeight: '700'
+            },
+            background: {
+              enabled: false
+            },
+            formatter(value) {
+              return Number(value).toFixed(2);
+            }
+          },
+          tooltip: {
+            y: {
+              formatter(value) {
+                return Number(value).toFixed(2);
+              }
+            }
+          }
+        });
+        apexChart.render();
+      });
+    }
 
-    const chartPayloads = JSON.parse(payloadNode.textContent);
-    if (!chartPayloads.length) return;
-
-    const titleNode = document.getElementById('metricChartTitle');
-    const metricSelect = document.getElementById('metricChartSelect');
-    let activeIndex = 0;
-
-    const apexChart = new ApexCharts(chartNode, {
-      chart: {
-        type: 'bar',
-        stacked: true,
-        height: 320,
-        toolbar: { show: false }
-      },
-      series: [],
-      xaxis: { categories: [] },
-      yaxis: { title: { text: 'Métrica' } },
-      legend: { position: 'bottom' },
-      plotOptions: {
-        bar: {
-          horizontal: false,
-          columnWidth: '55%'
-        }
-      },
-      dataLabels: { enabled: false },
-      tooltip: {
-        y: {
-          formatter: (value) => value.toFixed(2)
-        }
-      }
-    });
-
-    const renderMetric = (index) => {
-      activeIndex = (index + chartPayloads.length) % chartPayloads.length;
-      const payload = chartPayloads[activeIndex];
-      titleNode.textContent = `${payload.metric_label} por campanha`;
-      metricSelect.value = String(activeIndex);
-      apexChart.updateOptions({
-        colors: payload.series.map((item) => item.color),
-        xaxis: { categories: payload.categories || [] },
-        yaxis: { title: { text: payload.metric_label || 'Métrica' } }
-      }, false, true);
-      apexChart.updateSeries(payload.series.map((item) => ({
-        name: item.name,
-        data: item.data
-      })), true);
-    };
-
-    apexChart.render().then(() => renderMetric(0));
-
-    metricSelect.addEventListener('change', () => renderMetric(Number(metricSelect.value)));
   });
 </script>
 {% endblock %}

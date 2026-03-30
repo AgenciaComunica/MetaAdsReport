@@ -161,7 +161,7 @@ def upload_campaign_delete(request, pk):
 
 def dashboard(request):
     dashboard_tab = request.GET.get('tab') or 'trafego_pago'
-    allowed_tabs = {'trafego_pago', 'crm_vendas', 'leads_eventos', 'analise_completa', 'concorrentes'}
+    allowed_tabs = {'trafego_pago', 'crm_vendas', 'leads_eventos', 'redes_sociais', 'analise_completa', 'concorrentes'}
     if dashboard_tab not in allowed_tabs:
         dashboard_tab = 'trafego_pago'
     chart_metrics = ['resultados', 'investimento', 'impressoes', 'alcance', 'cliques', 'ctr', 'cpc', 'cpm', 'cpl']
@@ -262,7 +262,11 @@ def dashboard(request):
         if competitor['nome'] in analysis_names and competitor.get('activity_label') == 'Sem Avaliação Feita':
             competitor['activity_label'] = 'Sem Ads'
 
-    dashboard_upload_tabs = build_dashboard_upload_tabs(empresa, queryset, current_start, current_end) if empresa else []
+    dashboard_upload_tabs = (
+        build_dashboard_upload_tabs(empresa, queryset, current_start, current_end, previous_queryset=previous_qs)
+        if empresa
+        else []
+    )
     dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
     for tab in dashboard_upload_tabs:
         config_id = tab.get('config_id')
@@ -340,17 +344,30 @@ def dashboard(request):
     concorrentes_list_qs = ConcorrenteAd.objects.select_related('empresa').filter(categoria='Perfil importado')
     concorrentes_list_qs = concorrentes_list_qs.filter(empresa=empresa) if empresa else concorrentes_list_qs
     competitor_status_map = {item['nome']: item for item in competitor_profiles(concorrentes_list_qs)}
+    competitor_score_map = {}
     analyses_map = {
         (analysis.empresa_id, analysis.concorrente_nome): analysis
         for analysis in AnaliseConcorrencial.objects.exclude(concorrente_nome='')
     }
     concorrentes_list = list(concorrentes_list_qs[:300])
     for ad in concorrentes_list:
-        profile = competitor_status_map.get(ad.concorrente_nome.strip())
+        competitor_name = ad.concorrente_nome.strip()
+        profile = competitor_status_map.get(competitor_name)
         ad.activity_label = profile['activity_label'] if profile else 'Sem Avaliação Feita'
         ad.activity_class = profile['activity_class'] if profile else 'is-none'
         ad.analysis = analyses_map.get((ad.empresa_id, ad.concorrente_nome))
         ad.has_analysis = ad.analysis is not None
+        if competitor_name not in competitor_score_map:
+            summary = competitor_summary_for_name_in_period(concorrentes_list_qs, competitor_name, current_start, current_end)
+            competitor_score_map[competitor_name] = {
+                'score': int(summary['feed_insights'].get('digital_score') or 0),
+                'score_label': summary['feed_insights'].get('digital_score_label') or 'Score Digital: 0',
+                'score_class': summary['feed_insights'].get('digital_score_class') or 'is-fresh',
+            }
+        score_data = competitor_score_map[competitor_name]
+        ad.score_digital = score_data['score']
+        ad.score_digital_label = score_data['score_label']
+        ad.score_digital_class = score_data['score_class']
         ad.open_analysis_url = (
             f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa_id, 'tab': 'concorrentes', 'open_analysis': ad.concorrente_nome})}#analise-digital"
             if ad.has_analysis
@@ -389,6 +406,7 @@ def dashboard(request):
         'trafego_pago_tab': dashboard_upload_tab_map.get('trafego_pago'),
         'crm_vendas_tab': dashboard_upload_tab_map.get('crm_vendas'),
         'leads_eventos_tab': dashboard_upload_tab_map.get('leads_eventos'),
+        'redes_sociais_tab': dashboard_upload_tab_map.get('redes_sociais'),
         'analise_completa_tab': dashboard_upload_tab_map.get('analise_completa'),
         'uploads_list': uploads_list,
         'concorrentes_list': concorrentes_list,

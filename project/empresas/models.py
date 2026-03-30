@@ -40,6 +40,7 @@ class ConfiguracaoUploadEmpresa(models.Model):
         TRAFEGO_PAGO = 'trafego_pago', 'Tráfego Pago'
         CRM_VENDAS = 'crm_vendas', 'CRM Vendas'
         LEADS_EVENTOS = 'leads_eventos', 'Leads Eventos'
+        REDES_SOCIAIS = 'redes_sociais', 'Redes Sociais'
 
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='configuracoes_upload')
     nome = models.CharField(max_length=255)
