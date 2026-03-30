@@ -137,7 +137,6 @@ def upload_config_update(request, empresa_pk, config_pk):
                     'key': group['key'],
                     'label': group['label'],
                     'description': group['description'],
-                    'category_field': form[f'metric_category__{group["key"]}'],
                     'metrics': [
                         {
                             'key': item['key'],

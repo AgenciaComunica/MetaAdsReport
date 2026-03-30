@@ -102,23 +102,42 @@ TRAFFIC_PLAUSIBLE_VARIATION_LIMITS = {
 
 
 def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, period_end=None, previous_queryset=None):
-    configs = {config.tipo_documento: config for config in empresa.configuracoes_upload.exclude(tipo_documento='')}
-    traffic_tab = build_traffic_tab(
-        configs.get(ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO),
-        traffic_queryset,
-        previous_queryset=previous_queryset,
-    )
-    crm_tab = build_crm_tab(configs.get(ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS), period_start, period_end)
-    leads_tab = build_leads_tab(configs.get(ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS), period_start, period_end)
-    social_tab = build_social_tab(configs.get(ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS), period_start, period_end)
-
-    tabs = [tab for tab in [traffic_tab, crm_tab, leads_tab, social_tab] if tab['configured']]
+    configs = list(empresa.configuracoes_upload.exclude(tipo_documento='').order_by('nome', 'pk'))
+    tabs = []
+    traffic_tabs = []
+    crm_tabs = []
+    leads_tabs = []
+    social_tabs = []
+    for config in configs:
+        key = f'{config.tipo_documento}_{config.pk}'
+        if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
+            tab = build_traffic_tab(config, traffic_queryset, previous_queryset=previous_queryset, key=key)
+            traffic_tabs.append(tab)
+        elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS:
+            tab = build_crm_tab(config, period_start, period_end, key=key)
+            crm_tabs.append(tab)
+        elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+            tab = build_leads_tab(config, period_start, period_end, key=key)
+            leads_tabs.append(tab)
+        elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+            tab = build_social_tab(config, period_start, period_end, key=key)
+            social_tabs.append(tab)
+        else:
+            continue
+        if tab['configured']:
+            tabs.append(tab)
     if tabs:
-        tabs.append(build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab))
+        tabs.append(
+            build_complete_analysis_tab(
+                traffic_tabs[0] if traffic_tabs else _empty_tab('trafego_pago', 'Tráfego Pago'),
+                crm_tabs[0] if crm_tabs else _empty_tab('crm_vendas', 'CRM Vendas'),
+                leads_tabs[0] if leads_tabs else _empty_tab('leads_eventos', 'Leads Eventos'),
+            )
+        )
     return tabs
 
 
-def build_traffic_tab(config, queryset, previous_queryset=None):
+def build_traffic_tab(config, queryset, previous_queryset=None, key='trafego_pago'):
     summary = summarize_metrics(queryset)
     previous_summary = summarize_metrics(previous_queryset) if previous_queryset is not None else {}
     result_label = _resolve_result_label(config)
@@ -133,7 +152,8 @@ def build_traffic_tab(config, queryset, previous_queryset=None):
     for block in block_cards:
         block['chart'] = chart_map.get(block['key'])
     return {
-        'key': 'trafego_pago',
+        'key': key,
+        'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO,
         'title': config.nome if config else 'Tráfego Pago',
         'config_id': config.pk if config else None,
         'configured': bool(config),
@@ -147,7 +167,7 @@ def build_traffic_tab(config, queryset, previous_queryset=None):
     }
 
 
-def build_crm_tab(config, period_start=None, period_end=None):
+def build_crm_tab(config, period_start=None, period_end=None, key='crm_vendas'):
     if not config:
         return _empty_tab('crm_vendas', 'CRM Vendas')
     rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_contato')
@@ -163,7 +183,8 @@ def build_crm_tab(config, period_start=None, period_end=None):
         'ticket_medio': (total_revenue / Decimal(len(sales_rows))) if sales_rows else Decimal('0'),
     }
     return {
-        'key': 'crm_vendas',
+        'key': key,
+        'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS,
         'title': config.nome,
         'config_id': config.pk,
         'configured': True,
@@ -187,7 +208,7 @@ def build_crm_tab(config, period_start=None, period_end=None):
     }
 
 
-def build_leads_tab(config, period_start=None, period_end=None):
+def build_leads_tab(config, period_start=None, period_end=None, key='leads_eventos'):
     if not config:
         return _empty_tab('leads_eventos', 'Leads Eventos')
     rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_evento')
@@ -199,7 +220,8 @@ def build_leads_tab(config, period_start=None, period_end=None):
         'idade_media': avg_age,
     }
     return {
-        'key': 'leads_eventos',
+        'key': key,
+        'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS,
         'title': config.nome,
         'config_id': config.pk,
         'configured': True,
@@ -221,7 +243,7 @@ def build_leads_tab(config, period_start=None, period_end=None):
     }
 
 
-def build_social_tab(config, period_start=None, period_end=None):
+def build_social_tab(config, period_start=None, period_end=None, key='redes_sociais'):
     if not config:
         return _empty_tab('redes_sociais', 'Redes Sociais')
     rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_referencia')
@@ -232,7 +254,8 @@ def build_social_tab(config, period_start=None, period_end=None):
         'engajamento_total': sum((_to_decimal(row.get('engajamento')) for row in rows), Decimal('0')),
     }
     return {
-        'key': 'redes_sociais',
+        'key': key,
+        'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS,
         'title': config.nome,
         'config_id': config.pk,
         'configured': True,
@@ -264,6 +287,7 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
     roas = (paid_revenue / investment) if investment else Decimal('0')
     return {
         'key': 'analise_completa',
+        'panel_type': 'analise_completa',
         'title': 'Análise Completa',
         'configured': True,
         'ready': traffic_tab['ready'] or crm_tab['ready'] or leads_tab['ready'],
@@ -288,6 +312,7 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
 def _empty_tab(key, title):
     return {
         'key': key,
+        'panel_type': key,
         'title': title,
         'configured': False,
         'ready': False,
@@ -439,9 +464,9 @@ def _build_traffic_blocks(metric_values, previous_metrics, metric_definitions, s
     blocks = []
     selected_set = set(selected_keys or [])
     for block in TRAFFIC_BLOCK_DEFINITIONS:
-        block_metric_keys = [key for key in block['metrics'] if not selected_set or key in selected_set]
+        block_metric_keys = [key for key in block['metrics'] if key in selected_set]
         if not block_metric_keys:
-            block_metric_keys = list(block['metrics'])
+            continue
         rows = []
         for key in block_metric_keys:
             definition = metric_definitions[key]
@@ -478,9 +503,7 @@ def _build_traffic_block_comparison_charts(current_metrics, previous_metrics, me
     charts = []
     for block in TRAFFIC_BLOCK_DEFINITIONS:
         chart_metric_keys = block.get('chart_metrics', [])
-        metric_keys = [key for key in chart_metric_keys if not selected_set or key in selected_set]
-        if not metric_keys:
-            metric_keys = list(chart_metric_keys)
+        metric_keys = [key for key in chart_metric_keys if key in selected_set]
         if not metric_keys:
             continue
         charts.append(

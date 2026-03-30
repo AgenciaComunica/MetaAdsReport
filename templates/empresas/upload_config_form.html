@@ -63,17 +63,13 @@
         {% if metric_groups %}
             <p class="text-muted small">Selecione as métricas que devem aparecer nesta aba do dashboard.</p>
             <p class="text-muted small">Cada métrica pode aparecer na Tabela, no Gráfico ou nos dois. Você também pode desligar a categoria inteira.</p>
-            <div class="analysis-config-grid">
+            <div class="analysis-config-grid" data-analysis-config>
                 {% for group in metric_groups %}
-                    <div class="panel analysis-config-group">
+                    <div class="panel analysis-config-group" data-analysis-category="{{ group.key }}">
                         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                             <div>
                                 <h4 class="mb-1">{{ group.label }}</h4>
                                 <p class="text-muted mb-0">{{ group.description }}</p>
-                            </div>
-                            <div class="form-check form-switch mb-0">
-                                {{ group.category_field }}
-                                <label class="form-check-label" for="{{ group.category_field.id_for_label }}">Ativar categoria</label>
                             </div>
                         </div>
                         <div class="table-responsive mt-3">
@@ -87,7 +83,7 @@
                                 </thead>
                                 <tbody>
                                     {% for metric in group.metrics %}
-                                        <tr>
+                                        <tr data-analysis-metric="{{ metric.key }}">
                                             <td>
                                                 <span class="kpi-label">
                                                     {{ metric.label }}
@@ -97,12 +93,12 @@
                                                 </span>
                                             </td>
                                             <td class="text-center">
-                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0">
+                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0" data-analysis-metric-table>
                                                     {{ metric.table_field }}
                                                 </div>
                                             </td>
                                             <td class="text-center">
-                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0">
+                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0" data-analysis-metric-chart>
                                                     {{ metric.chart_field }}
                                                 </div>
                                             </td>

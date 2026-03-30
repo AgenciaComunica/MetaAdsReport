@@ -242,10 +242,6 @@ def normalize_panel_metric_config(tipo_documento, raw_config):
     metric_keys = [metric['key'] for group in groups for metric in group['metrics']]
     category_keys = [group['key'] for group in groups]
     if isinstance(raw_config, dict):
-        categories = {
-            key: bool((raw_config.get('categories') or {}).get(key, True))
-            for key in category_keys
-        }
         metrics = {}
         for key in metric_keys:
             metric_state = (raw_config.get('metrics') or {}).get(key, {})
@@ -253,6 +249,16 @@ def normalize_panel_metric_config(tipo_documento, raw_config):
                 'table': bool(metric_state.get('table', True)),
                 'chart': bool(metric_state.get('chart', True)),
             }
+        categories = {}
+        raw_categories = raw_config.get('categories') or {}
+        for group in groups:
+            group_key = group['key']
+            has_any_metric = any(
+                metrics[metric['key']]['table'] or metrics[metric['key']]['chart']
+                for metric in group['metrics']
+            )
+            raw_category_enabled = bool(raw_categories.get(group_key, has_any_metric))
+            categories[group_key] = raw_category_enabled and has_any_metric
         return {'categories': categories, 'metrics': metrics}
 
     selected_keys = set(raw_config or metric_keys)
@@ -266,6 +272,8 @@ def normalize_panel_metric_config(tipo_documento, raw_config):
             for key in metric_keys
         },
     }
+
+
 
 
 def get_enabled_table_metric_keys(tipo_documento, raw_config):

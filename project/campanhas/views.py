@@ -160,10 +160,7 @@ def upload_campaign_delete(request, pk):
 
 
 def dashboard(request):
-    dashboard_tab = request.GET.get('tab') or 'trafego_pago'
-    allowed_tabs = {'trafego_pago', 'crm_vendas', 'leads_eventos', 'redes_sociais', 'analise_completa', 'concorrentes'}
-    if dashboard_tab not in allowed_tabs:
-        dashboard_tab = 'trafego_pago'
+    dashboard_tab = request.GET.get('tab') or ''
     chart_metrics = ['resultados', 'investimento', 'impressoes', 'alcance', 'cliques', 'ctr', 'cpc', 'cpm', 'cpl']
     default_ranges = last_complete_month_ranges()
     initial = {
@@ -270,7 +267,7 @@ def dashboard(request):
     dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
     for tab in dashboard_upload_tabs:
         config_id = tab.get('config_id')
-        if config_id and tab['key'] != 'trafego_pago':
+        if config_id and tab.get('panel_type') != ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
             configuracao = ConfiguracaoUploadEmpresa.objects.filter(pk=config_id, empresa=empresa).first()
             if configuracao:
                 painel_upload_forms[tab['key']] = UploadPainelArquivoForm(prefix=f'upload-{tab["key"]}', configuracao=configuracao)
@@ -286,10 +283,11 @@ def dashboard(request):
         dashboard_tab = visible_dashboard_tabs[0]['key']
     elif dashboard_tab not in visible_keys:
         dashboard_tab = 'concorrentes'
+    active_upload_tab = dashboard_upload_tab_map.get(dashboard_tab)
 
     if request.method == 'POST':
         action = request.POST.get('action')
-        if action == 'novo_upload_trafego' and dashboard_upload_tab_map.get('trafego_pago'):
+        if action == 'novo_upload_trafego' and active_upload_tab and active_upload_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
             traffic_upload_form = UploadCampanhaForm(
                 request.POST,
                 request.FILES,
@@ -307,8 +305,8 @@ def dashboard(request):
                     messages.warning(request, 'A importação precisa de mapeamento manual para continuar.')
                     return redirect('campanhas:manual_mapping', pk=upload.pk)
                 messages.success(request, f'Upload importado com {result.imported_count} linhas.')
-                return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': 'trafego_pago'})}")
-            show_upload_modal_key = 'trafego_pago'
+                return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': active_upload_tab['key']})}")
+            show_upload_modal_key = active_upload_tab['key']
         elif action == 'novo_upload_painel':
             panel_key = request.POST.get('panel_key', '')
             panel_tab = dashboard_upload_tab_map.get(panel_key)
@@ -403,10 +401,7 @@ def dashboard(request):
         'show_upload_modal_key': show_upload_modal_key,
         'traffic_upload_form': traffic_upload_form,
         'painel_upload_forms': painel_upload_forms,
-        'trafego_pago_tab': dashboard_upload_tab_map.get('trafego_pago'),
-        'crm_vendas_tab': dashboard_upload_tab_map.get('crm_vendas'),
-        'leads_eventos_tab': dashboard_upload_tab_map.get('leads_eventos'),
-        'redes_sociais_tab': dashboard_upload_tab_map.get('redes_sociais'),
+        'active_upload_tab': active_upload_tab,
         'analise_completa_tab': dashboard_upload_tab_map.get('analise_completa'),
         'uploads_list': uploads_list,
         'concorrentes_list': concorrentes_list,

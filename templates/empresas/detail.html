@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 {% load empresas_extras %}
 {% block page_title %}{{ empresa.nome }}{% endblock %}
+{% block page_actions %}
+    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk }}" class="btn btn-outline-dark">Voltar para o Dashboard</a>
+{% endblock %}
 {% block content %}
 <div class="panel mt-4">
     <div class="d-flex justify-content-between align-items-start">

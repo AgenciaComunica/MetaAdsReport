@@ -160,13 +160,6 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
 
         if self.document_type:
             for group in get_panel_metric_groups(self.document_type):
-                group_key = group['key']
-                self.fields[f'metric_category__{group_key}'] = forms.BooleanField(
-                    required=False,
-                    label=group['label'],
-                    initial=metric_config['categories'].get(group_key, True),
-                    widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
-                )
                 for metric_def in group['metrics']:
                     key = metric_def['key']
                     metric_state = metric_config['metrics'].get(key, {'table': True, 'chart': True})
@@ -206,6 +199,8 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         cleaned_data = super().clean()
         selected_columns = {}
         if not self.mapping_enabled:
+            if self.document_type:
+                cleaned_data['metricas_painel_json'] = self._build_metric_config(cleaned_data)
             return cleaned_data
 
         for field_def in get_field_schema(cleaned_data.get('tipo_documento') or self.document_type):
@@ -219,24 +214,49 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             selected_columns[mapped_column] = key
 
         if self.document_type:
-            has_table = False
-            has_chart = False
+            cleaned_data['metricas_painel_json'] = self._build_metric_config(cleaned_data)
             for group in get_panel_metric_groups(self.document_type):
-                group_enabled = cleaned_data.get(f'metric_category__{group["key"]}')
-                if not group_enabled:
+                group_has_any_metric = any(
+                    cleaned_data.get(f'metric_table__{metric["key"]}') or cleaned_data.get(f'metric_chart__{metric["key"]}')
+                    for metric in group['metrics']
+                )
+                if not group_has_any_metric:
                     continue
-                for metric in group['metrics']:
-                    key = metric['key']
-                    if cleaned_data.get(f'metric_table__{key}'):
-                        has_table = True
-                    if cleaned_data.get(f'metric_chart__{key}'):
-                        has_chart = True
-            if not has_table:
-                raise forms.ValidationError('Ative ao menos uma métrica para Tabela.')
-            if not has_chart:
-                raise forms.ValidationError('Ative ao menos uma métrica para Gráfico.')
+                has_table = any(
+                    cleaned_data.get(f'metric_table__{metric["key"]}')
+                    for metric in group['metrics']
+                )
+                has_chart = any(
+                    cleaned_data.get(f'metric_chart__{metric["key"]}')
+                    for metric in group['metrics']
+                )
+                if not has_table:
+                    raise forms.ValidationError(f'Ative ao menos uma métrica de Tabela em "{group["label"]}".')
+                if not has_chart:
+                    raise forms.ValidationError(f'Ative ao menos uma métrica de Gráfico em "{group["label"]}".')
 
         return cleaned_data
+
+    def _build_metric_config(self, cleaned_data):
+        if not self.document_type:
+            return {'categories': {}, 'metrics': {}}
+
+        metricas = {'categories': {}, 'metrics': {}}
+        for group in get_panel_metric_groups(self.document_type):
+            group_key = group['key']
+            group_is_active = False
+            for metric_def in group['metrics']:
+                key = metric_def['key']
+                table_enabled = bool(cleaned_data.get(f'metric_table__{key}'))
+                chart_enabled = bool(cleaned_data.get(f'metric_chart__{key}'))
+                metricas['metrics'][key] = {
+                    'table': table_enabled,
+                    'chart': chart_enabled,
+                }
+                if table_enabled or chart_enabled:
+                    group_is_active = True
+            metricas['categories'][group_key] = group_is_active
+        return metricas
 
     def save_configuration(self, preview=None):
         instance = self.save(commit=False)
@@ -244,7 +264,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         instance.tipo_documento = self.cleaned_data.get('tipo_documento', instance.tipo_documento)
         mapping = {}
         principais = []
-        metricas = {'categories': {}, 'metrics': {}}
+        metricas = self.cleaned_data.get('metricas_painel_json') or {'categories': {}, 'metrics': {}}
         for field_def in get_field_schema(instance.tipo_documento):
             key = field_def['key']
             mapped_column = self.cleaned_data.get(f'map__{key}')
@@ -252,16 +272,6 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 mapping[key] = mapped_column
             if self.cleaned_data.get(f'primary__{key}'):
                 principais.append(key)
-
-        for group in get_panel_metric_groups(instance.tipo_documento):
-            group_key = group['key']
-            metricas['categories'][group_key] = bool(self.cleaned_data.get(f'metric_category__{group_key}'))
-            for metric_def in group['metrics']:
-                key = metric_def['key']
-                metricas['metrics'][key] = {
-                    'table': bool(self.cleaned_data.get(f'metric_table__{key}')),
-                    'chart': bool(self.cleaned_data.get(f'metric_chart__{key}')),
-                }
 
         instance.mapeamento_json = mapping
         instance.campos_principais_json = principais

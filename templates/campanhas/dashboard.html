@@ -25,19 +25,19 @@
         {% endfor %}
     </ul>
     <div class="pt-4">
-{% if dashboard_tab == 'trafego_pago' %}
+{% if active_upload_tab and active_upload_tab.panel_type == 'trafego_pago' %}
 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
     <div>
-        <h3 class="mb-1">{{ trafego_pago_tab.title|default:'Tráfego Pago' }}</h3>
+        <h3 class="mb-1">{{ active_upload_tab.title|default:'Tráfego Pago' }}</h3>
         <p class="text-muted mb-0">Painel escalável para mídia paga, com foco em eficiência, qualidade e conversão.</p>
     </div>
-    {% if trafego_pago_tab and trafego_pago_tab.config_id %}
-        <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadtrafego_pagoModal">Novo upload</button>
+    {% if active_upload_tab and active_upload_tab.config_id %}
+        <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
     {% endif %}
 </div>
 
 <div class="row g-4 mt-1">
-    {% for block in trafego_pago_tab.metric_blocks %}
+    {% for block in active_upload_tab.metric_blocks %}
         <div class="col-lg-6">
             <div class="panel traffic-block-panel {% if block.highlighted %}is-results{% endif %}">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
@@ -82,7 +82,7 @@
         </div>
     {% endfor %}
 </div>
-{{ trafego_pago_tab.metric_blocks|json_script:"traffic-blocks-data" }}
+{{ active_upload_tab.metric_blocks|json_script:"traffic-blocks-data" }}
 <div class="row g-4 mt-1">
 </div>
 <div class="panel mt-4">
@@ -111,21 +111,21 @@
         </table>
     </div>
 </div>
-{% elif dashboard_tab == 'crm_vendas' %}
+{% elif active_upload_tab and active_upload_tab.panel_type == 'crm_vendas' %}
 <div>
-    {% if crm_vendas_tab and crm_vendas_tab.ready %}
+    {% if active_upload_tab and active_upload_tab.ready %}
         <div class="dashboard-tab-header">
             <div>
-                <h3 class="mb-1">{{ crm_vendas_tab.title }}</h3>
-                <p class="text-muted mb-0">{{ crm_vendas_tab.description }}</p>
+                <h3 class="mb-1">{{ active_upload_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ active_upload_tab.description }}</p>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <span class="text-muted small">{{ crm_vendas_tab.config_name }}</span>
-                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadcrm_vendasModal">Novo upload</button>
+                <span class="text-muted small">{{ active_upload_tab.config_name }}</span>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
             </div>
         </div>
         <div class="row g-3 mt-1">
-            {% for item in crm_vendas_tab.metric_cards %}
+            {% for item in active_upload_tab.metric_cards %}
                 <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
             {% endfor %}
         </div>
@@ -134,7 +134,7 @@
                 <div class="panel">
                     <h3>Canais</h3>
                     <ul class="mb-0">
-                        {% for label, count in crm_vendas_tab.channels %}
+                        {% for label, count in active_upload_tab.channels %}
                             <li>{{ label }}: {{ count }}</li>
                         {% empty %}
                             <li>Sem canais mapeados.</li>
@@ -146,7 +146,7 @@
                 <div class="panel">
                     <h3>Vendedores</h3>
                     <ul class="mb-0">
-                        {% for label, count in crm_vendas_tab.sellers %}
+                        {% for label, count in active_upload_tab.sellers %}
                             <li>{{ label }}: {{ count }}</li>
                         {% empty %}
                             <li>Sem vendedores mapeados.</li>
@@ -167,7 +167,7 @@
                 <table class="table align-middle">
                     <thead><tr><th>ID</th><th>Data</th><th>Lead</th><th>Canal</th><th>Valor</th><th>Vendedor</th><th>Status</th><th>Origem</th></tr></thead>
                     <tbody>
-                    {% for row in crm_vendas_tab.rows %}
+                    {% for row in active_upload_tab.rows %}
                         <tr>
                             <td>{{ row.id }}</td>
                             <td>{{ row.data_contato }}</td>
@@ -189,21 +189,21 @@
         <p class="text-muted mb-0">Configure um arquivo mapeado de CRM Vendas para exibir esta aba.</p>
     {% endif %}
 </div>
-{% elif dashboard_tab == 'leads_eventos' %}
+{% elif active_upload_tab and active_upload_tab.panel_type == 'leads_eventos' %}
 <div>
-    {% if leads_eventos_tab and leads_eventos_tab.ready %}
+    {% if active_upload_tab and active_upload_tab.ready %}
         <div class="dashboard-tab-header">
             <div>
-                <h3 class="mb-1">{{ leads_eventos_tab.title }}</h3>
-                <p class="text-muted mb-0">{{ leads_eventos_tab.description }}</p>
+                <h3 class="mb-1">{{ active_upload_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ active_upload_tab.description }}</p>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <span class="text-muted small">{{ leads_eventos_tab.config_name }}</span>
-                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadleads_eventosModal">Novo upload</button>
+                <span class="text-muted small">{{ active_upload_tab.config_name }}</span>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
             </div>
         </div>
         <div class="row g-3 mt-1">
-            {% for item in leads_eventos_tab.metric_cards %}
+            {% for item in active_upload_tab.metric_cards %}
                 <div class="col-md-4"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
             {% endfor %}
         </div>
@@ -212,7 +212,7 @@
                 <div class="panel">
                     <h3>Eventos</h3>
                     <ul class="mb-0">
-                        {% for label, count in leads_eventos_tab.events %}
+                        {% for label, count in active_upload_tab.events %}
                             <li>{{ label }}: {{ count }}</li>
                         {% empty %}
                             <li>Sem eventos mapeados.</li>
@@ -227,7 +227,7 @@
                         <table class="table align-middle">
                             <thead><tr><th>Evento</th><th>Local</th><th>Data</th><th>Lead</th><th>Instagram</th><th>Telefone</th><th>Idade</th></tr></thead>
                             <tbody>
-                            {% for row in leads_eventos_tab.rows %}
+                            {% for row in active_upload_tab.rows %}
                                 <tr>
                                     <td>{{ row.evento }}</td>
                                     <td>{{ row.local_evento }}</td>
@@ -250,21 +250,21 @@
         <p class="text-muted mb-0">Configure um painel mapeado de Leads Eventos para exibir esta aba.</p>
     {% endif %}
 </div>
-{% elif dashboard_tab == 'redes_sociais' %}
+{% elif active_upload_tab and active_upload_tab.panel_type == 'redes_sociais' %}
 <div>
-    {% if redes_sociais_tab and redes_sociais_tab.ready %}
+    {% if active_upload_tab and active_upload_tab.ready %}
         <div class="dashboard-tab-header">
             <div>
-                <h3 class="mb-1">{{ redes_sociais_tab.title }}</h3>
-                <p class="text-muted mb-0">{{ redes_sociais_tab.description }}</p>
+                <h3 class="mb-1">{{ active_upload_tab.title }}</h3>
+                <p class="text-muted mb-0">{{ active_upload_tab.description }}</p>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <span class="text-muted small">{{ redes_sociais_tab.config_name }}</span>
-                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUploadredes_sociaisModal">Novo upload</button>
+                <span class="text-muted small">{{ active_upload_tab.config_name }}</span>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
             </div>
         </div>
         <div class="row g-3 mt-1">
-            {% for item in redes_sociais_tab.metric_cards %}
+            {% for item in active_upload_tab.metric_cards %}
                 <div class="col-md-3"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
             {% endfor %}
         </div>
@@ -273,7 +273,7 @@
                 <div class="panel">
                     <h3>Redes Monitoradas</h3>
                     <ul class="mb-0">
-                        {% for label, count in redes_sociais_tab.social_networks %}
+                        {% for label, count in active_upload_tab.social_networks %}
                             <li>{{ label }}: {{ count }}</li>
                         {% empty %}
                             <li>Sem redes mapeadas.</li>
@@ -288,7 +288,7 @@
                         <table class="table align-middle">
                             <thead><tr><th>Rede</th><th>Perfil</th><th>Seguidores</th><th>Publicações</th><th>Alcance</th><th>Engajamento</th></tr></thead>
                             <tbody>
-                            {% for row in redes_sociais_tab.rows %}
+                            {% for row in active_upload_tab.rows %}
                                 <tr>
                                     <td>{{ row.rede_social }}</td>
                                     <td>{{ row.perfil }}</td>
@@ -548,66 +548,46 @@
     </div>
 </div>
 
-{% if trafego_pago_tab and trafego_pago_tab.config_id %}
-<div class="modal fade {% if show_upload_modal_key == 'trafego_pago' %}show{% endif %}" id="novoUploadtrafego_pagoModal" tabindex="-1" aria-hidden="{% if show_upload_modal_key == 'trafego_pago' %}false{% else %}true{% endif %}" {% if show_upload_modal_key == 'trafego_pago' %}style="display:block;"{% endif %}>
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="post" enctype="multipart/form-data">
-                <div class="modal-header">
-                    <h5 class="modal-title">Novo upload - {{ trafego_pago_tab.title }}</h5>
-                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=trafego_pago" class="btn-close" aria-label="Fechar"></a>
-                </div>
-                <div class="modal-body">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="novo_upload_trafego">
-                    <div class="row g-3">
-                        <div class="col-md-6">{{ traffic_upload_form.nome_referencia.label_tag }}{{ traffic_upload_form.nome_referencia }}</div>
-                        <div class="col-12">{{ traffic_upload_form.arquivo.label_tag }}{{ traffic_upload_form.arquivo }}</div>
-                        <div class="col-md-4">{{ traffic_upload_form.periodo_tipo.label_tag }}{{ traffic_upload_form.periodo_tipo }}</div>
-                        <div class="col-md-4">{{ traffic_upload_form.data_inicio.label_tag }}{{ traffic_upload_form.data_inicio }}</div>
-                        <div class="col-md-4">{{ traffic_upload_form.data_fim.label_tag }}{{ traffic_upload_form.data_fim }}</div>
-                        {{ traffic_upload_form.empresa.as_hidden }}
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab=trafego_pago" class="btn btn-outline-secondary">Cancelar</a>
-                    <button class="btn btn-dark" type="submit">Enviar arquivo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-{% if show_upload_modal_key == 'trafego_pago' %}<div class="modal-backdrop fade show"></div>{% endif %}
-{% endif %}
-
 {% for tab in dashboard_upload_tabs %}
-    {% if tab.key != 'trafego_pago' and tab.config_id %}
-        {% with painel_form=painel_upload_forms|get_item:tab.key %}
-            <div class="modal fade {% if show_upload_modal_key == tab.key %}show{% endif %}" id="novoUpload{{ tab.key }}Modal" tabindex="-1" aria-hidden="{% if show_upload_modal_key == tab.key %}false{% else %}true{% endif %}" {% if show_upload_modal_key == tab.key %}style="display:block;"{% endif %}>
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <form method="post" enctype="multipart/form-data">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Novo upload - {{ tab.title }}</h5>
-                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
-                            </div>
-                            <div class="modal-body">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="novo_upload_painel">
-                                <input type="hidden" name="panel_key" value="{{ tab.key }}">
-                                {{ painel_form.arquivo.label_tag }}{{ painel_form.arquivo }}
-                                {% if painel_form.arquivo.errors %}<div class="text-danger small mt-1">{{ painel_form.arquivo.errors|join:', ' }}</div>{% endif %}
-                            </div>
-                            <div class="modal-footer">
-                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
-                                <button class="btn btn-dark" type="submit">Enviar arquivo</button>
-                            </div>
-                        </form>
-                    </div>
+    {% if tab.config_id %}
+        <div class="modal fade {% if show_upload_modal_key == tab.key %}show{% endif %}" id="novoUpload{{ tab.key }}Modal" tabindex="-1" aria-hidden="{% if show_upload_modal_key == tab.key %}false{% else %}true{% endif %}" {% if show_upload_modal_key == tab.key %}style="display:block;"{% endif %}>
+            <div class="modal-dialog modal-dialog-centered {% if tab.panel_type == 'trafego_pago' %}modal-lg{% endif %}">
+                <div class="modal-content">
+                    <form method="post" enctype="multipart/form-data">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Novo upload - {{ tab.title }}</h5>
+                            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
+                        </div>
+                        <div class="modal-body">
+                            {% csrf_token %}
+                            {% if tab.panel_type == 'trafego_pago' %}
+                                <input type="hidden" name="action" value="novo_upload_trafego">
+                                <div class="row g-3">
+                                    <div class="col-md-6">{{ traffic_upload_form.nome_referencia.label_tag }}{{ traffic_upload_form.nome_referencia }}</div>
+                                    <div class="col-12">{{ traffic_upload_form.arquivo.label_tag }}{{ traffic_upload_form.arquivo }}</div>
+                                    <div class="col-md-4">{{ traffic_upload_form.periodo_tipo.label_tag }}{{ traffic_upload_form.periodo_tipo }}</div>
+                                    <div class="col-md-4">{{ traffic_upload_form.data_inicio.label_tag }}{{ traffic_upload_form.data_inicio }}</div>
+                                    <div class="col-md-4">{{ traffic_upload_form.data_fim.label_tag }}{{ traffic_upload_form.data_fim }}</div>
+                                    {{ traffic_upload_form.empresa.as_hidden }}
+                                </div>
+                            {% else %}
+                                {% with painel_form=painel_upload_forms|get_item:tab.key %}
+                                    <input type="hidden" name="action" value="novo_upload_painel">
+                                    <input type="hidden" name="panel_key" value="{{ tab.key }}">
+                                    {{ painel_form.arquivo.label_tag }}{{ painel_form.arquivo }}
+                                    {% if painel_form.arquivo.errors %}<div class="text-danger small mt-1">{{ painel_form.arquivo.errors|join:', ' }}</div>{% endif %}
+                                {% endwith %}
+                            {% endif %}
+                        </div>
+                        <div class="modal-footer">
+                            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
+                            <button class="btn btn-dark" type="submit">Enviar arquivo</button>
+                        </div>
+                    </form>
                 </div>
             </div>
-            {% if show_upload_modal_key == tab.key %}<div class="modal-backdrop fade show"></div>{% endif %}
-        {% endwith %}
+        </div>
+        {% if show_upload_modal_key == tab.key %}<div class="modal-backdrop fade show"></div>{% endif %}
     {% endif %}
 {% endfor %}
 {% endblock %}
