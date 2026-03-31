@@ -243,10 +243,26 @@
     <div class="panel mt-4">
         <h3 class="mb-3">Leitura prévia do arquivo</h3>
         {% if form.document_type == 'redes_sociais' %}
-            <div class="row g-4">
+            <ul class="nav nav-tabs dashboard-data-tabs mb-3" role="tablist">
                 {% for section in mapping_sections %}
-                    <div class="col-lg-6">
-                        <div class="panel h-100">
+                    <li class="nav-item" role="presentation">
+                        <button
+                            class="nav-link {% if forloop.first %}active{% endif %}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#social-preview-{{ section.key }}"
+                            type="button"
+                            role="tab"
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                        >
+                            {{ section.label }}
+                        </button>
+                    </li>
+                {% endfor %}
+            </ul>
+            <div class="tab-content">
+                {% for section in mapping_sections %}
+                    <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="social-preview-{{ section.key }}" role="tabpanel">
+                        <div class="panel">
                             <h4 class="mb-3">{{ section.label }}</h4>
                             {% if section.preview_columns %}
                                 <p class="text-muted mb-2">Colunas detectadas: {{ section.preview_columns|join:', ' }}</p>

@@ -69,6 +69,40 @@ UPLOAD_FIELD_SCHEMAS = {
     ],
 }
 
+SOCIAL_FIXED_HEADER_MAPPINGS = {
+    'posts': {
+        'id_publicacao': 'Identificação do post',
+        'data_publicacao': 'Horário de publicação',
+        'tipo_conteudo': 'Tipo de post',
+        'descricao': 'Descrição',
+        'link_permanente': 'Link permanente',
+        'visualizacoes': 'Visualizações',
+        'alcance': 'Alcance',
+        'curtidas': 'Curtidas',
+        'compartilhamentos': 'Compartilhamentos',
+        'comentarios': 'Comentários',
+        'salvamentos': 'Salvamentos',
+        'seguimentos': 'Seguimentos',
+    },
+    'stories': {
+        'id_publicacao': 'Identificação do post',
+        'data_publicacao': 'Horário de publicação',
+        'tipo_conteudo': 'Tipo de post',
+        'descricao': 'Descrição',
+        'link_permanente': 'Link permanente',
+        'visualizacoes': 'Visualizações',
+        'alcance': 'Alcance',
+        'curtidas': 'Curtidas',
+        'compartilhamentos': 'Compartilhamentos',
+        'respostas': 'Respostas',
+        'cliques_link': 'Cliques no link',
+        'visitas_perfil': 'Visitas ao perfil',
+        'navegacao': 'Navegação',
+        'toques_figurinha': 'Toques em figurinhas',
+        'seguimentos': 'Seguimentos',
+    },
+}
+
 PANEL_METRIC_SCHEMAS = {
     ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO: [
         {'key': 'investimento', 'label': 'Investimento'},
@@ -330,6 +364,15 @@ def get_field_schema(tipo_documento):
 
 def get_type_label(tipo_documento):
     return dict(UPLOAD_TYPE_CHOICES).get(tipo_documento, tipo_documento)
+
+
+def get_default_social_mapping(kind, columns):
+    available = set(columns or [])
+    mapping = {}
+    for field_key, header in SOCIAL_FIXED_HEADER_MAPPINGS.get(kind, {}).items():
+        if header in available:
+            mapping[field_key] = header
+    return mapping
 
 
 def get_panel_metric_schema(tipo_documento):

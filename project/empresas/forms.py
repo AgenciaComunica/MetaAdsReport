@@ -2,7 +2,7 @@ from django import forms
 import json
 
 from .models import ConfiguracaoUploadEmpresa, Empresa
-from .upload_config_services import get_field_schema, get_panel_metric_groups, get_panel_metric_schema, normalize_panel_metric_config
+from .upload_config_services import get_default_social_mapping, get_field_schema, get_panel_metric_groups, get_panel_metric_schema, normalize_panel_metric_config
 
 
 SEGMENTO_CHOICES = [
@@ -224,6 +224,8 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             for social_type, _ in self.SOCIAL_MAPPING_TYPES:
                 social_choices = [('', 'Selecione uma coluna')] + [(column, column) for column in self.social_columns.get(social_type, [])]
                 social_mapping = social_mappings.get(social_type, {}) if isinstance(social_mappings.get(social_type, {}), dict) else {}
+                if not social_mapping:
+                    social_mapping = get_default_social_mapping(social_type, self.social_columns.get(social_type, []))
                 social_primary = set(social_primaries.get(social_type, [])) if isinstance(social_primaries.get(social_type, []), list) else set()
                 for field_def in get_field_schema(self.document_type):
                     key = field_def['key']
@@ -441,6 +443,15 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             }
             analysis_config['social_previews'] = social_previews
             instance.configuracao_analise_json = analysis_config
+            target_kind = self.cleaned_data.get('social_example_kind', 'posts')
+            social_mapping = instance.mapeamento_json if isinstance(instance.mapeamento_json, dict) else {}
+            social_primary = instance.campos_principais_json if isinstance(instance.campos_principais_json, dict) else {}
+            if not social_mapping.get(target_kind):
+                social_mapping[target_kind] = get_default_social_mapping(target_kind, preview.columns)
+            if not social_primary.get(target_kind):
+                social_primary[target_kind] = [item['key'] for item in get_field_schema(instance.tipo_documento) if item['required']]
+            instance.mapeamento_json = social_mapping
+            instance.campos_principais_json = social_primary
             instance.colunas_detectadas_json = []
             instance.preview_json = []
             instance.nome_arquivo_exemplo = ''
