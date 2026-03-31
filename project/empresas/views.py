@@ -117,7 +117,13 @@ def upload_config_update(request, empresa_pk, config_pk):
         return redirect('empresas:upload_config_update', empresa_pk=empresa.pk, config_pk=configuracao.pk)
 
     if request.method == 'POST' and action == 'salvar':
-        if not (preview or configuracao.colunas_detectadas_json):
+        has_saved_preview = bool(preview or configuracao.colunas_detectadas_json)
+        if form.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+            has_saved_preview = bool(
+                preview
+                or any((data or {}).get('columns') for data in social_previews.values())
+            )
+        if not has_saved_preview:
             form.add_error('arquivo_exemplo', 'Envie um arquivo e clique em Mapear antes de salvar.')
         elif form.is_valid():
             configuracao = form.save_configuration(preview=preview)

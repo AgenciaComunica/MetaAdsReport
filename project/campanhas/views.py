@@ -2,6 +2,7 @@ from urllib.parse import urlencode
 
 from django import forms
 from django.contrib import messages
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -18,13 +19,10 @@ from .forms import ComparePeriodForm, UploadCampanhaForm, UploadPainelArquivoFor
 from .models import UploadCampanha, UploadPainel
 from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
-    campaign_comparison_table,
     COLUMN_ALIASES,
     campaign_table,
-    comparison_summary,
     import_metrics_from_upload,
     metrics_queryset,
-    stacked_campaign_comparison_chart,
     summarize_metrics,
     timeline_data,
 )
@@ -188,7 +186,6 @@ def panel_upload_delete(request, pk):
 
 def dashboard(request):
     dashboard_tab = request.GET.get('tab') or ''
-    chart_metrics = ['resultados', 'investimento', 'impressoes', 'alcance', 'cliques', 'ctr', 'cpc', 'cpm', 'cpl']
     default_ranges = last_complete_month_ranges()
     initial = {
         'data_inicio': default_ranges['current_start'],
@@ -196,12 +193,16 @@ def dashboard(request):
         'data_inicio_anterior': default_ranges['previous_start'],
         'data_fim_anterior': default_ranges['previous_end'],
     }
+    empresa_prefetch = Prefetch(
+        'configuracoes_upload',
+        queryset=ConfiguracaoUploadEmpresa.objects.exclude(tipo_documento='').prefetch_related('uploads_painel').order_by('nome', 'pk'),
+    )
     empresa = None
     company_id = request.session.get('active_company_id')
     if company_id:
-        empresa = Empresa.objects.filter(pk=company_id).first()
+        empresa = Empresa.objects.prefetch_related(empresa_prefetch).filter(pk=company_id).first()
     if empresa is None:
-        empresa = Empresa.objects.order_by('nome', 'pk').first()
+        empresa = Empresa.objects.prefetch_related(empresa_prefetch).order_by('nome', 'pk').first()
         if empresa:
             request.session['active_company_id'] = empresa.pk
     if empresa:
@@ -225,6 +226,7 @@ def dashboard(request):
     if form.is_valid():
         empresa = form.cleaned_data.get('empresa') or empresa
         if empresa:
+            empresa = Empresa.objects.prefetch_related(empresa_prefetch).filter(pk=empresa.pk).first()
             request.session['active_company_id'] = empresa.pk
         current_start = form.cleaned_data.get('data_inicio') or default_ranges['current_start']
         current_end = form.cleaned_data.get('data_fim') or default_ranges['current_end']
@@ -248,17 +250,72 @@ def dashboard(request):
     traffic_upload_form = UploadCampanhaForm(prefix='upload-trafego', empresa_inicial=empresa)
     painel_upload_forms = {}
 
-    competitor_qs = ConcorrenteAd.objects.filter(empresa=empresa) if empresa else ConcorrenteAd.objects.none()
-    competitor_analyses = (
-        AnaliseConcorrencial.objects.filter(empresa=empresa).exclude(concorrente_nome='')
+    dashboard_upload_tabs = (
+        build_dashboard_upload_tabs(
+            empresa,
+            queryset,
+            current_start,
+            current_end,
+            previous_start=previous_start,
+            previous_end=previous_end,
+            previous_queryset=previous_qs,
+            active_key=None,
+        )
         if empresa
-        else AnaliseConcorrencial.objects.none()
+        else []
     )
+    dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
+    visible_dashboard_tabs = list(dashboard_upload_tabs)
     if empresa:
-        competitor_analyses = competitor_analyses.filter(concorrente_nome__in=[name for name in competitor_qs.values_list('concorrente_nome', flat=True)])
+        analise_index = next(
+            (index for index, item in enumerate(visible_dashboard_tabs) if item['key'] == 'analise_completa'),
+            len(visible_dashboard_tabs),
+        )
+        visible_dashboard_tabs.insert(analise_index, {'key': 'concorrentes', 'title': 'Concorrentes'})
+    visible_keys = {item['key'] for item in visible_dashboard_tabs}
+    if dashboard_tab not in visible_keys and visible_dashboard_tabs:
+        dashboard_tab = visible_dashboard_tabs[0]['key']
+    elif dashboard_tab not in visible_keys:
+        dashboard_tab = 'concorrentes'
+    dashboard_upload_tabs = (
+        build_dashboard_upload_tabs(
+            empresa,
+            queryset,
+            current_start,
+            current_end,
+            previous_start=previous_start,
+            previous_end=previous_end,
+            previous_queryset=previous_qs,
+            active_key=dashboard_tab,
+        )
+        if empresa
+        else []
+    )
+    dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
+    active_upload_tab = dashboard_upload_tab_map.get(dashboard_tab)
+    if active_upload_tab and active_upload_tab.get('config_id') and active_upload_tab.get('panel_type') != ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
+        configuracao = next(
+            (item for item in empresa.configuracoes_upload.all() if item.pk == active_upload_tab['config_id']),
+            None,
+        ) if empresa else None
+        if configuracao:
+            painel_upload_forms[active_upload_tab['key']] = UploadPainelArquivoForm(
+                prefix=f'upload-{active_upload_tab["key"]}',
+                configuracao=configuracao,
+            )
+
+    competitor_qs = ConcorrenteAd.objects.filter(empresa=empresa) if empresa else ConcorrenteAd.objects.none()
+    competitor_analyses = AnaliseConcorrencial.objects.none()
     competitor_analysis_panels = []
-    company_digital = empresa_digital_summary(empresa, current_start, current_end) if empresa and empresa.instagram_profile_url else None
-    if empresa:
+    company_digital = None
+    open_analysis = request.GET.get('open_analysis') or ''
+    overall_competitor_summary = {'competitors': []}
+    if empresa and dashboard_tab == 'concorrentes':
+        competitor_analyses = AnaliseConcorrencial.objects.filter(empresa=empresa).exclude(concorrente_nome='')
+        competitor_analyses = competitor_analyses.filter(
+            concorrente_nome__in=[name for name in competitor_qs.values_list('concorrente_nome', flat=True)]
+        )
+        company_digital = empresa_digital_summary(empresa, current_start, current_end) if empresa.instagram_profile_url else None
         for analysis in competitor_analyses:
             summary = competitor_summary_for_name_in_period(competitor_qs, analysis.concorrente_nome, current_start, current_end)
             profile = summary['competidor']
@@ -277,48 +334,12 @@ def dashboard(request):
                 item['analysis'].concorrente_nome.lower(),
             )
         )
-    open_analysis = request.GET.get('open_analysis') or (competitor_analysis_panels[0]['analysis'].concorrente_nome if competitor_analysis_panels else '')
-    overall_competitor_summary = (
-        competitor_summary(ConcorrenteAd.objects.filter(empresa=empresa)) if empresa else {'competitors': []}
-    )
-    analysis_names = set(competitor_analyses.values_list('concorrente_nome', flat=True)) if empresa else set()
-    for competitor in overall_competitor_summary.get('competitors', []):
-        if competitor['nome'] in analysis_names and competitor.get('activity_label') == 'Sem Avaliação Feita':
-            competitor['activity_label'] = 'Sem Ads'
-
-    dashboard_upload_tabs = (
-        build_dashboard_upload_tabs(
-            empresa,
-            queryset,
-            current_start,
-            current_end,
-            previous_start=previous_start,
-            previous_end=previous_end,
-            previous_queryset=previous_qs,
-        )
-        if empresa
-        else []
-    )
-    dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
-    for tab in dashboard_upload_tabs:
-        config_id = tab.get('config_id')
-        if config_id and tab.get('panel_type') != ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
-            configuracao = ConfiguracaoUploadEmpresa.objects.filter(pk=config_id, empresa=empresa).first()
-            if configuracao:
-                painel_upload_forms[tab['key']] = UploadPainelArquivoForm(prefix=f'upload-{tab["key"]}', configuracao=configuracao)
-    visible_dashboard_tabs = list(dashboard_upload_tabs)
-    if empresa:
-        analise_index = next(
-            (index for index, item in enumerate(visible_dashboard_tabs) if item['key'] == 'analise_completa'),
-            len(visible_dashboard_tabs),
-        )
-        visible_dashboard_tabs.insert(analise_index, {'key': 'concorrentes', 'title': 'Concorrentes'})
-    visible_keys = {item['key'] for item in visible_dashboard_tabs}
-    if dashboard_tab not in visible_keys and visible_dashboard_tabs:
-        dashboard_tab = visible_dashboard_tabs[0]['key']
-    elif dashboard_tab not in visible_keys:
-        dashboard_tab = 'concorrentes'
-    active_upload_tab = dashboard_upload_tab_map.get(dashboard_tab)
+        open_analysis = open_analysis or (competitor_analysis_panels[0]['analysis'].concorrente_nome if competitor_analysis_panels else '')
+        overall_competitor_summary = competitor_summary(competitor_qs)
+        analysis_names = set(competitor_analyses.values_list('concorrente_nome', flat=True))
+        for competitor in overall_competitor_summary.get('competitors', []):
+            if competitor['nome'] in analysis_names and competitor.get('activity_label') == 'Sem Avaliação Feita':
+                competitor['activity_label'] = 'Sem Ads'
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -380,46 +401,52 @@ def dashboard(request):
                     return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': form_key})}")
                 show_upload_modal_key = form_key
 
-    uploads_list = UploadCampanha.objects.select_related('empresa')
-    uploads_list = uploads_list.filter(empresa=empresa) if empresa else uploads_list
+    uploads_list = UploadCampanha.objects.none()
+    if active_upload_tab and active_upload_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
+        uploads_list = UploadCampanha.objects.select_related('empresa')
+        uploads_list = uploads_list.filter(empresa=empresa) if empresa else uploads_list
 
-    concorrentes_list_qs = ConcorrenteAd.objects.select_related('empresa').filter(categoria='Perfil importado')
-    concorrentes_list_qs = concorrentes_list_qs.filter(empresa=empresa) if empresa else concorrentes_list_qs
-    competitor_status_map = {item['nome']: item for item in competitor_profiles(concorrentes_list_qs)}
-    competitor_score_map = {}
-    analyses_map = {
-        (analysis.empresa_id, analysis.concorrente_nome): analysis
-        for analysis in AnaliseConcorrencial.objects.exclude(concorrente_nome='')
-    }
-    concorrentes_list = list(concorrentes_list_qs[:300])
-    for ad in concorrentes_list:
-        competitor_name = ad.concorrente_nome.strip()
-        profile = competitor_status_map.get(competitor_name)
-        ad.activity_label = profile['activity_label'] if profile else 'Sem Avaliação Feita'
-        ad.activity_class = profile['activity_class'] if profile else 'is-none'
-        ad.analysis = analyses_map.get((ad.empresa_id, ad.concorrente_nome))
-        ad.has_analysis = ad.analysis is not None
-        if competitor_name not in competitor_score_map:
-            summary = competitor_summary_for_name_in_period(concorrentes_list_qs, competitor_name, current_start, current_end)
-            competitor_score_map[competitor_name] = {
-                'score': int(summary['feed_insights'].get('digital_score') or 0),
-                'score_label': summary['feed_insights'].get('digital_score_label') or 'Score Digital: 0',
-                'score_class': summary['feed_insights'].get('digital_score_class') or 'is-fresh',
-            }
-        score_data = competitor_score_map[competitor_name]
-        ad.score_digital = score_data['score']
-        ad.score_digital_label = score_data['score_label']
-        ad.score_digital_class = score_data['score_class']
-        ad.open_analysis_url = (
-            f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa_id, 'tab': 'concorrentes', 'open_analysis': ad.concorrente_nome})}#analise-digital"
-            if ad.has_analysis
-            else ''
-        )
-        if ad.has_analysis and ad.activity_label == 'Sem Avaliação Feita':
-            ad.activity_label = 'Sem Ads'
+    concorrentes_list = []
+    if dashboard_tab == 'concorrentes':
+        concorrentes_list_qs = ConcorrenteAd.objects.select_related('empresa').filter(categoria='Perfil importado')
+        concorrentes_list_qs = concorrentes_list_qs.filter(empresa=empresa) if empresa else concorrentes_list_qs
+        competitor_status_map = {item['nome']: item for item in competitor_profiles(concorrentes_list_qs)}
+        competitor_score_map = {}
+        analyses_map = {
+            (analysis.empresa_id, analysis.concorrente_nome): analysis
+            for analysis in AnaliseConcorrencial.objects.filter(empresa=empresa).exclude(concorrente_nome='')
+        }
+        concorrentes_list = list(concorrentes_list_qs[:300])
+        for ad in concorrentes_list:
+            competitor_name = ad.concorrente_nome.strip()
+            profile = competitor_status_map.get(competitor_name)
+            ad.activity_label = profile['activity_label'] if profile else 'Sem Avaliação Feita'
+            ad.activity_class = profile['activity_class'] if profile else 'is-none'
+            ad.analysis = analyses_map.get((ad.empresa_id, ad.concorrente_nome))
+            ad.has_analysis = ad.analysis is not None
+            if competitor_name not in competitor_score_map:
+                summary = competitor_summary_for_name_in_period(concorrentes_list_qs, competitor_name, current_start, current_end)
+                competitor_score_map[competitor_name] = {
+                    'score': int(summary['feed_insights'].get('digital_score') or 0),
+                    'score_label': summary['feed_insights'].get('digital_score_label') or 'Score Digital: 0',
+                    'score_class': summary['feed_insights'].get('digital_score_class') or 'is-fresh',
+                }
+            score_data = competitor_score_map[competitor_name]
+            ad.score_digital = score_data['score']
+            ad.score_digital_label = score_data['score_label']
+            ad.score_digital_class = score_data['score_class']
+            ad.open_analysis_url = (
+                f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa_id, 'tab': 'concorrentes', 'open_analysis': ad.concorrente_nome})}#analise-digital"
+                if ad.has_analysis
+                else ''
+            )
+            if ad.has_analysis and ad.activity_label == 'Sem Avaliação Feita':
+                ad.activity_label = 'Sem Ads'
 
-    relatorios_list = Relatorio.objects.select_related('empresa')
-    relatorios_list = relatorios_list.filter(empresa=empresa) if empresa else relatorios_list
+    relatorios_list = Relatorio.objects.none()
+    if dashboard_tab == 'analise_completa':
+        relatorios_list = Relatorio.objects.select_related('empresa')
+        relatorios_list = relatorios_list.filter(empresa=empresa) if empresa else relatorios_list
     panel_uploads_list = (
         UploadPainel.objects.filter(configuracao_id=active_upload_tab.get('config_id')).select_related('configuracao')
         if active_upload_tab and active_upload_tab.get('config_id')
@@ -432,14 +459,7 @@ def dashboard(request):
         'empresa': empresa,
         'periodo_atual_resumo': f'{current_start:%d-%m-%y} até {current_end:%d-%m-%y}',
         'periodo_anterior_resumo': f'{previous_start:%d-%m-%y} até {previous_end:%d-%m-%y}',
-        'kpis': summarize_metrics(queryset),
         'campaign_rows': campaign_table(queryset),
-        'campaign_comparison_rows': campaign_comparison_table(queryset, previous_qs),
-        'stacked_campaign_charts': [
-            stacked_campaign_comparison_chart(queryset, previous_qs, metric_key=metric_key)
-            for metric_key in chart_metrics
-        ],
-        'comparison_rows': comparison_summary(queryset, previous_qs) if previous_qs.exists() else [],
         'company_digital': company_digital,
         'competitor_analyses': competitor_analyses,
         'competitor_analysis_panels': competitor_analysis_panels,

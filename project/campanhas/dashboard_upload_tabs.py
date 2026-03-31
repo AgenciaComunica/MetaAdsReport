@@ -199,40 +199,94 @@ LEAD_TEMPERATURE_COLOR_RULES = [
 LEAD_TEMPERATURE_DISPLAY_ORDER = ['Cliente', 'Muito Quente', 'Quente', 'Frio', 'Não informado']
 
 
-def build_dashboard_upload_tabs(empresa, traffic_queryset, period_start=None, period_end=None, previous_start=None, previous_end=None, previous_queryset=None):
-    configs = list(empresa.configuracoes_upload.exclude(tipo_documento='').order_by('nome', 'pk'))
+def build_dashboard_upload_tabs(
+    empresa,
+    traffic_queryset,
+    period_start=None,
+    period_end=None,
+    previous_start=None,
+    previous_end=None,
+    previous_queryset=None,
+    active_key=None,
+):
+    configs = list(empresa.configuracoes_upload.all())
+    traffic_has_data = traffic_queryset.exists()
     tabs = []
-    traffic_tabs = []
-    crm_tabs = []
-    leads_tabs = []
-    social_tabs = []
+    has_tabs = False
     for config in configs:
         key = f'{config.tipo_documento}_{config.pk}'
-        if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
-            tab = build_traffic_tab(config, traffic_queryset, previous_queryset=previous_queryset, key=key)
-            traffic_tabs.append(tab)
-        elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS:
-            tab = build_crm_tab(config, period_start, period_end, previous_start=previous_start, previous_end=previous_end, key=key)
-            crm_tabs.append(tab)
-        elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
-            tab = build_leads_tab(config, period_start, period_end, key=key)
-            leads_tabs.append(tab)
-        elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
-            tab = build_social_tab(config, period_start, period_end, previous_start=previous_start, previous_end=previous_end, key=key)
-            social_tabs.append(tab)
-        else:
-            continue
-        if tab['configured']:
-            tabs.append(tab)
-    if tabs:
-        tabs.append(
-            build_complete_analysis_tab(
-                traffic_tabs[0] if traffic_tabs else _empty_tab('trafego_pago', 'Tráfego Pago'),
-                crm_tabs[0] if crm_tabs else _empty_tab('crm_vendas', 'Vendas'),
-                leads_tabs[0] if leads_tabs else _empty_tab('leads_eventos', 'Leads Eventos'),
+        tab = _build_tab_stub(config, traffic_has_data, key)
+        has_tabs = True
+        if key == active_key:
+            if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
+                tab = build_traffic_tab(config, traffic_queryset, previous_queryset=previous_queryset, key=key)
+            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS:
+                tab = build_crm_tab(
+                    config,
+                    period_start,
+                    period_end,
+                    previous_start=previous_start,
+                    previous_end=previous_end,
+                    key=key,
+                )
+            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+                tab = build_leads_tab(config, period_start, period_end, key=key)
+            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+                tab = build_social_tab(
+                    config,
+                    period_start,
+                    period_end,
+                    previous_start=previous_start,
+                    previous_end=previous_end,
+                    key=key,
+                )
+        tabs.append(tab)
+
+    if has_tabs:
+        complete_tab = _empty_tab('analise_completa', 'Análise Completa')
+        complete_tab.update({'configured': True, 'description': 'Cruza investimento de tráfego pago com CRM e leads.'})
+        if active_key == 'analise_completa':
+            traffic_config = next(
+                (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO),
+                None,
             )
-        )
+            crm_config = next(
+                (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS),
+                None,
+            )
+            leads_config = next(
+                (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS),
+                None,
+            )
+            complete_tab = build_complete_analysis_tab_from_configs(
+                traffic_config,
+                crm_config,
+                leads_config,
+                traffic_queryset,
+                period_start=period_start,
+                period_end=period_end,
+            )
+        tabs.append(complete_tab)
     return tabs
+
+
+def _build_tab_stub(config, traffic_has_data, key):
+    if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
+        ready = bool(config) and traffic_has_data
+    elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+        ready = True
+    else:
+        ready = bool(config.mapeamento_json)
+    return {
+        'key': key,
+        'panel_type': config.tipo_documento,
+        'title': config.nome,
+        'config_id': config.pk,
+        'configured': True,
+        'ready': ready,
+        'config_name': config.nome,
+        'description': '',
+    }
 
 
 def build_traffic_tab(config, queryset, previous_queryset=None, key='trafego_pago'):
@@ -269,8 +323,9 @@ def build_traffic_tab(config, queryset, previous_queryset=None, key='trafego_pag
 def build_crm_tab(config, period_start=None, period_end=None, previous_start=None, previous_end=None, key='crm_vendas'):
     if not config:
         return _empty_tab('crm_vendas', 'Vendas')
-    rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_contato')
-    previous_rows = _read_mapped_rows(config, period_start=previous_start, period_end=previous_end, date_key='data_contato')
+    all_rows = _read_mapped_rows(config, date_key='data_contato')
+    rows = _filter_rows_by_period(all_rows, period_start, period_end, 'data_contato')
+    previous_rows = _filter_rows_by_period(all_rows, previous_start, previous_end, 'data_contato')
     closed_status = {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}
     selected_table_keys = set(get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json))
     selected_chart_keys = set(get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json))
@@ -302,7 +357,8 @@ def build_crm_tab(config, period_start=None, period_end=None, previous_start=Non
 def build_leads_tab(config, period_start=None, period_end=None, key='leads_eventos'):
     if not config:
         return _empty_tab('leads_eventos', 'Leads Eventos')
-    rows = _read_mapped_rows(config, period_start=period_start, period_end=period_end, date_key='data_evento')
+    all_rows = _read_mapped_rows(config, date_key='data_evento')
+    rows = _filter_rows_by_period(all_rows, period_start, period_end, 'data_evento')
     ages = [_to_decimal(row.get('idade')) for row in rows if row.get('idade') not in ('', None)]
     avg_age = (sum(ages, Decimal('0')) / Decimal(len(ages))) if ages else Decimal('0')
     kpis = {
@@ -337,14 +393,13 @@ def build_leads_tab(config, period_start=None, period_end=None, key='leads_event
 def build_social_tab(config, period_start=None, period_end=None, previous_start=None, previous_end=None, key='redes_sociais'):
     if not config:
         return _empty_tab('redes_sociais', 'Redes Sociais')
-    rows = _read_social_rows(config, period_start=period_start, period_end=period_end)
-    previous_start = None
-    previous_end = None
+    all_rows = _read_social_rows(config)
+    rows = _filter_rows_by_period(all_rows, period_start, period_end, 'data_publicacao')
     selected_table_keys = set(get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json))
     selected_chart_keys = set(get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json))
     filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json)
     current_summary = _social_period_summary(rows)
-    previous_rows = _read_social_rows(config, period_start=previous_start, period_end=previous_end)
+    previous_rows = _filter_rows_by_period(all_rows, previous_start, previous_end, 'data_publicacao')
     previous_summary = _social_period_summary(previous_rows)
     category_blocks = _build_social_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map)
     return {
@@ -353,7 +408,7 @@ def build_social_tab(config, period_start=None, period_end=None, previous_start=
         'title': config.nome,
         'config_id': config.pk,
         'configured': True,
-        'ready': bool((config.mapeamento_json or {}).get('posts') or (config.mapeamento_json or {}).get('stories')),
+        'ready': True,
         'config_name': config.nome,
         'description': 'Comparativo do desempenho orgânico entre período atual e anterior, baseado apenas em uploads reais.',
         'rows': rows[:20],
@@ -382,6 +437,40 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
             'roas_estimado': roas,
             'vendas_trafego_estimada': len(paid_crm_rows),
             'leads_eventos': leads_tab.get('kpis', {}).get('leads_total', 0),
+        },
+        'insights': [
+            f'Investimento atual em tráfego pago: R$ {investment:.2f}',
+            f'Receita total no CRM: R$ {total_revenue:.2f}',
+            f'Receita estimada de leads marcados como tráfego pago: R$ {paid_revenue:.2f}',
+            f'ROAS estimado com base no CRM: {roas:.2f}x' if investment else 'ROAS estimado indisponível sem investimento em tráfego pago.',
+        ],
+    }
+
+
+def build_complete_analysis_tab_from_configs(traffic_config, crm_config, leads_config, traffic_queryset, period_start=None, period_end=None):
+    traffic_summary = summarize_metrics(traffic_queryset)
+    investment = traffic_summary.get('investimento') or Decimal('0')
+    crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), period_start, period_end, 'data_contato') if crm_config else []
+    paid_crm_rows = [row for row in crm_rows if _is_paid_traffic_sale(row)]
+    paid_revenue = sum((_to_decimal(row.get('valor_venda')) for row in paid_crm_rows), Decimal('0'))
+    crm_summary = _crm_period_summary(crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}}
+    leads_rows = _filter_rows_by_period(_read_mapped_rows(leads_config, date_key='data_evento'), period_start, period_end, 'data_evento') if leads_config else []
+    total_revenue = crm_summary.get('geral', {}).get('receita_total') or Decimal('0')
+    roas = (paid_revenue / investment) if investment else Decimal('0')
+    return {
+        'key': 'analise_completa',
+        'panel_type': 'analise_completa',
+        'title': 'Análise Completa',
+        'configured': True,
+        'ready': bool(traffic_queryset.exists() or crm_rows or leads_rows),
+        'description': 'Cruza investimento de tráfego pago com o CRM e os leads de eventos disponíveis.',
+        'kpis': {
+            'investimento_trafego': investment,
+            'receita_crm_total': total_revenue,
+            'receita_trafego_estimada': paid_revenue,
+            'roas_estimado': roas,
+            'vendas_trafego_estimada': len(paid_crm_rows),
+            'leads_eventos': len(leads_rows),
         },
         'insights': [
             f'Investimento atual em tráfego pago: R$ {investment:.2f}',
@@ -891,17 +980,13 @@ def _read_mapped_rows(config, period_start=None, period_end=None, date_key=''):
     if not config or not config.mapeamento_json:
         return []
     rows = []
-    uploads = UploadPainel.objects.filter(configuracao=config).order_by('-criado_em', '-pk')
+    uploads = _get_panel_uploads(config)
     for upload in uploads:
         dataframe = read_uploaded_dataframe(upload.arquivo.path, upload.nome_arquivo or upload.arquivo.name)
         for _, source_row in dataframe.iterrows():
             row = {}
             for field_key, column_name in (config.mapeamento_json or {}).items():
                 row[field_key] = _serialize_value(source_row.get(column_name, ''))
-            if date_key and period_start and period_end:
-                row_date = _parse_date(row.get(date_key))
-                if row_date is not None and not (period_start <= row_date <= period_end):
-                    continue
             rows.append(row)
     return rows
 
@@ -910,7 +995,7 @@ def _read_social_rows(config, period_start=None, period_end=None):
     if not config or not config.mapeamento_json:
         return []
     deduped_rows = {}
-    uploads = UploadPainel.objects.filter(configuracao=config).order_by('-criado_em', '-pk')
+    uploads = _get_panel_uploads(config)
     for upload in uploads:
         upload_type = getattr(upload, 'tipo_upload', '') or _normalize_social_content_type('', '', upload.nome_arquivo)
         social_mapping = (config.mapeamento_json or {}).get(upload_type, {})
@@ -926,9 +1011,6 @@ def _read_social_rows(config, period_start=None, period_end=None):
                 getattr(upload, 'tipo_upload', ''),
                 upload.nome_arquivo,
             )
-            row_date = _parse_date(row.get('data_publicacao'))
-            if period_start and period_end and row_date is not None and not (period_start <= row_date <= period_end):
-                continue
             dedupe_key = str(row.get('id_publicacao', '')).strip() or f"{upload.pk}:{source_row.name}"
             deduped_rows[dedupe_key] = row
     rows = list(deduped_rows.values())
@@ -954,6 +1036,26 @@ def _parse_date(value):
     if pd.isna(parsed):
         return None
     return parsed.date()
+
+
+def _filter_rows_by_period(rows, period_start, period_end, date_key):
+    if not rows:
+        return []
+    if not (period_start and period_end and date_key):
+        return list(rows)
+    filtered = []
+    for row in rows:
+        row_date = _parse_date(row.get(date_key))
+        if row_date is None or period_start <= row_date <= period_end:
+            filtered.append(row)
+    return filtered
+
+
+def _get_panel_uploads(config):
+    prefetched = getattr(config, '_prefetched_objects_cache', {}).get('uploads_painel')
+    if prefetched is not None:
+        return list(prefetched)
+    return list(UploadPainel.objects.filter(configuracao=config).order_by('-criado_em', '-pk'))
 
 
 def _to_decimal(value):
