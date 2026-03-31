@@ -117,15 +117,15 @@
             {% for row in campaign_rows %}
                 <tr>
                     <td>{{ row.campanha }}</td>
-                    <td>R$ {{ row.investimento|floatformat:2 }}</td>
+                    <td>{{ row.investimento|br_currency }}</td>
                     <td>{{ row.impressoes }}</td>
                     <td>{{ row.alcance }}</td>
                     <td>{{ row.cliques }}</td>
-                    <td>{{ row.ctr|floatformat:2 }}%</td>
-                    <td>R$ {{ row.cpc|floatformat:2 }}</td>
-                    <td>R$ {{ row.cpm|floatformat:2 }}</td>
-                    <td>{{ row.resultados|floatformat:2 }}</td>
-                    <td>R$ {{ row.cpl|floatformat:2 }}</td>
+                    <td>{{ row.ctr|br_number:2 }}%</td>
+                    <td>{{ row.cpc|br_currency }}</td>
+                    <td>{{ row.cpm|br_currency }}</td>
+                    <td>{{ row.resultados|br_number:2 }}</td>
+                    <td>{{ row.cpl|br_currency }}</td>
                 </tr>
             {% empty %}
                 <tr><td colspan="10">Nenhum dado para o filtro selecionado.</td></tr>
@@ -534,10 +534,10 @@
             </div>
         </div>
         <div class="row g-3 mt-1">
-            <div class="col-md-4"><div class="kpi-card"><span>Investimento Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.investimento_trafego|floatformat:2 }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Receita CRM</span><strong>R$ {{ analise_completa_tab.kpis.receita_crm_total|floatformat:2 }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Receita via Tráfego</span><strong>R$ {{ analise_completa_tab.kpis.receita_trafego_estimada|floatformat:2 }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>ROAS Estimado</span><strong>{{ analise_completa_tab.kpis.roas_estimado|floatformat:2 }}x</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Investimento Tráfego</span><strong>{{ analise_completa_tab.kpis.investimento_trafego|br_currency }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Receita CRM</span><strong>{{ analise_completa_tab.kpis.receita_crm_total|br_currency }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>Receita via Tráfego</span><strong>{{ analise_completa_tab.kpis.receita_trafego_estimada|br_currency }}</strong></div></div>
+            <div class="col-md-4"><div class="kpi-card"><span>ROAS Estimado</span><strong>{{ analise_completa_tab.kpis.roas_estimado|br_number:2 }}x</strong></div></div>
             <div class="col-md-4"><div class="kpi-card"><span>Vendas via Tráfego</span><strong>{{ analise_completa_tab.kpis.vendas_trafego_estimada }}</strong></div></div>
             <div class="col-md-4"><div class="kpi-card"><span>Leads de Eventos</span><strong>{{ analise_completa_tab.kpis.leads_eventos }}</strong></div></div>
         </div>
@@ -759,9 +759,6 @@
                                 <div class="row g-3">
                                     <div class="col-md-6">{{ traffic_upload_form.nome_referencia.label_tag }}{{ traffic_upload_form.nome_referencia }}</div>
                                     <div class="col-12">{{ traffic_upload_form.arquivo.label_tag }}{{ traffic_upload_form.arquivo }}</div>
-                                    <div class="col-md-4">{{ traffic_upload_form.periodo_tipo.label_tag }}{{ traffic_upload_form.periodo_tipo }}</div>
-                                    <div class="col-md-4">{{ traffic_upload_form.data_inicio.label_tag }}{{ traffic_upload_form.data_inicio }}</div>
-                                    <div class="col-md-4">{{ traffic_upload_form.data_fim.label_tag }}{{ traffic_upload_form.data_fim }}</div>
                                     {{ traffic_upload_form.empresa.as_hidden }}
                                 </div>
                             {% else %}
@@ -796,6 +793,14 @@
 {% block extra_js %}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
+    const formatNumberBr = (value, decimals = 2) => {
+      const number = Number(value ?? 0);
+      if (Number.isNaN(number)) return value;
+      return new Intl.NumberFormat('pt-BR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: decimals,
+      }).format(number);
+    };
     const filterForm = document.getElementById('dashboardFiltersForm');
     const companySelect = document.getElementById('id_empresa');
 
@@ -940,7 +945,7 @@
           yaxis: {
             labels: {
               formatter(value) {
-                return Number(value).toFixed(2);
+                return formatNumberBr(value, 2);
               }
             }
           },
@@ -956,13 +961,13 @@
             },
             background: { enabled: false },
             formatter(value) {
-              return Number(value).toFixed(2);
+              return formatNumberBr(value, 2);
             }
           },
           tooltip: {
             y: {
               formatter(value) {
-                return Number(value).toFixed(2);
+                return formatNumberBr(value, 2);
               }
             }
           }

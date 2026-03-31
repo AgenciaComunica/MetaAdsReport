@@ -1,5 +1,6 @@
 from django import template
 from django.utils.html import format_html
+from decimal import Decimal, InvalidOperation
 
 
 register = template.Library()
@@ -26,3 +27,31 @@ def social_icon(network):
         'outro': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 14a5 5 0 0 1 0-7l1.5-1.5a5 5 0 0 1 7 7L17 14"></path><path d="M14 10a5 5 0 0 1 0 7L12.5 18.5a5 5 0 1 1-7-7L7 10"></path></svg>',
     }
     return format_html(icons.get(network, icons['outro']))
+
+
+def _to_decimal(value):
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+@register.filter
+def br_number(value, decimals=2):
+    decimal_value = _to_decimal(value)
+    if decimal_value is None:
+        return value
+    try:
+        decimals = int(decimals)
+    except (ValueError, TypeError):
+        decimals = 2
+    text = f'{decimal_value:,.{decimals}f}'
+    text = text.replace(',', 'X').replace('.', ',').replace('X', '.')
+    if decimals > 0:
+        text = text.rstrip('0').rstrip(',')
+    return text
+
+
+@register.filter
+def br_currency(value):
+    return f'R$ {br_number(value, 2)}'

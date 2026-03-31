@@ -784,9 +784,9 @@ def _crm_status_comparison_rows(current_status_counts, previous_status_counts, i
             {
                 'label': label,
                 'label_color': color_fn(label) if color_fn else _crm_status_color(label),
-                'period_value': f'{int(previous_value)} / {int(current_value)}',
-                'previous_value': str(int(previous_value)),
-                'current_value': str(int(current_value)),
+                'period_value': f'{_format_number_br(previous_value, decimals=0)} / {_format_number_br(current_value, decimals=0)}',
+                'previous_value': _format_number_br(previous_value, decimals=0),
+                'current_value': _format_number_br(current_value, decimals=0),
                 'variation_value': _format_variation(variation_absolute, variation_percent, 'conversas'),
                 'variation_class': _resolve_crm_variation_class('conversas', variation_absolute, variation_percent),
             }
@@ -814,9 +814,9 @@ def _crm_status_pie_chart(current_status):
 
 def _crm_vendor_comparison_rows(current_vendors, previous_vendors, selected_table_keys):
     metric_map = {
-        'vendas_concluidas_vendedor': ('Vendas Concluídas', 'vendas_concluidas', lambda value: str(int(value))),
-        'valor_vendas_vendedor': ('Valor Vendas', 'receita', lambda value: f'R$ {value:.2f}'),
-        'atendimentos_vendedor': ('Atendimentos', 'atendimentos', lambda value: str(int(value))),
+        'vendas_concluidas_vendedor': ('Vendas Concluídas', 'vendas_concluidas', lambda value: _format_number_br(value, decimals=0)),
+        'valor_vendas_vendedor': ('Valor Vendas', 'receita', lambda value: _format_currency_br(value)),
+        'atendimentos_vendedor': ('Atendimentos', 'atendimentos', lambda value: _format_number_br(value, decimals=0)),
     }
     if not any(key in selected_table_keys for key in metric_map):
         return []
@@ -903,18 +903,18 @@ def _crm_vendor_chart(current_vendors, previous_vendors, selected_chart_keys):
 
 def _format_crm_metric(value, currency=False, suffix=''):
     if currency:
-        return f'R$ {value:.2f}'
+        return _format_currency_br(value)
     if suffix == '%':
-        return f'{value:.2f}%'
-    return f'{value:.2f}' if isinstance(value, Decimal) and value != value.to_integral_value() else str(int(value))
+        return f'{_format_number_br(value, decimals=2)}%'
+    return _format_number_br(value)
 
 
 def _format_social_metric(value, currency=False, suffix=''):
     if currency:
-        return f'R$ {value:.2f}'
+        return _format_currency_br(value)
     if suffix == '%':
-        return f'{value:.2f}%'
-    return f'{value:.2f}' if isinstance(value, Decimal) and value != value.to_integral_value() else str(int(value))
+        return f'{_format_number_br(value, decimals=2)}%'
+    return _format_number_br(value)
 
 
 def _crm_status_color(label):
@@ -1301,20 +1301,20 @@ def _build_metric_cards(kpis, selected_keys, formatters):
 
 def _build_traffic_metric_definitions(result_label):
     return {
-        'investimento': {'label': 'Investimento Total', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['investimento'], 'formatter': lambda value: f'R$ {value:.2f}'},
-        'cpm': {'label': 'CPM', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpm'], 'formatter': lambda value: f'R$ {value:.2f}'},
-        'cpc': {'label': 'CPC', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpc'], 'formatter': lambda value: f'R$ {value:.2f}'},
-        'cpl': {'label': 'CPL', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpl'], 'formatter': lambda value: f'R$ {value:.2f}'},
-        'impressoes': {'label': 'Impressões', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['impressoes'], 'formatter': lambda value: f'{int(value)}'},
-        'alcance': {'label': 'Alcance', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['alcance'], 'formatter': lambda value: f'{int(value)}'},
-        'ctr': {'label': 'CTR', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['ctr'], 'formatter': lambda value: f'{value:.2f}%'},
-        'taxa_conversao': {'label': 'Taxa de Conversão', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['taxa_conversao'], 'formatter': lambda value: f'{value:.2f}%'},
-        'frequencia': {'label': 'Frequência', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['frequencia'], 'formatter': lambda value: f'{value:.2f}'},
-        'score_relevancia': {'label': 'Score de Relevância', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['score_relevancia'], 'formatter': lambda value: f'{value:.1f}/10'},
-        'cpm_relativo': {'label': 'CPM relativo', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpm_relativo'], 'formatter': lambda value: f'{value:.2f}x'},
-        'resultado_principal': {'label': result_label, 'tooltip': TRAFFIC_METRIC_TOOLTIPS['resultado_principal'], 'formatter': lambda value: f'{value:.2f}'},
-        'custo_por_resultado': {'label': 'Custo por Resultado', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['custo_por_resultado'], 'formatter': lambda value: f'R$ {value:.2f}'},
-        'taxa_resposta': {'label': 'Taxa de Resposta', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['taxa_resposta'], 'formatter': lambda value: f'{value:.2f}%'},
+        'investimento': {'label': 'Investimento Total', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['investimento'], 'formatter': lambda value: _format_currency_br(value)},
+        'cpm': {'label': 'CPM', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpm'], 'formatter': lambda value: _format_currency_br(value)},
+        'cpc': {'label': 'CPC', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpc'], 'formatter': lambda value: _format_currency_br(value)},
+        'cpl': {'label': 'CPL', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpl'], 'formatter': lambda value: _format_currency_br(value)},
+        'impressoes': {'label': 'Impressões', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['impressoes'], 'formatter': lambda value: _format_number_br(value, decimals=0)},
+        'alcance': {'label': 'Alcance', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['alcance'], 'formatter': lambda value: _format_number_br(value, decimals=0)},
+        'ctr': {'label': 'CTR', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['ctr'], 'formatter': lambda value: f'{_format_number_br(value, decimals=2)}%'},
+        'taxa_conversao': {'label': 'Taxa de Conversão', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['taxa_conversao'], 'formatter': lambda value: f'{_format_number_br(value, decimals=2)}%'},
+        'frequencia': {'label': 'Frequência', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['frequencia'], 'formatter': lambda value: _format_number_br(value, decimals=2)},
+        'score_relevancia': {'label': 'Score de Relevância', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['score_relevancia'], 'formatter': lambda value: f'{_format_number_br(value, decimals=1)}/10'},
+        'cpm_relativo': {'label': 'CPM relativo', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['cpm_relativo'], 'formatter': lambda value: f'{_format_number_br(value, decimals=2)}x'},
+        'resultado_principal': {'label': result_label, 'tooltip': TRAFFIC_METRIC_TOOLTIPS['resultado_principal'], 'formatter': lambda value: _format_number_br(value, decimals=2)},
+        'custo_por_resultado': {'label': 'Custo por Resultado', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['custo_por_resultado'], 'formatter': lambda value: _format_currency_br(value)},
+        'taxa_resposta': {'label': 'Taxa de Resposta', 'tooltip': TRAFFIC_METRIC_TOOLTIPS['taxa_resposta'], 'formatter': lambda value: f'{_format_number_br(value, decimals=2)}%'},
     }
 
 
@@ -1451,13 +1451,13 @@ def _calculate_relevance_score(ctr, cpc, cpm, frequencia, taxa_conversao):
 
 def _format_variation(absolute, percent, key):
     if key in {'investimento', 'cpm', 'cpc', 'cpl', 'custo_por_resultado'}:
-        absolute_text = f'R$ {absolute:.2f}'
+        absolute_text = _format_currency_br(absolute)
     elif key in {'ctr', 'taxa_conversao', 'taxa_resposta'}:
-        absolute_text = f'{absolute:.2f}pp'
+        absolute_text = f'{_format_number_br(absolute, decimals=2)}pp'
     elif key == 'cpm_relativo':
-        absolute_text = f'{absolute:.2f}x'
+        absolute_text = f'{_format_number_br(absolute, decimals=2)}x'
     elif key == 'score_relevancia':
-        absolute_text = f'{absolute:.1f}'
+        absolute_text = _format_number_br(absolute, decimals=1)
     elif key in {
         'vendas_concluidas',
         'conversas',
@@ -1486,14 +1486,33 @@ def _format_variation(absolute, percent, key):
         'cliques_link',
         'visitas_perfil',
     }:
-        absolute_text = str(int(absolute))
+        absolute_text = _format_number_br(absolute, decimals=0)
     elif key in {'receita_total', 'ticket_medio', 'receita_trafego_pago', 'receita_organico', 'valor_vendas_vendedor'}:
-        absolute_text = f'R$ {absolute:.2f}'
+        absolute_text = _format_currency_br(absolute)
     else:
-        absolute_text = f'{absolute:.2f}' if isinstance(absolute, Decimal) else str(absolute)
+        absolute_text = _format_number_br(absolute, decimals=2)
     if percent is None:
         return absolute_text
-    return f'{absolute_text} ({percent:.2f}%)'
+    return f'{absolute_text} ({_format_number_br(percent, decimals=2)}%)'
+
+
+def _format_currency_br(value):
+    return f'R$ {_format_number_br(value, decimals=2)}'
+
+
+def _format_number_br(value, decimals=None):
+    if not isinstance(value, Decimal):
+        try:
+            value = Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return str(value)
+    if decimals is None:
+        decimals = 0 if value == value.to_integral_value() else 2
+    text = f'{value:,.{decimals}f}'
+    text = text.replace(',', 'X').replace('.', ',').replace('X', '.')
+    if decimals > 0:
+        text = text.rstrip('0').rstrip(',')
+    return text
 
 
 def _resolve_variation_class(key, absolute, percent):

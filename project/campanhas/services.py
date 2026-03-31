@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import calendar
 import math
+import re
 from hashlib import sha256
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -115,10 +117,91 @@ def parse_int(value):
 def parse_date(value):
     if value is None or value == '':
         return None
-    parsed = pd.to_datetime(value, errors='coerce', dayfirst=True)
+    return _parse_single_date(value)
+
+
+def infer_upload_period_from_dataframe(df, config_mapping=None, detected_mapping=None):
+    config_mapping = config_mapping or {}
+    detected_mapping = detected_mapping or {}
+    start_column = config_mapping.get('inicio_relatorio')
+    end_column = config_mapping.get('fim_relatorio')
+    date_column = config_mapping.get('date') or detected_mapping.get('date')
+
+    start_date = _infer_date_from_column(df, start_column, pick='min') if start_column else None
+    end_date = _infer_date_from_column(df, end_column, pick='max') if end_column else None
+
+    if date_column:
+        if start_date is None:
+            start_date = _infer_date_from_column(df, date_column, pick='min')
+        if end_date is None:
+            end_date = _infer_date_from_column(df, date_column, pick='max')
+
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+
+    return start_date, end_date, infer_period_type(start_date, end_date)
+
+
+def infer_period_type(start_date, end_date):
+    if not start_date or not end_date:
+        return 'personalizado'
+    if start_date.year == end_date.year and start_date.month == end_date.month:
+        month_end = calendar.monthrange(start_date.year, start_date.month)[1]
+        if start_date.day == 1 and end_date.day == month_end:
+            return 'mensal'
+    if start_date.year == end_date.year and start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31:
+        return 'anual'
+    if (end_date - start_date).days in {6, 7}:
+        return 'semanal'
+    return 'personalizado'
+
+
+def _infer_date_from_column(df, column_name, pick='min'):
+    if not column_name or column_name not in df.columns:
+        return None
+    parsed_dates = []
+    for raw_value in df[column_name].tolist():
+        extracted = _extract_dates_from_value(raw_value)
+        if extracted:
+            parsed_dates.extend(extracted)
+    if not parsed_dates:
+        return None
+    return min(parsed_dates) if pick == 'min' else max(parsed_dates)
+
+
+def _parse_single_date(value):
+    text = str(value or '').strip()
+    if not text:
+        return None
+    # Prioriza ISO yyyy-mm-dd para evitar inversão quando dayfirst=True.
+    iso_match = re.search(r'\b(\d{4})-(\d{2})-(\d{2})\b', text)
+    if iso_match:
+        try:
+            return pd.Timestamp(iso_match.group(0)).date()
+        except Exception:
+            pass
+    parsed = pd.to_datetime(text, errors='coerce', dayfirst=True)
     if pd.isna(parsed):
         return None
     return parsed.date()
+
+
+def _extract_dates_from_value(value):
+    text = str(value or '').strip()
+    if not text:
+        return []
+    parts = [part.strip() for part in re.split(r'\s*(?:,|;|\||até|a)\s*', text) if part.strip()]
+    parsed_dates = []
+    for part in parts:
+        parsed = _parse_single_date(part)
+        if parsed:
+            parsed_dates.append(parsed)
+    if parsed_dates:
+        return parsed_dates
+    single = _parse_single_date(text)
+    return [single] if single else []
 
 
 def metric_fingerprint(empresa_id, data, campanha, investimento, impressoes, alcance, cliques, ctr, cpc, cpm, resultados):

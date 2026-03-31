@@ -9,7 +9,7 @@ from django.urls import reverse
 from core.utils import last_complete_month_ranges
 from empresas.services import empresa_digital_summary
 from empresas.models import ConfiguracaoUploadEmpresa, Empresa
-from empresas.upload_config_services import inspect_uploaded_file
+from empresas.upload_config_services import inspect_uploaded_file, read_uploaded_dataframe
 from concorrentes.models import ConcorrenteAd
 from concorrentes.services import competitor_profiles, competitor_summary, competitor_summary_for_name_in_period
 from ia.models import AnaliseConcorrencial
@@ -21,6 +21,7 @@ from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
     COLUMN_ALIASES,
     campaign_table,
+    infer_upload_period_from_dataframe,
     import_metrics_from_upload,
     metrics_queryset,
     summarize_metrics,
@@ -45,7 +46,24 @@ def upload_create(request):
         empresa_inicial = Empresa.objects.filter(pk=empresa_id).first()
     form = UploadCampanhaForm(request.POST or None, request.FILES or None, empresa_inicial=empresa_inicial)
     if request.method == 'POST' and form.is_valid():
-        upload = form.save()
+        upload = form.save(commit=False)
+        traffic_config = (
+            ConfiguracaoUploadEmpresa.objects.filter(
+                empresa=upload.empresa,
+                tipo_documento=ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO,
+            )
+            .order_by('pk')
+            .first()
+        )
+        dataframe = read_uploaded_dataframe(upload.arquivo, upload.arquivo.name)
+        data_inicio, data_fim, periodo_tipo = infer_upload_period_from_dataframe(
+            dataframe,
+            config_mapping=(traffic_config.mapeamento_json if traffic_config else {}),
+        )
+        upload.data_inicio = data_inicio
+        upload.data_fim = data_fim
+        upload.periodo_tipo = periodo_tipo
+        upload.save()
         result = import_metrics_from_upload(upload)
         upload.colunas_mapeadas_json = result.mapping
         upload.observacoes_importacao = '\n'.join(result.warnings)
@@ -351,7 +369,22 @@ def dashboard(request):
                 empresa_inicial=empresa,
             )
             if traffic_upload_form.is_valid():
-                upload = traffic_upload_form.save()
+                upload = traffic_upload_form.save(commit=False)
+                traffic_config = None
+                if active_upload_tab.get('config_id'):
+                    traffic_config = next(
+                        (item for item in empresa.configuracoes_upload.all() if item.pk == active_upload_tab['config_id']),
+                        None,
+                    ) if empresa else None
+                dataframe = read_uploaded_dataframe(upload.arquivo, upload.arquivo.name)
+                data_inicio, data_fim, periodo_tipo = infer_upload_period_from_dataframe(
+                    dataframe,
+                    config_mapping=(traffic_config.mapeamento_json if traffic_config else {}),
+                )
+                upload.data_inicio = data_inicio
+                upload.data_fim = data_fim
+                upload.periodo_tipo = periodo_tipo
+                upload.save()
                 result = import_metrics_from_upload(upload)
                 upload.colunas_mapeadas_json = result.mapping
                 upload.observacoes_importacao = '\n'.join(result.warnings)

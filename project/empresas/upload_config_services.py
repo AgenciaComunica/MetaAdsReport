@@ -13,6 +13,8 @@ from .models import ConfiguracaoUploadEmpresa
 UPLOAD_FIELD_SCHEMAS = {
     ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO: [
         {'key': 'nome_campanha', 'label': 'Nome da campanha', 'required': True},
+        {'key': 'inicio_relatorio', 'label': 'Início do Relatório', 'required': False},
+        {'key': 'fim_relatorio', 'label': 'Fim do Relatório', 'required': False},
         {'key': 'anuncios', 'label': 'Anúncios', 'required': False},
         {'key': 'alcance', 'label': 'Alcance', 'required': False},
         {'key': 'impressoes', 'label': 'Impressões', 'required': False},

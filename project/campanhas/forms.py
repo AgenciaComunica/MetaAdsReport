@@ -13,17 +13,11 @@ class UploadCampanhaForm(forms.ModelForm):
             'empresa',
             'arquivo',
             'nome_referencia',
-            'data_inicio',
-            'data_fim',
-            'periodo_tipo',
         ]
         widgets = {
             'empresa': forms.Select(attrs={'class': 'form-select'}),
             'arquivo': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'nome_referencia': forms.TextInput(attrs={'class': 'form-control'}),
-            'data_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'data_fim': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'periodo_tipo': forms.Select(attrs={'class': 'form-select'}),
         }
 
     def __init__(self, *args, **kwargs):
