@@ -529,7 +529,12 @@
             {% for item in analise_completa_tab.top_cards %}
                 <div class="col-md-6 col-xl-3">
                     <div class="kpi-card h-100">
-                        <span>{{ item.label }}</span>
+                        <span class="kpi-label">
+                            {{ item.label }}
+                            {% if item.tooltip %}
+                                <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ item.tooltip }}">?</button>
+                            {% endif %}
+                        </span>
                         <strong>{{ item.value }}</strong>
                     </div>
                 </div>
@@ -1007,7 +1012,7 @@
               dataLabels: { position: 'top' }
             }
           },
-          colors: ['#175cd3', '#2d6a4f', '#c67a1a'],
+          colors: ['#334155', '#2d6a4f', '#c67a1a'],
           series: chart.series,
           xaxis: { categories: chart.categories || [] },
           yaxis: {
@@ -1023,7 +1028,7 @@
             textAnchor: 'middle',
             offsetY: -24,
             style: {
-              colors: ['#175cd3', '#2d6a4f', '#c67a1a'],
+              colors: ['#334155', '#2d6a4f', '#c67a1a'],
               fontSize: '11px',
               fontWeight: '700'
             },

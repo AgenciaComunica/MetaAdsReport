@@ -234,36 +234,7 @@ def build_dashboard_upload_tabs(
     configs = list(empresa.configuracoes_upload.all())
     traffic_has_data = traffic_queryset.exists()
     tabs = []
-    has_tabs = False
-    for config in configs:
-        key = f'{config.tipo_documento}_{config.pk}'
-        tab = _build_tab_stub(config, traffic_has_data, key)
-        has_tabs = True
-        if key == active_key:
-            if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
-                tab = build_traffic_tab(config, traffic_queryset, previous_queryset=previous_queryset, key=key)
-            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS:
-                tab = build_crm_tab(
-                    config,
-                    period_start,
-                    period_end,
-                    previous_start=previous_start,
-                    previous_end=previous_end,
-                    key=key,
-                )
-            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
-                tab = build_leads_tab(config, period_start, period_end, key=key)
-            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
-                tab = build_social_tab(
-                    config,
-                    period_start,
-                    period_end,
-                    previous_start=previous_start,
-                    previous_end=previous_end,
-                    key=key,
-                )
-        tabs.append(tab)
-
+    has_tabs = bool(configs)
     if has_tabs:
         complete_tab = _empty_tab('analise_completa', 'Resumo Executivo')
         complete_tab.update({'configured': True, 'description': 'Painel cruzado geral entre presença digital, atendimento e resultado.'})
@@ -297,6 +268,33 @@ def build_dashboard_upload_tabs(
                 previous_end=previous_end,
             )
         tabs.append(complete_tab)
+    for config in configs:
+        key = f'{config.tipo_documento}_{config.pk}'
+        tab = _build_tab_stub(config, traffic_has_data, key)
+        if key == active_key:
+            if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
+                tab = build_traffic_tab(config, traffic_queryset, previous_queryset=previous_queryset, key=key)
+            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS:
+                tab = build_crm_tab(
+                    config,
+                    period_start,
+                    period_end,
+                    previous_start=previous_start,
+                    previous_end=previous_end,
+                    key=key,
+                )
+            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+                tab = build_leads_tab(config, period_start, period_end, key=key)
+            elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+                tab = build_social_tab(
+                    config,
+                    period_start,
+                    period_end,
+                    previous_start=previous_start,
+                    previous_end=previous_end,
+                    key=key,
+                )
+        tabs.append(tab)
     return tabs
 
 
@@ -508,17 +506,18 @@ def build_complete_analysis_tab_from_configs(
     previous_operacao_rows = [row for row in previous_crm_rows if _is_operacao_sale(row)]
     cliente_base_rows = [row for row in crm_rows if _is_cliente_base_sale(row)]
     previous_cliente_base_rows = [row for row in previous_crm_rows if _is_cliente_base_sale(row)]
-    cliente_base_marketing_share = Decimal('0.30')
+    current_cliente_base_marketing_share = _calculate_social_marketing_share(social_config, social_summary)
+    previous_cliente_base_marketing_share = _calculate_social_marketing_share(social_config, previous_social_summary)
     marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in marketing_rows), Decimal('0'))
     previous_marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_marketing_rows), Decimal('0'))
     operacao_revenue = sum((_to_decimal(row.get('valor_venda')) for row in operacao_rows), Decimal('0'))
     previous_operacao_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_operacao_rows), Decimal('0'))
     cliente_base_revenue = sum((_to_decimal(row.get('valor_venda')) for row in cliente_base_rows), Decimal('0'))
     previous_cliente_base_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_cliente_base_rows), Decimal('0'))
-    marketing_revenue += cliente_base_revenue * cliente_base_marketing_share
-    previous_marketing_revenue += previous_cliente_base_revenue * cliente_base_marketing_share
-    operacao_revenue -= cliente_base_revenue * cliente_base_marketing_share
-    previous_operacao_revenue -= previous_cliente_base_revenue * cliente_base_marketing_share
+    marketing_revenue += cliente_base_revenue * current_cliente_base_marketing_share
+    previous_marketing_revenue += previous_cliente_base_revenue * previous_cliente_base_marketing_share
+    operacao_revenue -= cliente_base_revenue * current_cliente_base_marketing_share
+    previous_operacao_revenue -= previous_cliente_base_revenue * previous_cliente_base_marketing_share
     marketing_sales = sum(1 for row in marketing_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
     previous_marketing_sales = sum(1 for row in previous_marketing_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
     operacao_sales = sum(1 for row in operacao_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
@@ -576,23 +575,27 @@ def build_complete_analysis_tab_from_configs(
         'description': 'Painel cruzado geral entre presença digital, atendimento e resultado.',
         'top_cards': [
             {
+                'label': 'Receita Marketing Consolidado',
+                'value': _format_currency_br(marketing_revenue),
+                'tooltip': 'Soma de tráfego pago + venda marketing direta + participação das vendas do operacional.',
+            },
+            {
+                'label': 'Alcance Físico',
+                'value': _format_number_br(Decimal('0'), decimals=0),
+                'tooltip': 'Indicador reservado para ações presenciais e alcance físico da operação.',
+            },
+            {
+                'label': 'Taxa de Conversão',
+                'value': f"{_format_number_br(crm_summary.get('geral', {}).get('taxa_conversao', Decimal('0')), decimals=2)}%",
+                'tooltip': 'Conversão geral do CRM no período atual, considerando vendas concluídas sobre conversas.',
+            },
+            {
                 'label': 'Alcance Digital',
                 'value': _format_number_br(
                     Decimal(traffic_summary.get('alcance') or 0) + (social_summary.get('alcance') or Decimal('0')),
                     decimals=0,
                 ),
-            },
-            {
-                'label': 'Alcance Físico',
-                'value': _format_number_br(Decimal('0'), decimals=0),
-            },
-            {
-                'label': 'Taxa de Conversão',
-                'value': f"{_format_number_br(crm_summary.get('geral', {}).get('taxa_conversao', Decimal('0')), decimals=2)}%",
-            },
-            {
-                'label': 'Receita Marketing',
-                'value': _format_currency_br(marketing_revenue),
+                'tooltip': 'Soma do alcance de Tráfego Pago com o alcance do painel de Redes Sociais.',
             },
         ],
         'summary_panels': summary_panels,
@@ -645,6 +648,22 @@ def _build_summary_panel(key, title, description, metrics, chart_metric_keys=Non
         'chart_type': 'bar_compare',
         'filter_options': [],
     }
+
+
+def _calculate_social_marketing_share(social_config, social_summary):
+    if not social_config:
+        return Decimal('0')
+    raw_rate = str((social_config.configuracao_analise_json or {}).get('social_receita_percentual_por_1k_alcance', '')).strip()
+    if not raw_rate:
+        return Decimal('0')
+    try:
+        rate_per_1k = Decimal(raw_rate)
+    except (InvalidOperation, ValueError):
+        return Decimal('0')
+    alcance = _to_decimal((social_summary or {}).get('alcance', Decimal('0')))
+    share_percent = (alcance / Decimal('1000')) * rate_per_1k if alcance > 0 else Decimal('0')
+    share_percent = max(Decimal('0'), min(Decimal('100'), share_percent))
+    return share_percent / Decimal('100')
 
 
 def _build_social_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None):

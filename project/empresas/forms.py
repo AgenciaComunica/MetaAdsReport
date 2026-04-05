@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 import json
 
@@ -147,6 +149,16 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         choices=SOCIAL_MAPPING_TYPES,
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
+    social_receita_percentual_por_1k_alcance = forms.CharField(
+        required=False,
+        label='Percentual de receita a cada 1k de alcance da conta',
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Ex.: 1 para 1% a cada 1k de alcance da conta.',
+            }
+        ),
+    )
 
     class Meta:
         model = ConfiguracaoUploadEmpresa
@@ -184,6 +196,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         principais = set(self.instance.campos_principais_json or [])
         self.fields['crm_origem_paga_contem'].initial = (self.instance.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')
         self.fields['social_example_kind'].initial = self.social_example_kind_value
+        self.fields['social_receita_percentual_por_1k_alcance'].initial = (self.instance.configuracao_analise_json or {}).get('social_receita_percentual_por_1k_alcance', '')
         self.mapping_enabled = bool(columns) and bool(self.document_type)
         if self.is_social_panel:
             self.mapping_enabled = any(self.social_columns.values())
@@ -337,6 +350,19 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
 
         return cleaned_data
 
+    def clean_social_receita_percentual_por_1k_alcance(self):
+        raw_value = str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', '')).strip()
+        if not raw_value:
+            return Decimal('0')
+        normalized = raw_value.replace('%', '').replace(',', '.').strip()
+        try:
+            value = Decimal(normalized)
+        except (InvalidOperation, ValueError) as exc:
+            raise forms.ValidationError('Informe um percentual numérico válido.') from exc
+        if value < 0:
+            raise forms.ValidationError('O percentual não pode ser negativo.')
+        return value
+
     def _build_metric_config(self, cleaned_data):
         if not self.document_type:
             return {'categories': {}, 'metrics': {}, 'filters': {}}
@@ -402,6 +428,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             **(instance.configuracao_analise_json or {}),
             'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
             'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
+            'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
         }
         if preview:
             if self.is_social_panel:
@@ -434,6 +461,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 **(instance.configuracao_analise_json or {}),
                 'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
                 'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
+                'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
             }
             social_previews = analysis_config.get('social_previews', {})
             social_previews[self.cleaned_data.get('social_example_kind', 'posts')] = {
@@ -464,6 +492,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             instance.configuracao_analise_json = {
                 **(instance.configuracao_analise_json or {}),
                 'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
+                'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
             }
         instance.save()
         return instance

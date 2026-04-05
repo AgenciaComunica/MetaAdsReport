@@ -69,6 +69,20 @@
         {% if metric_groups %}
             <p class="text-muted small">Selecione as métricas que devem aparecer nesta aba do dashboard.</p>
             <p class="text-muted small">Cada métrica pode aparecer na Tabela, no Gráfico ou nos dois. Você também pode desligar a categoria inteira.</p>
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-6">
+                        <div class="panel">
+                            <h4 class="mb-2">Composição de Receita</h4>
+                            <p class="text-muted small mb-3">Define quanto de <strong>Cliente Base</strong> migra de Operação para Marketing no Resumo Executivo, com base no alcance social do período.</p>
+                            {{ form.social_receita_percentual_por_1k_alcance.label_tag }}
+                            {{ form.social_receita_percentual_por_1k_alcance }}
+                            {% if form.social_receita_percentual_por_1k_alcance.errors %}<div class="text-danger small mt-1">{{ form.social_receita_percentual_por_1k_alcance.errors|join:', ' }}</div>{% endif %}
+                            <p class="text-muted small mb-0 mt-2">Exemplo: se o valor for <strong>1</strong> e a conta tiver <strong>30 mil</strong> de alcance no período, <strong>30%</strong> da receita de Cliente Base sai de Operação e entra em Marketing.</p>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
             <div class="analysis-config-grid" data-analysis-config>
                 {% for group in metric_groups %}
                     <div class="panel analysis-config-group" data-analysis-category="{{ group.key }}">

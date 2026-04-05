@@ -289,7 +289,8 @@ def dashboard(request):
             (index for index, item in enumerate(visible_dashboard_tabs) if item['key'] == 'analise_completa'),
             len(visible_dashboard_tabs),
         )
-        visible_dashboard_tabs.insert(analise_index, {'key': 'concorrentes', 'title': 'Concorrentes'})
+        insert_index = analise_index + 1 if analise_index < len(visible_dashboard_tabs) else len(visible_dashboard_tabs)
+        visible_dashboard_tabs.insert(insert_index, {'key': 'concorrentes', 'title': 'Concorrentes'})
     visible_keys = {item['key'] for item in visible_dashboard_tabs}
     if dashboard_tab not in visible_keys and visible_dashboard_tabs:
         dashboard_tab = visible_dashboard_tabs[0]['key']
