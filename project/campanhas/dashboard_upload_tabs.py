@@ -1135,7 +1135,21 @@ def _serialize_value(value):
 def _parse_date(value):
     if not value:
         return None
-    parsed = pd.to_datetime(value, errors='coerce', dayfirst=True)
+    text = str(value).strip()
+    us_datetime_patterns = (
+        '%m/%d/%Y %H:%M',
+        '%m/%d/%Y %H:%M:%S',
+        '%m/%d/%Y',
+    )
+    if '/' in text:
+        for pattern in us_datetime_patterns:
+            parsed = pd.to_datetime(text, format=pattern, errors='coerce')
+            if not pd.isna(parsed):
+                return parsed.date()
+    if re.match(r'^\d{4}-\d{2}-\d{2}', text):
+        parsed = pd.to_datetime(text, errors='coerce')
+    else:
+        parsed = pd.to_datetime(text, errors='coerce', dayfirst=True)
     if pd.isna(parsed):
         return None
     return parsed.date()
