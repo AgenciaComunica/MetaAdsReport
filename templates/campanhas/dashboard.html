@@ -510,7 +510,7 @@
         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
             <div>
                 <h3 class="mb-1">Resumo Executivo</h3>
-                <p class="text-muted mb-0">Síntese dos cruzamentos entre tráfego pago, CRM e os relatórios já gerados.</p>
+                <p class="text-muted mb-0">Painel cruzado geral entre presença digital, atendimento e resultado.</p>
             </div>
             <div class="d-flex gap-2">
                 {% if empresa %}
@@ -527,28 +527,81 @@
                 {% endif %}
             </div>
         </div>
-        <div class="dashboard-tab-header">
-            <div>
-                <h3 class="mb-1">{{ analise_completa_tab.title }}</h3>
-                <p class="text-muted mb-0">{{ analise_completa_tab.description }}</p>
-            </div>
-        </div>
         <div class="row g-3 mt-1">
-            <div class="col-md-4"><div class="kpi-card"><span>Investimento Tráfego</span><strong>{{ analise_completa_tab.kpis.investimento_trafego|br_currency }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Receita CRM</span><strong>{{ analise_completa_tab.kpis.receita_crm_total|br_currency }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Receita via Tráfego</span><strong>{{ analise_completa_tab.kpis.receita_trafego_estimada|br_currency }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>ROAS Estimado</span><strong>{{ analise_completa_tab.kpis.roas_estimado|br_number:2 }}x</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Vendas via Tráfego</span><strong>{{ analise_completa_tab.kpis.vendas_trafego_estimada }}</strong></div></div>
-            <div class="col-md-4"><div class="kpi-card"><span>Leads de Eventos</span><strong>{{ analise_completa_tab.kpis.leads_eventos }}</strong></div></div>
+            {% for item in analise_completa_tab.top_cards %}
+                <div class="col-md-6 col-xl-3">
+                    <div class="kpi-card h-100">
+                        <span>{{ item.label }}</span>
+                        <strong>{{ item.value }}</strong>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
+        <div class="row g-4 mt-1">
+            {% for panel in analise_completa_tab.summary_panels %}
+                <div class="col-lg-6">
+                    <div class="panel traffic-block-panel h-100">
+                        <h3 class="mb-1">{{ panel.title }}</h3>
+                        <p class="text-muted mb-0">{{ panel.description }}</p>
+                        {% if panel.chart %}
+                            <div class="mt-3">
+                                <div id="executiveSummaryChart-{{ panel.chart.key }}" style="min-height: 280px;"></div>
+                            </div>
+                        {% endif %}
+                        {% if panel.rows %}
+                            <div class="table-responsive mt-3">
+                                <table class="table align-middle traffic-summary-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Métrica</th>
+                                            <th>Anterior / Atual</th>
+                                            <th>Variação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in panel.rows %}
+                                            <tr>
+                                                <td>{{ row.label }}</td>
+                                                <td><strong>{{ row.period_value }}</strong></td>
+                                                <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        {{ analise_completa_tab.summary_panels|json_script:"executive-summary-panels-data" }}
         <div class="panel mt-4">
-            <h3>Insights</h3>
-            <ul class="mb-0">
-                {% for insight in analise_completa_tab.insights %}
-                    <li>{{ insight }}</li>
-                {% endfor %}
-            </ul>
-            <p class="text-muted small mt-3 mb-0">A receita atribuída a tráfego pago é estimada a partir dos campos Origem do Lead, Canal e Tag Lead no CRM.</p>
+            <h3>Sinais dos Concorrentes</h3>
+            <p class="text-muted mb-3">Resumo rápido de algumas ações e intensidade digital dos concorrentes monitorados.</p>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Concorrente</th>
+                            <th>Atividade</th>
+                            <th>Ads observados</th>
+                            <th>Cadência</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in analise_completa_tab.competitor_signals %}
+                            <tr>
+                                <td>{{ item.nome }}</td>
+                                <td>{{ item.atividade }}</td>
+                                <td>{{ item.ads_count }}</td>
+                                <td>{{ item.cadencia }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="4">Nenhum concorrente com sinais disponíveis.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         <div class="panel mt-4">
             <h3>Relatórios Gerados</h3>
@@ -855,6 +908,12 @@
         return null;
       }
     };
+    const sanitizeSavedSelection = (allOptions, savedSelection) => {
+      if (!Array.isArray(savedSelection)) return null;
+      const allowed = new Set(allOptions);
+      const sanitized = savedSelection.filter((value) => allowed.has(value));
+      return sanitized.length ? sanitized : allOptions.slice();
+    };
     const persistFilterSelection = (blockKey, selectedOptions) => {
       const filterGroupNode = document.querySelector(`.crm-filter-dropdown[data-crm-filter-group="${blockKey}"]`);
       const storageKey = filterGroupNode?.dataset.crmFilterStorage;
@@ -986,9 +1045,12 @@
       const searchInput = filterGroupNode?.querySelector('[data-crm-filter-search]');
       const savedSelection = readSavedFilterSelection(block.key);
       if (savedSelection) {
+        const allOptions = Array.from(filterGroupNode.querySelectorAll('[data-crm-filter-option]')).map((input) => input.getAttribute('data-crm-filter-option'));
+        const effectiveSelection = sanitizeSavedSelection(allOptions, savedSelection);
         filterGroupNode.querySelectorAll('[data-crm-filter-option]').forEach((input) => {
-          input.checked = savedSelection.includes(input.getAttribute('data-crm-filter-option'));
+          input.checked = effectiveSelection.includes(input.getAttribute('data-crm-filter-option'));
         });
+        persistFilterSelection(block.key, effectiveSelection);
       }
       if (toggleButton && menuNode) {
         toggleButton.addEventListener('click', () => {
@@ -1086,6 +1148,17 @@
         };
         setupBlockFilter(block, renderSocialChart);
         renderSocialChart();
+      });
+    }
+
+    const executiveSummaryPayloadNode = document.getElementById('executive-summary-panels-data');
+    if (executiveSummaryPayloadNode) {
+      const executivePanels = JSON.parse(executiveSummaryPayloadNode.textContent);
+      const executiveCharts = {};
+      executivePanels.forEach((panel) => {
+        if (panel.chart) {
+          renderBlockChart(panel, `executiveSummaryChart-${panel.chart.key}`, executiveCharts);
+        }
       });
     }
 

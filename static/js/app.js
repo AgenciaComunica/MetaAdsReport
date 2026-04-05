@@ -1,4 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const appLayout = document.querySelector('[data-app-layout]');
+  const appSidebar = document.querySelector('[data-app-sidebar]');
+  const isDesktopSidebar = () => window.matchMedia('(min-width: 992px)').matches;
+
+  if (appLayout && appSidebar) {
+    const setCollapsed = () => {
+      appLayout.classList.remove('is-sidebar-open');
+    };
+    const setExpanded = () => {
+      if (!isDesktopSidebar()) return;
+      appLayout.classList.add('is-sidebar-open');
+    };
+
+    appSidebar.addEventListener('mouseenter', setExpanded);
+    appSidebar.addEventListener('mouseleave', setCollapsed);
+    window.addEventListener('resize', () => {
+      if (!isDesktopSidebar()) {
+        setCollapsed();
+      }
+    });
+    setCollapsed();
+  }
+
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((node) => {
     new bootstrap.Tooltip(node);
   });

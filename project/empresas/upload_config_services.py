@@ -128,15 +128,12 @@ PANEL_METRIC_SCHEMAS = {
         {'key': 'taxa_conversao', 'label': 'Taxa de Conversão'},
         {'key': 'conversas', 'label': 'Conversas'},
         {'key': 'ticket_medio', 'label': 'Ticket Médio'},
-        {'key': 'trafego_pago_conversas', 'label': 'Tráfego Pago'},
-        {'key': 'organico_conversas', 'label': 'Orgânico'},
-        {'key': 'receita_trafego_pago', 'label': 'Receita Tráfego Pago'},
-        {'key': 'receita_organico', 'label': 'Receita Orgânico'},
+        {'key': 'receita_marketing_pago', 'label': 'Marketing Pago'},
+        {'key': 'receita_marketing_organico', 'label': 'Marketing Orgânico'},
+        {'key': 'receita_operacional', 'label': 'Operacional'},
+        {'key': 'receita_sem_categoria', 'label': 'Sem categoria'},
         {'key': 'status_fechamento', 'label': 'Status do Fechamento'},
         {'key': 'temperatura_lead', 'label': 'Temperatura do Lead'},
-        {'key': 'vendas_concluidas_vendedor', 'label': 'Vendas Concluídas'},
-        {'key': 'valor_vendas_vendedor', 'label': 'Valor Vendas'},
-        {'key': 'atendimentos_vendedor', 'label': 'Atendimentos'},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS: [
         {'key': 'leads_total', 'label': 'Total de Leads'},
@@ -263,8 +260,8 @@ CRM_PANEL_CATEGORY_DEFINITIONS = [
     {
         'key': 'origem',
         'label': 'Origem',
-        'description': 'Comparativo entre tráfego pago e orgânico no período.',
-        'metrics': ['trafego_pago_conversas', 'organico_conversas', 'receita_trafego_pago', 'receita_organico'],
+        'description': 'Distribuição da receita entre marketing pago, marketing orgânico, operação e itens sem categoria.',
+        'metrics': ['receita_marketing_pago', 'receita_marketing_organico', 'receita_operacional', 'receita_sem_categoria'],
     },
     {
         'key': 'status',
@@ -278,12 +275,6 @@ CRM_PANEL_CATEGORY_DEFINITIONS = [
         'description': 'Distribuição por tags/temperatura dos leads e comparativo entre períodos.',
         'metrics': ['temperatura_lead'],
     },
-    {
-        'key': 'vendedor',
-        'label': 'Vendedor',
-        'description': 'Comparativo individual por vendedor.',
-        'metrics': ['vendas_concluidas_vendedor', 'valor_vendas_vendedor', 'atendimentos_vendedor'],
-    },
 ]
 CRM_METRIC_TOOLTIPS = {
     'receita_total': 'Soma total do valor vendido no período.',
@@ -291,15 +282,12 @@ CRM_METRIC_TOOLTIPS = {
     'taxa_conversao': 'Conversão entre conversas e vendas concluídas.',
     'conversas': 'Total de conversas atendidas no período.',
     'ticket_medio': 'Ticket médio do período.',
-    'trafego_pago_conversas': 'Conversas classificadas como tráfego pago.',
-    'organico_conversas': 'Conversas classificadas como orgânicas.',
-    'receita_trafego_pago': 'Receita vinda de leads classificados como tráfego pago.',
-    'receita_organico': 'Receita vinda de leads classificados como orgânicos.',
+    'receita_marketing_pago': 'Receita atribuída ao marketing pago, vinda diretamente do tráfego pago.',
+    'receita_marketing_organico': 'Receita atribuída ao marketing orgânico, como Marketing e Google.',
+    'receita_operacional': 'Receita atribuída à operação, como Indicação e Cliente Base.',
+    'receita_sem_categoria': 'Receita sem classificação conhecida de origem.',
     'status_fechamento': 'Comparativo por status de fechamento.',
     'temperatura_lead': 'Distribuição das tags/temperatura configuradas no CRM.',
-    'vendas_concluidas_vendedor': 'Quantidade de vendas concluídas por vendedor.',
-    'valor_vendas_vendedor': 'Receita total gerada por vendedor.',
-    'atendimentos_vendedor': 'Total de atendimentos realizados por vendedor.',
 }
 SOCIAL_PANEL_CATEGORY_DEFINITIONS = [
     {

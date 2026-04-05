@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.http import HttpResponse

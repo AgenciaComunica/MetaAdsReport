@@ -13,6 +13,8 @@ from empresas.upload_config_services import (
     get_enabled_table_metric_keys,
     read_uploaded_dataframe,
 )
+from concorrentes.models import ConcorrenteAd
+from concorrentes.services import competitor_profiles
 
 from .models import UploadPainel
 from .services import campaign_table, summarize_metrics
@@ -109,13 +111,23 @@ CRM_POSITIVE_WHEN_HIGHER = {
     'taxa_conversao',
     'conversas',
     'ticket_medio',
-    'trafego_pago_conversas',
-    'organico_conversas',
-    'receita_trafego_pago',
-    'receita_organico',
-    'vendas_concluidas_vendedor',
-    'valor_vendas_vendedor',
-    'atendimentos_vendedor',
+    'receita_marketing_pago',
+    'receita_marketing_organico',
+    'receita_operacional',
+    'receita_sem_categoria',
+    'presenca_digital_visualizacoes_totais',
+    'presenca_digital_alcance_total',
+    'presenca_digital_visualizacoes_redes',
+    'presenca_digital_impressoes_trafego',
+    'presenca_fisica_leads_presenciais',
+    'presenca_fisica_oportunidades_presenciais',
+    'atendimento_conversas_trafego_pago',
+    'atendimento_conversas_organicas',
+    'atendimento_taxa_conversao',
+    'resultado_vendas_marketing',
+    'resultado_receita_marketing',
+    'resultado_vendas_operacao',
+    'resultado_receita_operacao',
 }
 CRM_PLAUSIBLE_VARIATION_LIMITS = {
     'receita_total': Decimal('15'),
@@ -123,13 +135,23 @@ CRM_PLAUSIBLE_VARIATION_LIMITS = {
     'taxa_conversao': Decimal('10'),
     'conversas': Decimal('15'),
     'ticket_medio': Decimal('12'),
-    'trafego_pago_conversas': Decimal('15'),
-    'organico_conversas': Decimal('15'),
-    'receita_trafego_pago': Decimal('15'),
-    'receita_organico': Decimal('15'),
-    'vendas_concluidas_vendedor': Decimal('15'),
-    'valor_vendas_vendedor': Decimal('15'),
-    'atendimentos_vendedor': Decimal('15'),
+    'receita_marketing_pago': Decimal('15'),
+    'receita_marketing_organico': Decimal('15'),
+    'receita_operacional': Decimal('15'),
+    'receita_sem_categoria': Decimal('15'),
+    'presenca_digital_visualizacoes_totais': Decimal('15'),
+    'presenca_digital_alcance_total': Decimal('15'),
+    'presenca_digital_visualizacoes_redes': Decimal('15'),
+    'presenca_digital_impressoes_trafego': Decimal('15'),
+    'presenca_fisica_leads_presenciais': Decimal('15'),
+    'presenca_fisica_oportunidades_presenciais': Decimal('15'),
+    'atendimento_conversas_trafego_pago': Decimal('15'),
+    'atendimento_conversas_organicas': Decimal('15'),
+    'atendimento_taxa_conversao': Decimal('10'),
+    'resultado_vendas_marketing': Decimal('15'),
+    'resultado_receita_marketing': Decimal('15'),
+    'resultado_vendas_operacao': Decimal('15'),
+    'resultado_receita_operacao': Decimal('15'),
 }
 SOCIAL_POSITIVE_WHEN_HIGHER = {
     'quantidade_publicacoes',
@@ -243,8 +265,8 @@ def build_dashboard_upload_tabs(
         tabs.append(tab)
 
     if has_tabs:
-        complete_tab = _empty_tab('analise_completa', 'Análise Completa')
-        complete_tab.update({'configured': True, 'description': 'Cruza investimento de tráfego pago com CRM e leads.'})
+        complete_tab = _empty_tab('analise_completa', 'Resumo Executivo')
+        complete_tab.update({'configured': True, 'description': 'Painel cruzado geral entre presença digital, atendimento e resultado.'})
         if active_key == 'analise_completa':
             traffic_config = next(
                 (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO),
@@ -258,13 +280,21 @@ def build_dashboard_upload_tabs(
                 (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS),
                 None,
             )
+            social_config = next(
+                (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS),
+                None,
+            )
             complete_tab = build_complete_analysis_tab_from_configs(
                 traffic_config,
                 crm_config,
                 leads_config,
+                social_config,
                 traffic_queryset,
+                previous_queryset=previous_queryset,
                 period_start=period_start,
                 period_end=period_end,
+                previous_start=previous_start,
+                previous_end=previous_end,
             )
         tabs.append(complete_tab)
     return tabs
@@ -426,7 +456,7 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
     return {
         'key': 'analise_completa',
         'panel_type': 'analise_completa',
-        'title': 'Análise Completa',
+        'title': 'Resumo Executivo',
         'configured': True,
         'ready': traffic_tab['ready'] or crm_tab['ready'] or leads_tab['ready'],
         'description': 'Cruza investimento de tráfego pago com o CRM e os leads de eventos disponíveis.',
@@ -447,37 +477,173 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
     }
 
 
-def build_complete_analysis_tab_from_configs(traffic_config, crm_config, leads_config, traffic_queryset, period_start=None, period_end=None):
+def build_complete_analysis_tab_from_configs(
+    traffic_config,
+    crm_config,
+    leads_config,
+    social_config,
+    traffic_queryset,
+    previous_queryset=None,
+    period_start=None,
+    period_end=None,
+    previous_start=None,
+    previous_end=None,
+):
     traffic_summary = summarize_metrics(traffic_queryset)
-    investment = traffic_summary.get('investimento') or Decimal('0')
+    previous_traffic_summary = summarize_metrics(previous_queryset) if previous_queryset is not None else {}
     crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), period_start, period_end, 'data_contato') if crm_config else []
-    paid_crm_rows = [row for row in crm_rows if _is_paid_traffic_sale(row)]
-    paid_revenue = sum((_to_decimal(row.get('valor_venda')) for row in paid_crm_rows), Decimal('0'))
-    crm_summary = _crm_period_summary(crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}}
+    previous_crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), previous_start, previous_end, 'data_contato') if crm_config else []
+    crm_summary = _crm_period_summary(crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
+    previous_crm_summary = _crm_period_summary(previous_crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
     leads_rows = _filter_rows_by_period(_read_mapped_rows(leads_config, date_key='data_evento'), period_start, period_end, 'data_evento') if leads_config else []
-    total_revenue = crm_summary.get('geral', {}).get('receita_total') or Decimal('0')
-    roas = (paid_revenue / investment) if investment else Decimal('0')
+    social_rows = _filter_rows_by_period(_read_social_rows(social_config), period_start, period_end, 'data_publicacao') if social_config else []
+    previous_social_rows = _filter_rows_by_period(_read_social_rows(social_config), previous_start, previous_end, 'data_publicacao') if social_config else []
+    social_summary = _social_period_summary(social_rows) if social_config else {}
+    previous_social_summary = _social_period_summary(previous_social_rows) if social_config else {}
+    competitor_signals = _build_competitor_signals(traffic_config.empresa if traffic_config else (crm_config.empresa if crm_config else None))
+
+    marketing_rows = [row for row in crm_rows if _is_marketing_sale(row, crm_config)]
+    previous_marketing_rows = [row for row in previous_crm_rows if _is_marketing_sale(row, crm_config)]
+    operacao_rows = [row for row in crm_rows if _is_operacao_sale(row)]
+    previous_operacao_rows = [row for row in previous_crm_rows if _is_operacao_sale(row)]
+    cliente_base_rows = [row for row in crm_rows if _is_cliente_base_sale(row)]
+    previous_cliente_base_rows = [row for row in previous_crm_rows if _is_cliente_base_sale(row)]
+    cliente_base_marketing_share = Decimal('0.30')
+    marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in marketing_rows), Decimal('0'))
+    previous_marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_marketing_rows), Decimal('0'))
+    operacao_revenue = sum((_to_decimal(row.get('valor_venda')) for row in operacao_rows), Decimal('0'))
+    previous_operacao_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_operacao_rows), Decimal('0'))
+    cliente_base_revenue = sum((_to_decimal(row.get('valor_venda')) for row in cliente_base_rows), Decimal('0'))
+    previous_cliente_base_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_cliente_base_rows), Decimal('0'))
+    marketing_revenue += cliente_base_revenue * cliente_base_marketing_share
+    previous_marketing_revenue += previous_cliente_base_revenue * cliente_base_marketing_share
+    operacao_revenue -= cliente_base_revenue * cliente_base_marketing_share
+    previous_operacao_revenue -= previous_cliente_base_revenue * cliente_base_marketing_share
+    marketing_sales = sum(1 for row in marketing_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
+    previous_marketing_sales = sum(1 for row in previous_marketing_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
+    operacao_sales = sum(1 for row in operacao_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
+    previous_operacao_sales = sum(1 for row in previous_operacao_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
+
+    summary_panels = [
+        _build_summary_panel(
+            'presenca_digital',
+            'Presença Digital',
+            'Soma de redes sociais com tráfego pago para leitura consolidada de alcance digital.',
+            [
+                ('presenca_digital_visualizacoes_totais', 'Visualizações Totais', Decimal(previous_traffic_summary.get('impressoes') or 0) + (previous_social_summary.get('visualizacoes') or Decimal('0')), Decimal(traffic_summary.get('impressoes') or 0) + (social_summary.get('visualizacoes') or Decimal('0')), False, ''),
+                ('presenca_digital_alcance_total', 'Alcance Total', Decimal(previous_traffic_summary.get('alcance') or 0) + (previous_social_summary.get('alcance') or Decimal('0')), Decimal(traffic_summary.get('alcance') or 0) + (social_summary.get('alcance') or Decimal('0')), False, ''),
+                ('presenca_digital_visualizacoes_redes', 'Visualizações de Redes', previous_social_summary.get('visualizacoes', Decimal('0')), social_summary.get('visualizacoes', Decimal('0')), False, ''),
+                ('presenca_digital_impressoes_trafego', 'Impressões de Tráfego', Decimal(previous_traffic_summary.get('impressoes') or 0), Decimal(traffic_summary.get('impressoes') or 0), False, ''),
+            ],
+        ),
+        _build_summary_panel(
+            'presenca_fisica',
+            'Presença Física',
+            'Leads e ações com presença física. Estrutura preparada para evolução.',
+            [
+                ('presenca_fisica_leads_presenciais', 'Leads com Ação Presencial', Decimal('0'), Decimal('0'), False, ''),
+                ('presenca_fisica_oportunidades_presenciais', 'Oportunidades Presenciais', Decimal('0'), Decimal('0'), False, ''),
+            ],
+        ),
+        _build_summary_panel(
+            'atendimento',
+            'Atendimento',
+            'Conversas iniciadas por origem e taxa de conversão do atendimento.',
+            [
+                ('atendimento_conversas_trafego_pago', 'Conversas Tráfego Pago', previous_crm_summary.get('origem', {}).get('trafego_pago_conversas', Decimal('0')), crm_summary.get('origem', {}).get('trafego_pago_conversas', Decimal('0')), False, ''),
+                ('atendimento_conversas_organicas', 'Conversas Orgânicas', previous_crm_summary.get('origem', {}).get('organico_conversas', Decimal('0')), crm_summary.get('origem', {}).get('organico_conversas', Decimal('0')), False, ''),
+                ('atendimento_taxa_conversao', 'Taxa de Conversão', previous_crm_summary.get('geral', {}).get('taxa_conversao', Decimal('0')), crm_summary.get('geral', {}).get('taxa_conversao', Decimal('0')), False, '%'),
+            ],
+            chart_metric_keys=['atendimento_conversas_trafego_pago', 'atendimento_conversas_organicas'],
+        ),
+        _build_summary_panel(
+            'resultado',
+            'Resultado',
+            'Vendas e receita separadas entre Marketing e Operação.',
+            [
+                ('resultado_receita_marketing', 'Receita Marketing', previous_marketing_revenue, marketing_revenue, True, ''),
+                ('resultado_receita_operacao', 'Receita Operação', previous_operacao_revenue, operacao_revenue, True, ''),
+            ],
+        ),
+    ]
+
     return {
         'key': 'analise_completa',
         'panel_type': 'analise_completa',
-        'title': 'Análise Completa',
+        'title': 'Resumo Executivo',
         'configured': True,
-        'ready': bool(traffic_queryset.exists() or crm_rows or leads_rows),
-        'description': 'Cruza investimento de tráfego pago com o CRM e os leads de eventos disponíveis.',
-        'kpis': {
-            'investimento_trafego': investment,
-            'receita_crm_total': total_revenue,
-            'receita_trafego_estimada': paid_revenue,
-            'roas_estimado': roas,
-            'vendas_trafego_estimada': len(paid_crm_rows),
-            'leads_eventos': len(leads_rows),
-        },
-        'insights': [
-            f'Investimento atual em tráfego pago: R$ {investment:.2f}',
-            f'Receita total no CRM: R$ {total_revenue:.2f}',
-            f'Receita estimada de leads marcados como tráfego pago: R$ {paid_revenue:.2f}',
-            f'ROAS estimado com base no CRM: {roas:.2f}x' if investment else 'ROAS estimado indisponível sem investimento em tráfego pago.',
+        'ready': bool(traffic_queryset.exists() or crm_rows or leads_rows or social_rows or crm_config or social_config),
+        'description': 'Painel cruzado geral entre presença digital, atendimento e resultado.',
+        'top_cards': [
+            {
+                'label': 'Alcance Digital',
+                'value': _format_number_br(
+                    Decimal(traffic_summary.get('alcance') or 0) + (social_summary.get('alcance') or Decimal('0')),
+                    decimals=0,
+                ),
+            },
+            {
+                'label': 'Alcance Físico',
+                'value': _format_number_br(Decimal('0'), decimals=0),
+            },
+            {
+                'label': 'Taxa de Conversão',
+                'value': f"{_format_number_br(crm_summary.get('geral', {}).get('taxa_conversao', Decimal('0')), decimals=2)}%",
+            },
+            {
+                'label': 'Receita Marketing',
+                'value': _format_currency_br(marketing_revenue),
+            },
         ],
+        'summary_panels': summary_panels,
+        'competitor_signals': competitor_signals,
+    }
+
+
+def _build_summary_panel(key, title, description, metrics, chart_metric_keys=None):
+    rows = []
+    categories = []
+    previous_data = []
+    current_data = []
+    chart_metric_keys = set(chart_metric_keys or [metric_key for metric_key, *_ in metrics])
+    for metric_key, label, previous_value, current_value, currency, suffix in metrics:
+        previous_decimal = _to_decimal(previous_value)
+        current_decimal = _to_decimal(current_value)
+        variation_absolute = current_decimal - previous_decimal
+        variation_percent = (variation_absolute / previous_decimal * Decimal('100')) if previous_decimal else None
+        rows.append(
+            {
+                'label': label,
+                'period_value': f"{_format_summary_metric(previous_decimal, currency, suffix)} / {_format_summary_metric(current_decimal, currency, suffix)}",
+                'variation_value': _format_variation(variation_absolute, variation_percent, metric_key),
+                'variation_class': _resolve_crm_variation_class(metric_key, variation_absolute, variation_percent),
+            }
+        )
+        if metric_key in chart_metric_keys:
+            categories.append(label)
+            previous_data.append(_decimal_to_float(previous_decimal))
+            current_data.append(_decimal_to_float(current_decimal))
+
+    chart = None
+    if categories:
+        chart = {
+            'key': f'executive_{key}',
+            'title': title,
+            'categories': categories,
+            'series': [
+                {'name': 'Período anterior', 'data': previous_data},
+                {'name': 'Período atual', 'data': current_data},
+            ],
+        }
+
+    return {
+        'key': key,
+        'title': title,
+        'description': description,
+        'rows': rows,
+        'chart': chart,
+        'chart_type': 'bar_compare',
+        'filter_options': [],
     }
 
 
@@ -610,6 +776,7 @@ def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current
     selected_chart_keys = set(selected_chart_keys or [])
     selected_table_keys = set(selected_table_keys or [])
     filter_enabled_map = filter_enabled_map or {}
+    legacy_origin_metric_keys = {'trafego_pago_conversas', 'organico_conversas', 'receita_trafego_pago', 'receita_organico'}
 
     resultado_metrics = [
         ('receita_total', 'Receita Total', True, ''),
@@ -638,26 +805,38 @@ def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current
         )
 
     origem_metrics = [
-        ('trafego_pago_conversas', 'Tráfego Pago', False, ''),
-        ('organico_conversas', 'Orgânico', False, ''),
-        ('receita_trafego_pago', 'Receita Tráfego Pago', True, ''),
-        ('receita_organico', 'Receita Orgânico', True, ''),
+        ('receita_marketing_pago', 'Marketing Pago', True, ''),
+        ('receita_marketing_organico', 'Marketing Orgânico', True, ''),
+        ('receita_operacional', 'Operacional', True, ''),
+        ('receita_sem_categoria', 'Sem categoria', True, ''),
     ]
-    origem_rows = _crm_comparison_rows(origem_metrics, current_summary['origem'], previous_summary['origem'], selected_table_keys)
     origem_metric_keys = {item[0] for item in origem_metrics}
-    origem_chart_keys = {key for key in selected_chart_keys if key in origem_metric_keys}
-    if not origem_chart_keys:
-        origem_chart_keys = {key for key in selected_table_keys if key in origem_metric_keys}
-    origem_chart = _crm_comparison_chart('crm_origem', 'Origem', origem_metrics, current_summary['origem'], previous_summary['origem'], origem_chart_keys)
+    if not (origem_metric_keys & selected_table_keys) and (legacy_origin_metric_keys & selected_table_keys):
+        selected_table_keys.update(origem_metric_keys)
+    if not (origem_metric_keys & selected_chart_keys) and (legacy_origin_metric_keys & selected_chart_keys):
+        selected_chart_keys.update(origem_metric_keys)
+    origem_rows = _crm_comparison_rows(origem_metrics, current_summary['origem'], previous_summary['origem'], selected_table_keys)
+    origem_chart_enabled = bool({key for key in selected_chart_keys if key in origem_metric_keys} or {key for key in selected_table_keys if key in origem_metric_keys})
+    origem_chart = _crm_distribution_pie_chart(
+        {
+            'Marketing Pago': current_summary['origem'].get('receita_marketing_pago', Decimal('0')),
+            'Marketing Orgânico': current_summary['origem'].get('receita_marketing_organico', Decimal('0')),
+            'Operacional': current_summary['origem'].get('receita_operacional', Decimal('0')),
+            'Sem categoria': current_summary['origem'].get('receita_sem_categoria', Decimal('0')),
+        },
+        'crm_origem',
+        'Origem',
+        _crm_origin_color,
+    ) if origem_chart_enabled else None
     if origem_rows or origem_chart:
         blocks.append(
             {
                 'key': 'origem',
                 'title': 'Origem',
-                'description': 'Separação entre tráfego pago e orgânico, em conversas e receita.',
+                'description': 'Distribuição da receita entre marketing pago, marketing orgânico, operação e itens sem categoria.',
                 'rows': origem_rows,
                 'chart': origem_chart,
-                'chart_type': 'bar_compare',
+                'chart_type': 'pie',
                 'filter_options': [row['label'] for row in origem_rows] if filter_enabled_map.get('origem') else [],
             }
         )
@@ -678,7 +857,7 @@ def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current
                 'rows': status_rows,
                 'chart': status_chart,
                 'chart_type': 'pie',
-                'filter_options': [row['label'] for row in status_rows],
+                'filter_options': [row['label'] for row in status_rows] if filter_enabled_map.get('status') else [],
             }
         )
 
@@ -700,25 +879,6 @@ def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current
                 'chart': temperatura_chart,
                 'chart_type': 'pie',
                 'filter_options': [row['label'] for row in temperatura_rows] if filter_enabled_map.get('temperatura') else [],
-            }
-        )
-
-    vendedor_rows = _crm_vendor_comparison_rows(current_summary['vendedores'], previous_summary['vendedores'], selected_table_keys)
-    vendedor_metric_keys = {'vendas_concluidas_vendedor', 'valor_vendas_vendedor', 'atendimentos_vendedor'}
-    vendedor_chart_keys = {key for key in selected_chart_keys if key in vendedor_metric_keys}
-    if not vendedor_chart_keys:
-        vendedor_chart_keys = {key for key in selected_table_keys if key in vendedor_metric_keys}
-    vendedor_chart = _crm_vendor_chart(current_summary['vendedores'], previous_summary['vendedores'], vendedor_chart_keys)
-    if vendedor_rows or vendedor_chart:
-        blocks.append(
-            {
-                'key': 'vendedor',
-                'title': 'Vendedor',
-                'description': 'Comparativo por vendedor em vendas concluídas, valor vendido e atendimentos.',
-                'vendor_table': vendedor_rows,
-                'chart': vendedor_chart,
-                'chart_type': 'bar_single',
-                'filter_options': [row['label'] for row in vendedor_rows.get('rows', [])],
             }
         )
 
@@ -812,95 +972,6 @@ def _crm_status_pie_chart(current_status):
     return _crm_distribution_pie_chart(current_status, 'crm_status', 'Status', _crm_status_color)
 
 
-def _crm_vendor_comparison_rows(current_vendors, previous_vendors, selected_table_keys):
-    metric_map = {
-        'vendas_concluidas_vendedor': ('Vendas Concluídas', 'vendas_concluidas', lambda value: _format_number_br(value, decimals=0)),
-        'valor_vendas_vendedor': ('Valor Vendas', 'receita', lambda value: _format_currency_br(value)),
-        'atendimentos_vendedor': ('Atendimentos', 'atendimentos', lambda value: _format_number_br(value, decimals=0)),
-    }
-    if not any(key in selected_table_keys for key in metric_map):
-        return []
-    vendor_labels = sorted(set(current_vendors.keys()) | set(previous_vendors.keys()))
-    columns = ['Vendedor']
-    for key in metric_map:
-        if key in selected_table_keys:
-            metric_label, _, _ = metric_map[key]
-            columns.extend([metric_label, 'Variação'])
-    rows = []
-    for label in vendor_labels:
-        current_item = current_vendors.get(label, {})
-        previous_item = previous_vendors.get(label, {})
-        row = {'label': label, 'cells': []}
-        for key, (_, base_key, formatter) in metric_map.items():
-            if key not in selected_table_keys:
-                continue
-            previous_value = previous_item.get(base_key, Decimal('0'))
-            current_value = current_item.get(base_key, Decimal('0'))
-            variation_absolute = current_value - previous_value
-            variation_percent = (variation_absolute / previous_value * Decimal('100')) if previous_value else None
-            row['cells'].append(
-                {
-                    'period_value': f"{formatter(previous_value)} / {formatter(current_value)}",
-                    'variation_value': _format_variation(variation_absolute, variation_percent, key),
-                    'variation_class': _resolve_crm_variation_class(key, variation_absolute, variation_percent),
-                }
-            )
-        rows.append(row)
-    return {'columns': columns, 'rows': rows}
-
-
-def _crm_vendor_chart(current_vendors, previous_vendors, selected_chart_keys):
-    categories = sorted(set(current_vendors.keys()) | set(previous_vendors.keys())) or ['Sem vendedor']
-    series = []
-    if 'vendas_concluidas_vendedor' in selected_chart_keys:
-        series.append(
-            {
-                'name': 'Vendas Concluídas · Anterior',
-                'data': [_decimal_to_float(previous_vendors.get(label, {}).get('vendas_concluidas', Decimal('0'))) for label in categories] or [0],
-            }
-        )
-        series.append(
-            {
-                'name': 'Vendas Concluídas · Atual',
-                'data': [_decimal_to_float(current_vendors.get(label, {}).get('vendas_concluidas', Decimal('0'))) for label in categories] or [0],
-            }
-        )
-    if 'valor_vendas_vendedor' in selected_chart_keys:
-        series.append(
-            {
-                'name': 'Valor Vendas · Anterior',
-                'data': [_decimal_to_float(previous_vendors.get(label, {}).get('receita', Decimal('0'))) for label in categories] or [0],
-            }
-        )
-        series.append(
-            {
-                'name': 'Valor Vendas · Atual',
-                'data': [_decimal_to_float(current_vendors.get(label, {}).get('receita', Decimal('0'))) for label in categories] or [0],
-            }
-        )
-    if 'atendimentos_vendedor' in selected_chart_keys:
-        series.append(
-            {
-                'name': 'Atendimentos · Anterior',
-                'data': [_decimal_to_float(previous_vendors.get(label, {}).get('atendimentos', Decimal('0'))) for label in categories] or [0],
-            }
-        )
-        series.append(
-            {
-                'name': 'Atendimentos · Atual',
-                'data': [_decimal_to_float(current_vendors.get(label, {}).get('atendimentos', Decimal('0'))) for label in categories] or [0],
-            }
-        )
-    if not series:
-        return None
-    return {
-        'key': 'crm_vendedor',
-        'title': 'Vendedor',
-        'categories': categories,
-        'series': series,
-    }
-
-
 def _format_crm_metric(value, currency=False, suffix=''):
     if currency:
         return _format_currency_br(value)
@@ -924,6 +995,19 @@ def _crm_status_color(label):
     for term, color in CRM_STATUS_COLOR_RULES:
         if term in normalized:
             return color
+    return '#175cd3'
+
+
+def _crm_origin_color(label):
+    normalized = _normalize_status_label(label)
+    if 'marketing pago' in normalized:
+        return '#175cd3'
+    if 'marketing organico' in normalized:
+        return '#2d6a4f'
+    if 'operacional' in normalized:
+        return '#c67a1a'
+    if 'sem categoria' in normalized:
+        return '#94a3b8'
     return '#175cd3'
 
 
@@ -1101,13 +1185,22 @@ def _crm_period_summary(rows, closed_status, config):
     ticket_medio = (receita_total / vendas_concluidas) if vendas_concluidas else Decimal('0')
     taxa_conversao = (vendas_concluidas / conversations * Decimal('100')) if conversations else Decimal('0')
 
-    paid_rows = [row for row in rows if _crm_is_paid_row(row, config)]
-    organic_rows = [row for row in rows if not _crm_is_paid_row(row, config)]
+    marketing_pago_rows = [row for row in rows if _crm_is_paid_row(row, config)]
+    marketing_organico_rows = [row for row in rows if _crm_is_marketing_organico_row(row, config)]
+    operacao_rows = [row for row in rows if _crm_is_operacional_row(row)]
+    sem_categoria_rows = [
+        row for row in rows
+        if not _crm_is_paid_row(row, config)
+        and not _crm_is_marketing_organico_row(row, config)
+        and not _crm_is_operacional_row(row)
+    ]
     origem = {
-        'trafego_pago_conversas': Decimal(len(paid_rows)),
-        'organico_conversas': Decimal(len(organic_rows)),
-        'receita_trafego_pago': sum((_to_decimal(row.get('valor_venda')) for row in paid_rows), Decimal('0')),
-        'receita_organico': sum((_to_decimal(row.get('valor_venda')) for row in organic_rows), Decimal('0')),
+        'trafego_pago_conversas': Decimal(len(marketing_pago_rows)),
+        'organico_conversas': Decimal(len(rows) - len(marketing_pago_rows)),
+        'receita_marketing_pago': sum((_to_decimal(row.get('valor_venda')) for row in marketing_pago_rows), Decimal('0')),
+        'receita_marketing_organico': sum((_to_decimal(row.get('valor_venda')) for row in marketing_organico_rows), Decimal('0')),
+        'receita_operacional': sum((_to_decimal(row.get('valor_venda')) for row in operacao_rows), Decimal('0')),
+        'receita_sem_categoria': sum((_to_decimal(row.get('valor_venda')) for row in sem_categoria_rows), Decimal('0')),
     }
 
     status_counts = {}
@@ -1129,18 +1222,6 @@ def _crm_period_summary(rows, closed_status, config):
     for label, count in temperatura_counts.items():
         temperatura[label] = (Decimal(count) / Decimal(total_temperatura) * Decimal('100')) if total_temperatura else Decimal('0')
 
-    vendedores = {}
-    for row in rows:
-        label = str(row.get('vendedor', '')).strip() or 'Não informado'
-        item = vendedores.setdefault(label, {'atendimentos': Decimal('0'), 'vendas_concluidas': Decimal('0'), 'receita': Decimal('0'), 'performance': Decimal('0'), 'ticket_medio': Decimal('0')})
-        item['atendimentos'] += 1
-        if _crm_is_closed_sale(row, closed_status):
-            item['vendas_concluidas'] += 1
-        item['receita'] += _to_decimal(row.get('valor_venda'))
-    for item in vendedores.values():
-        item['performance'] = (item['vendas_concluidas'] / item['atendimentos'] * Decimal('100')) if item['atendimentos'] else Decimal('0')
-        item['ticket_medio'] = (item['receita'] / item['vendas_concluidas']) if item['vendas_concluidas'] else Decimal('0')
-
     return {
         'geral': {
             'receita_total': receita_total,
@@ -1154,7 +1235,6 @@ def _crm_period_summary(rows, closed_status, config):
         'status_counts': status_counts,
         'temperatura': temperatura,
         'temperatura_counts': temperatura_counts,
-        'vendedores': vendedores,
     }
 
 
@@ -1192,6 +1272,18 @@ def _crm_is_paid_row(row, config):
     url = str(row.get('ads_parametros_url', '')).strip().lower()
     contains_value = str((config.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')).strip().lower()
     return (url.startswith('https://www.') if url else False) or (contains_value and contains_value in url)
+
+
+def _crm_is_marketing_organico_row(row, config):
+    if _crm_is_paid_row(row, config):
+        return False
+    origem = _normalize_status_label(row.get('origem_lead', ''))
+    return any(term in origem for term in ('marketing', 'google'))
+
+
+def _crm_is_operacional_row(row):
+    origem = _normalize_status_label(row.get('origem_lead', ''))
+    return any(term in origem for term in ('cliente base', 'indicacao'))
 
 
 def _normalize_social_content_type(value, upload_type='', file_name=''):
@@ -1286,6 +1378,40 @@ def _is_paid_traffic_sale(row):
         ]
     ).lower()
     return any(term in haystack for term in PAID_TRAFFIC_HINTS)
+
+
+def _is_marketing_sale(row, config):
+    origem = _normalize_status_label(row.get('origem_lead', ''))
+    if any(term in origem for term in ('marketing', 'google')):
+        return True
+    return _crm_is_paid_row(row, config) if config else _is_paid_traffic_sale(row)
+
+
+def _is_cliente_base_sale(row):
+    origem = _normalize_status_label(row.get('origem_lead', ''))
+    return 'cliente base' in origem
+
+
+def _is_operacao_sale(row):
+    origem = _normalize_status_label(row.get('origem_lead', ''))
+    return any(term in origem for term in ('cliente base', 'indicacao', 'indicação'))
+
+
+def _build_competitor_signals(empresa):
+    if not empresa:
+        return []
+    profiles = competitor_profiles(ConcorrenteAd.objects.filter(empresa=empresa))
+    signals = []
+    for item in profiles[:5]:
+        signals.append(
+            {
+                'nome': item['nome'],
+                'atividade': item['activity_label'],
+                'ads_count': item['real_ads_count'],
+                'cadencia': item.get('feed_cadencia') or 'Sem leitura de cadência',
+            }
+        )
+    return signals
 
 
 def _build_metric_cards(kpis, selected_keys, formatters):
@@ -1450,9 +1576,23 @@ def _calculate_relevance_score(ctr, cpc, cpm, frequencia, taxa_conversao):
 
 
 def _format_variation(absolute, percent, key):
-    if key in {'investimento', 'cpm', 'cpc', 'cpl', 'custo_por_resultado'}:
+    if key in {
+        'investimento',
+        'cpm',
+        'cpc',
+        'cpl',
+        'custo_por_resultado',
+        'receita_total',
+        'ticket_medio',
+        'receita_marketing_pago',
+        'receita_marketing_organico',
+        'receita_operacional',
+        'receita_sem_categoria',
+        'resultado_receita_marketing',
+        'resultado_receita_operacao',
+    }:
         absolute_text = _format_currency_br(absolute)
-    elif key in {'ctr', 'taxa_conversao', 'taxa_resposta'}:
+    elif key in {'ctr', 'taxa_conversao', 'taxa_resposta', 'atendimento_taxa_conversao'}:
         absolute_text = f'{_format_number_br(absolute, decimals=2)}pp'
     elif key == 'cpm_relativo':
         absolute_text = f'{_format_number_br(absolute, decimals=2)}x'
@@ -1485,10 +1625,20 @@ def _format_variation(absolute, percent, key):
         'respostas',
         'cliques_link',
         'visitas_perfil',
+        'presenca_digital_visualizacoes_totais',
+        'presenca_digital_alcance_total',
+        'presenca_digital_visualizacoes_redes',
+        'presenca_digital_impressoes_trafego',
+        'presenca_fisica_leads_presenciais',
+        'presenca_fisica_oportunidades_presenciais',
+        'atendimento_conversas_trafego_pago',
+        'atendimento_conversas_organicas',
+        'resultado_vendas_marketing',
+        'resultado_vendas_operacao',
+        'trafego_pago_conversas',
+        'organico_conversas',
     }:
         absolute_text = _format_number_br(absolute, decimals=0)
-    elif key in {'receita_total', 'ticket_medio', 'receita_trafego_pago', 'receita_organico', 'valor_vendas_vendedor'}:
-        absolute_text = _format_currency_br(absolute)
     else:
         absolute_text = _format_number_br(absolute, decimals=2)
     if percent is None:
@@ -1498,6 +1648,14 @@ def _format_variation(absolute, percent, key):
 
 def _format_currency_br(value):
     return f'R$ {_format_number_br(value, decimals=2)}'
+
+
+def _format_summary_metric(value, currency=False, suffix=''):
+    if currency:
+        return _format_currency_br(value)
+    if suffix == '%':
+        return f'{_format_number_br(value, decimals=2)}%'
+    return _format_number_br(value, decimals=0)
 
 
 def _format_number_br(value, decimals=None):

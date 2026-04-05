@@ -6,6 +6,8 @@
     --accent: #cb5f2c;
     --accent-dark: #9e451d;
     --line: #e6dccf;
+    --sidebar-collapsed: 72px;
+    --sidebar-expanded: 280px;
 }
 
 body {
@@ -14,44 +16,126 @@ body {
     font-family: Georgia, "Times New Roman", serif;
 }
 
-.app-shell {
-    display: grid;
-    grid-template-columns: 280px 1fr;
+.app-layout {
     min-height: 100vh;
 }
 
-.sidebar {
+.app-sidebar {
     background: #1f1a17;
     color: #f8efe2;
-    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    inset: 0 auto 0 0;
+    overflow: hidden;
+    padding: 1rem;
+    position: fixed;
+    width: var(--sidebar-collapsed);
+    z-index: 1050;
+    transition: width .2s ease, padding .2s ease, box-shadow .2s ease;
 }
 
-.brand {
+.app-layout.is-sidebar-open .app-sidebar {
+    box-shadow: 16px 0 40px rgba(20, 15, 12, 0.18);
+    padding: 1.25rem 1.25rem 1.5rem;
+    width: var(--sidebar-expanded);
+}
+
+.app-sidebar-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    min-height: 44px;
+}
+
+.app-sidebar-toggle {
+    align-items: center;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    display: inline-flex;
+    flex: 0 0 40px;
+    flex-direction: column;
+    gap: 5px;
+    height: 40px;
+    justify-content: center;
+    width: 40px;
+}
+
+.app-sidebar-toggle span {
+    background: #f8efe2;
+    border-radius: 999px;
+    display: block;
+    height: 2px;
+    width: 16px;
+}
+
+.app-sidebar-body,
+.app-sidebar-nav {
+    height: 0;
+    margin: 0;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translateX(-8px);
+    transition: max-width .18s ease, opacity .18s ease, transform .18s ease;
+    visibility: hidden;
+    white-space: nowrap;
+    width: 0;
+}
+
+.app-layout.is-sidebar-open .app-sidebar-body,
+.app-layout.is-sidebar-open .app-sidebar-nav {
+    height: auto;
+    max-width: 220px;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+    visibility: visible;
+    width: auto;
+}
+
+.app-sidebar-brand {
     color: #fff;
-    text-decoration: none;
+    display: block;
     font-size: 1.4rem;
     font-weight: 700;
+    text-decoration: none;
 }
 
-.brand-subtitle {
+.app-sidebar-subtitle {
     color: #d3c4b5;
-    margin-top: .4rem;
-    margin-bottom: 2rem;
+    margin: .4rem 0 0;
 }
 
-.sidebar .nav-link {
-    color: #efe4d7;
+.app-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.app-sidebar-link {
     border: 1px solid rgba(255,255,255,.08);
     border-radius: 12px;
+    color: #efe4d7;
     padding: .8rem 1rem;
+    text-decoration: none;
 }
 
-.sidebar .nav-link:hover {
+.app-sidebar-link:hover {
     background: rgba(255,255,255,.06);
+    color: #fff;
 }
 
-.content {
+.app-main {
+    margin-left: var(--sidebar-collapsed);
     padding: 2rem;
+    transition: margin-left .2s ease;
+}
+
+.app-layout.is-sidebar-open .app-main {
+    margin-left: var(--sidebar-expanded);
 }
 
 .topbar {
@@ -749,16 +833,40 @@ body {
 
 
 @media (max-width: 991px) {
-    .app-shell {
-        grid-template-columns: 1fr;
+    .app-layout {
+        min-height: auto;
     }
 
-    .sidebar {
-        padding-bottom: 1rem;
+    .app-sidebar {
+        gap: 1rem;
+        inset: auto;
+        overflow: visible;
+        padding: 1.25rem 1rem;
+        position: static;
+        width: 100%;
+    }
+
+    .app-layout.is-sidebar-open .app-sidebar {
+        box-shadow: none;
+        padding-inline: 1rem;
+        width: 100%;
+    }
+
+    .app-sidebar-body,
+    .app-sidebar-nav {
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
+        max-width: none;
     }
 
     .company-card-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .app-main,
+    .app-layout.is-sidebar-open .app-main {
+        margin-left: 0;
     }
 }
 
@@ -820,11 +928,11 @@ body {
 }
 
 @media (max-width: 992px) {
-    .app-shell {
-        grid-template-columns: 1fr;
+    .app-layout {
+        min-height: auto;
     }
 
-    .sidebar {
+    .app-sidebar {
         padding-bottom: 1rem;
     }
 
