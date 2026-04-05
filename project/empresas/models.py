@@ -37,10 +37,10 @@ class Empresa(models.Model):
 
 class ConfiguracaoUploadEmpresa(models.Model):
     class TipoDocumento(models.TextChoices):
-        TRAFEGO_PAGO = 'trafego_pago', 'Tráfego Pago'
+        TRAFEGO_PAGO = 'trafego_pago', 'Ads Digital'
         CRM_VENDAS = 'crm_vendas', 'Vendas'
-        LEADS_EVENTOS = 'leads_eventos', 'Leads Eventos'
-        REDES_SOCIAIS = 'redes_sociais', 'Redes Sociais'
+        LEADS_EVENTOS = 'leads_eventos', 'Presença Física'
+        REDES_SOCIAIS = 'redes_sociais', 'Presença Digital'
 
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='configuracoes_upload')
     nome = models.CharField(max_length=255)

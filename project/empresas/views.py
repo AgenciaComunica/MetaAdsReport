@@ -71,6 +71,11 @@ def upload_config_update(request, empresa_pk, config_pk):
     preview = None
     preview_error = None
     social_previews = (configuracao.configuracao_analise_json or {}).get('social_previews', {}) if configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS else {}
+    social_example_kind = (
+        request.POST.get('social_example_kind')
+        or (configuracao.configuracao_analise_json or {}).get('social_example_kind')
+        or 'posts'
+    )
     if uploaded_file:
         try:
             preview = inspect_uploaded_file(uploaded_file, uploaded_file.name)
@@ -91,7 +96,7 @@ def upload_config_update(request, empresa_pk, config_pk):
         columns=(
             {
                 **{kind: data.get('columns', []) for kind, data in social_previews.items()},
-                **({request.POST.get('social_example_kind', 'posts'): preview.columns} if preview and (request.POST.get('tipo_documento') == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS or configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS) else {}),
+                **({social_example_kind: preview.columns} if preview and (request.POST.get('tipo_documento') == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS or configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS) else {}),
             }
             if (request.POST.get('tipo_documento') == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS or configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS)
             else (preview.columns if preview else configuracao.colunas_detectadas_json)
@@ -138,7 +143,7 @@ def upload_config_update(request, empresa_pk, config_pk):
     mapping_sections = []
     if form.mapping_enabled:
         if form.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
-            for social_type, social_label in form.SOCIAL_MAPPING_TYPES:
+            for social_type, social_label in form.social_mapping_types:
                 section_rows = []
                 for item in get_field_schema(form.document_type):
                     key = item['key']

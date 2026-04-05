@@ -247,19 +247,13 @@ def build_dashboard_upload_tabs(
                 (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.CRM_VENDAS),
                 None,
             )
-            leads_config = next(
-                (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS),
-                None,
-            )
-            social_config = next(
-                (config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS),
-                None,
-            )
+            leads_configs = [config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS]
+            social_configs = [config for config in configs if config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS]
             complete_tab = build_complete_analysis_tab_from_configs(
                 traffic_config,
                 crm_config,
-                leads_config,
-                social_config,
+                leads_configs,
+                social_configs,
                 traffic_queryset,
                 previous_queryset=previous_queryset,
                 period_start=period_start,
@@ -386,7 +380,7 @@ def build_crm_tab(config, period_start=None, period_end=None, previous_start=Non
 
 def build_leads_tab(config, period_start=None, period_end=None, key='leads_eventos'):
     if not config:
-        return _empty_tab('leads_eventos', 'Leads Eventos')
+        return _empty_tab('leads_eventos', 'Presença Física')
     rows = []
     chart_categories = []
     chart_series = []
@@ -438,7 +432,7 @@ def build_leads_tab(config, period_start=None, period_end=None, key='leads_event
 
 def build_social_tab(config, period_start=None, period_end=None, previous_start=None, previous_end=None, key='redes_sociais'):
     if not config:
-        return _empty_tab('redes_sociais', 'Redes Sociais')
+        return _empty_tab('redes_sociais', 'Presença Digital')
     all_rows = _read_social_rows(config)
     rows = _filter_rows_by_period(all_rows, period_start, period_end, 'data_publicacao')
     selected_table_keys = set(get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json))
@@ -496,8 +490,8 @@ def build_complete_analysis_tab(traffic_tab, crm_tab, leads_tab):
 def build_complete_analysis_tab_from_configs(
     traffic_config,
     crm_config,
-    leads_config,
-    social_config,
+    leads_configs,
+    social_configs,
     traffic_queryset,
     previous_queryset=None,
     period_start=None,
@@ -505,38 +499,44 @@ def build_complete_analysis_tab_from_configs(
     previous_start=None,
     previous_end=None,
 ):
+    leads_configs = leads_configs or []
+    social_configs = social_configs or []
     traffic_summary = summarize_metrics(traffic_queryset)
     previous_traffic_summary = summarize_metrics(previous_queryset) if previous_queryset is not None else {}
     crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), period_start, period_end, 'data_contato') if crm_config else []
     previous_crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), previous_start, previous_end, 'data_contato') if crm_config else []
     crm_summary = _crm_period_summary(crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
     previous_crm_summary = _crm_period_summary(previous_crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
-    leads_rows = _filter_leads_event_entries(leads_config, period_start, period_end) if leads_config else []
-    social_rows = _filter_rows_by_period(_read_social_rows(social_config), period_start, period_end, 'data_publicacao') if social_config else []
-    previous_social_rows = _filter_rows_by_period(_read_social_rows(social_config), previous_start, previous_end, 'data_publicacao') if social_config else []
-    social_summary = _social_period_summary(social_rows) if social_config else {}
-    previous_social_summary = _social_period_summary(previous_social_rows) if social_config else {}
-    leads_summary = _leads_event_period_summary(leads_rows) if leads_config else {}
-    previous_leads_rows = _filter_leads_event_entries(leads_config, previous_start, previous_end) if leads_config else []
-    previous_leads_summary = _leads_event_period_summary(previous_leads_rows) if leads_config else {}
-    competitor_signals = _build_competitor_signals(traffic_config.empresa if traffic_config else (crm_config.empresa if crm_config else None))
+    leads_rows = []
+    previous_leads_rows = []
+    for config in leads_configs:
+        leads_rows.extend(_filter_leads_event_entries(config, period_start, period_end))
+        previous_leads_rows.extend(_filter_leads_event_entries(config, previous_start, previous_end))
+    social_rows = []
+    previous_social_rows = []
+    social_summaries = []
+    previous_social_summaries = []
+    for config in social_configs:
+        current_rows = _filter_rows_by_period(_read_social_rows(config), period_start, period_end, 'data_publicacao')
+        previous_rows = _filter_rows_by_period(_read_social_rows(config), previous_start, previous_end, 'data_publicacao')
+        social_rows.extend(current_rows)
+        previous_social_rows.extend(previous_rows)
+        social_summaries.append((config, _social_period_summary(current_rows)))
+        previous_social_summaries.append((config, _social_period_summary(previous_rows)))
+    social_summary = _social_period_summary(social_rows) if social_configs else {}
+    previous_social_summary = _social_period_summary(previous_social_rows) if social_configs else {}
+    leads_summaries = [(config, _leads_event_period_summary(_filter_leads_event_entries(config, period_start, period_end))) for config in leads_configs]
+    previous_leads_summaries = [(config, _leads_event_period_summary(_filter_leads_event_entries(config, previous_start, previous_end))) for config in leads_configs]
+    leads_summary = _leads_event_period_summary(leads_rows) if leads_configs else {}
+    previous_leads_summary = _leads_event_period_summary(previous_leads_rows) if leads_configs else {}
+    competitor_signals = _build_competitor_signals(traffic_config.empresa if traffic_config else (crm_config.empresa if crm_config else (social_configs[0].empresa if social_configs else None)))
 
     marketing_rows = [row for row in crm_rows if _is_marketing_sale(row, crm_config)]
     previous_marketing_rows = [row for row in previous_crm_rows if _is_marketing_sale(row, crm_config)]
     operacao_rows = [row for row in crm_rows if _is_operacao_or_sem_categoria_sale(row, crm_config)]
     previous_operacao_rows = [row for row in previous_crm_rows if _is_operacao_or_sem_categoria_sale(row, crm_config)]
-    current_operacao_marketing_share = _calculate_combined_marketing_share(
-        social_config,
-        social_summary,
-        leads_config,
-        leads_summary,
-    )
-    previous_operacao_marketing_share = _calculate_combined_marketing_share(
-        social_config,
-        previous_social_summary,
-        leads_config,
-        previous_leads_summary,
-    )
+    current_operacao_marketing_share = _calculate_combined_marketing_share(social_summaries, leads_summaries)
+    previous_operacao_marketing_share = _calculate_combined_marketing_share(previous_social_summaries, previous_leads_summaries)
     marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in marketing_rows), Decimal('0'))
     previous_marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_marketing_rows), Decimal('0'))
     operacao_revenue = sum((_to_decimal(row.get('valor_venda')) for row in operacao_rows), Decimal('0'))
@@ -598,7 +598,7 @@ def build_complete_analysis_tab_from_configs(
         'panel_type': 'analise_completa',
         'title': 'Resumo Executivo',
         'configured': True,
-        'ready': bool(traffic_queryset.exists() or crm_rows or leads_rows or social_rows or crm_config or social_config),
+        'ready': bool(traffic_queryset.exists() or crm_rows or leads_rows or social_rows or crm_config or social_configs or leads_configs),
         'description': 'Painel cruzado geral entre presença digital, atendimento e resultado.',
         'top_cards': [
             {
@@ -709,9 +709,12 @@ def _calculate_leads_marketing_share(leads_config, leads_summary):
     return share_percent / Decimal('100')
 
 
-def _calculate_combined_marketing_share(social_config, social_summary, leads_config, leads_summary):
-    combined_share = _calculate_social_marketing_share(social_config, social_summary)
-    combined_share += _calculate_leads_marketing_share(leads_config, leads_summary)
+def _calculate_combined_marketing_share(social_items, leads_items):
+    combined_share = Decimal('0')
+    for social_config, social_summary in social_items or []:
+        combined_share += _calculate_social_marketing_share(social_config, social_summary)
+    for leads_config, leads_summary in leads_items or []:
+        combined_share += _calculate_leads_marketing_share(leads_config, leads_summary)
     return max(Decimal('0'), min(Decimal('0.4'), combined_share))
 
 
@@ -1167,10 +1170,11 @@ def _read_social_rows(config, period_start=None, period_end=None):
     if not config or not config.mapeamento_json:
         return []
     deduped_rows = {}
+    digital_type = str((config.configuracao_analise_json or {}).get('digital_type', 'instagram')).strip()
     uploads = _get_panel_uploads(config)
     for upload in uploads:
-        upload_type = getattr(upload, 'tipo_upload', '') or _normalize_social_content_type('', '', upload.nome_arquivo)
-        social_mapping = (config.mapeamento_json or {}).get(upload_type, {})
+        upload_type = getattr(upload, 'tipo_upload', '') or ('principal' if digital_type != 'instagram' else _normalize_social_content_type('', '', upload.nome_arquivo))
+        social_mapping = (config.mapeamento_json or {}).get(upload_type, {}) or (config.mapeamento_json or {}).get('principal', {})
         if not social_mapping:
             continue
         dataframe = read_uploaded_dataframe(upload.arquivo.path, upload.nome_arquivo or upload.arquivo.name)

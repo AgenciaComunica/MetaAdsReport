@@ -50,12 +50,18 @@ class UploadPainelArquivoForm(forms.Form):
         self.fields['tipo_upload'].choices = [('', 'Selecione o tipo do upload')]
         self.fields['tipo_upload'].widget = forms.Select(attrs={'class': 'form-select'})
         if self.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
-            self.fields['tipo_upload'].choices += [
-                ('posts', 'Posts'),
-                ('stories', 'Stories'),
-            ]
-            self.fields['tipo_upload'].required = True
-            self.fields['tipo_upload'].label = 'Tipo do upload'
+            digital_type = str((self.configuracao.configuracao_analise_json or {}).get('digital_type', 'instagram')).strip() if self.configuracao else 'instagram'
+            if digital_type == 'instagram':
+                self.fields['tipo_upload'].choices += [
+                    ('posts', 'Posts'),
+                    ('stories', 'Stories'),
+                ]
+                self.fields['tipo_upload'].required = True
+                self.fields['tipo_upload'].label = 'Tipo do upload'
+            else:
+                self.fields['tipo_upload'].choices += [('principal', 'Arquivo principal')]
+                self.fields['tipo_upload'].initial = 'principal'
+                self.fields['tipo_upload'].widget = forms.HiddenInput()
         else:
             self.fields['tipo_upload'].widget = forms.HiddenInput()
 
@@ -165,3 +171,15 @@ class EventoPainelForm(forms.ModelForm):
             'impacto': forms.Select(attrs={'class': 'form-select'}),
             'leads_media': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': 1}),
         }
+
+
+class EventoPainelImportForm(forms.Form):
+    arquivo = forms.FileField(
+        label='Arquivo',
+        widget=forms.FileInput(
+            attrs={
+                'class': 'form-control',
+                'accept': '.xlsx,.xls,.csv',
+            }
+        ),
+    )

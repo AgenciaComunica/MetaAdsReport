@@ -136,6 +136,23 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         ('posts', 'Posts'),
         ('stories', 'Stories'),
     )
+    GENERIC_SOCIAL_MAPPING_TYPES = (
+        ('principal', 'Arquivo principal'),
+    )
+    DIGITAL_TYPE_CHOICES = (
+        ('instagram', 'Instagram'),
+        ('facebook', 'Facebook'),
+        ('tiktok', 'Tiktok'),
+        ('website', 'Website'),
+        ('x', 'X (Twitter)'),
+        ('outro', 'Outro'),
+    )
+    ADS_TYPE_CHOICES = (
+        ('meta_ads', 'Meta Ads'),
+        ('google_ads', 'Google Ads'),
+        ('tiktok_ads', 'Tiktok Ads'),
+        ('outro', 'Outro'),
+    )
 
     crm_origem_paga_contem = forms.CharField(
         required=False,
@@ -150,6 +167,18 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         required=False,
         choices=SOCIAL_MAPPING_TYPES,
         widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    digital_type = forms.ChoiceField(
+        required=False,
+        choices=[('', 'Selecione o tipo digital')] + list(DIGITAL_TYPE_CHOICES),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Tipo Digital',
+    )
+    ads_type = forms.ChoiceField(
+        required=False,
+        choices=[('', 'Selecione o tipo de Ads')] + list(ADS_TYPE_CHOICES),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Tipo de Ads',
     )
     social_receita_percentual_por_1k_alcance = forms.CharField(
         required=False,
@@ -199,15 +228,32 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         self.is_social_panel = self.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS
         self.is_manual_leads_panel = self.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS
         stored_analysis = self.instance.configuracao_analise_json or {}
+        self.digital_type_value = (
+            self.data.get(self.add_prefix('digital_type'))
+            if self.is_bound and self.data.get(self.add_prefix('digital_type'))
+            else stored_analysis.get('digital_type', 'instagram')
+        )
+        self.ads_type_value = (
+            self.data.get(self.add_prefix('ads_type'))
+            if self.is_bound and self.data.get(self.add_prefix('ads_type'))
+            else stored_analysis.get('ads_type', 'meta_ads')
+        )
         self.social_columns = columns if isinstance(columns, dict) else {}
         self.social_example_kind_value = (
             self.data.get(self.add_prefix('social_example_kind'))
             if self.is_bound and self.data.get(self.add_prefix('social_example_kind'))
             else stored_analysis.get('social_example_kind', 'posts')
         )
+        self.social_mapping_types = self.SOCIAL_MAPPING_TYPES if self.digital_type_value == 'instagram' else self.GENERIC_SOCIAL_MAPPING_TYPES
+        valid_social_kinds = {key for key, _ in self.social_mapping_types}
+        if self.social_example_kind_value not in valid_social_kinds:
+            self.social_example_kind_value = next(iter(valid_social_kinds))
         choices = [('', 'Selecione uma coluna')] + [(column, column) for column in (columns if isinstance(columns, list) else [])]
         principais = set(self.instance.campos_principais_json or [])
         self.fields['crm_origem_paga_contem'].initial = (self.instance.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')
+        self.fields['digital_type'].initial = self.digital_type_value
+        self.fields['ads_type'].initial = self.ads_type_value
+        self.fields['social_example_kind'].choices = self.social_mapping_types
         self.fields['social_example_kind'].initial = self.social_example_kind_value
         self.fields['social_receita_percentual_por_1k_alcance'].initial = (self.instance.configuracao_analise_json or {}).get('social_receita_percentual_por_1k_alcance', '')
         self.fields['eventos_receita_percentual_por_1k_alcance'].initial = (self.instance.configuracao_analise_json or {}).get('eventos_receita_percentual_por_1k_alcance', '')
@@ -250,7 +296,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         if self.is_social_panel:
             social_mappings = self.instance.mapeamento_json if isinstance(self.instance.mapeamento_json, dict) else {}
             social_primaries = self.instance.campos_principais_json if isinstance(self.instance.campos_principais_json, dict) else {}
-            for social_type, _ in self.SOCIAL_MAPPING_TYPES:
+            for social_type, _ in self.social_mapping_types:
                 social_choices = [('', 'Selecione uma coluna')] + [(column, column) for column in self.social_columns.get(social_type, [])]
                 social_mapping = social_mappings.get(social_type, {}) if isinstance(social_mappings.get(social_type, {}), dict) else {}
                 if not social_mapping:
@@ -291,6 +337,10 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        if cleaned_data.get('tipo_documento') == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS and not cleaned_data.get('digital_type'):
+            self.add_error('digital_type', 'Selecione o tipo digital.')
+        if cleaned_data.get('tipo_documento') == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO and not cleaned_data.get('ads_type'):
+            self.add_error('ads_type', 'Selecione o tipo de Ads.')
         selected_columns = {}
         if not self.mapping_enabled:
             if self.document_type:
@@ -298,7 +348,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             return cleaned_data
 
         if self.is_social_panel:
-            for social_type, social_label in self.SOCIAL_MAPPING_TYPES:
+            for social_type, social_label in self.social_mapping_types:
                 selected_columns = {}
                 has_any_mapping = False
                 for field_def in get_field_schema(self.document_type):
@@ -417,7 +467,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         if self.is_social_panel:
             mapping = {}
             principais = {}
-            for social_type, _ in self.SOCIAL_MAPPING_TYPES:
+            for social_type, _ in self.social_mapping_types:
                 social_mapping = {}
                 social_primary = []
                 for field_def in get_field_schema(instance.tipo_documento):
@@ -449,13 +499,15 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         instance.configuracao_analise_json = {
             **(instance.configuracao_analise_json or {}),
             'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
-            'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
+            'social_example_kind': self.cleaned_data.get('social_example_kind', self.social_example_kind_value),
+            'digital_type': self.cleaned_data.get('digital_type', ''),
+            'ads_type': self.cleaned_data.get('ads_type', ''),
             'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
             'eventos_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('eventos_receita_percentual_por_1k_alcance', Decimal('0'))),
         }
         if preview:
             if self.is_social_panel:
-                target_kind = self.cleaned_data.get('social_example_kind', 'posts')
+                target_kind = self.cleaned_data.get('social_example_kind', self.social_example_kind_value)
                 analysis_config = instance.configuracao_analise_json or {}
                 social_previews = analysis_config.get('social_previews', {})
                 social_previews[target_kind] = {
@@ -483,19 +535,21 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             analysis_config = {
                 **(instance.configuracao_analise_json or {}),
                 'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
-                'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
+                'social_example_kind': self.cleaned_data.get('social_example_kind', self.social_example_kind_value),
+                'digital_type': self.cleaned_data.get('digital_type', ''),
+                'ads_type': self.cleaned_data.get('ads_type', ''),
                 'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
                 'eventos_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('eventos_receita_percentual_por_1k_alcance', Decimal('0'))),
             }
             social_previews = analysis_config.get('social_previews', {})
-            social_previews[self.cleaned_data.get('social_example_kind', 'posts')] = {
+            social_previews[self.cleaned_data.get('social_example_kind', self.social_example_kind_value)] = {
                 'columns': preview.columns,
                 'rows': preview.rows,
                 'file_name': preview.file_name,
             }
             analysis_config['social_previews'] = social_previews
             instance.configuracao_analise_json = analysis_config
-            target_kind = self.cleaned_data.get('social_example_kind', 'posts')
+            target_kind = self.cleaned_data.get('social_example_kind', self.social_example_kind_value)
             social_mapping = instance.mapeamento_json if isinstance(instance.mapeamento_json, dict) else {}
             social_primary = instance.campos_principais_json if isinstance(instance.campos_principais_json, dict) else {}
             if not social_mapping.get(target_kind):
@@ -516,6 +570,8 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             instance.configuracao_analise_json = {
                 **(instance.configuracao_analise_json or {}),
                 'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
+                'digital_type': self.cleaned_data.get('digital_type', ''),
+                'ads_type': self.cleaned_data.get('ads_type', ''),
                 'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
                 'eventos_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('eventos_receita_percentual_por_1k_alcance', Decimal('0'))),
             }

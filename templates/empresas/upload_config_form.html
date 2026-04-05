@@ -41,6 +41,17 @@
                 {{ form.tipo_documento.label_tag }}{{ form.tipo_documento }}
                 {% if form.tipo_documento.errors %}<div class="text-danger small mt-1">{{ form.tipo_documento.errors|join:', ' }}</div>{% endif %}
             </div>
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="mb-3">
+                    {{ form.digital_type.label_tag }}{{ form.digital_type }}
+                    {% if form.digital_type.errors %}<div class="text-danger small mt-1">{{ form.digital_type.errors|join:', ' }}</div>{% endif %}
+                </div>
+            {% elif form.document_type == 'trafego_pago' %}
+                <div class="mb-3">
+                    {{ form.ads_type.label_tag }}{{ form.ads_type }}
+                    {% if form.ads_type.errors %}<div class="text-danger small mt-1">{{ form.ads_type.errors|join:', ' }}</div>{% endif %}
+                </div>
+            {% endif %}
             <div class="mb-3">
                 {% if form.document_type != 'leads_eventos' %}
                     {{ form.arquivo_exemplo.label_tag }}{{ form.arquivo_exemplo }}

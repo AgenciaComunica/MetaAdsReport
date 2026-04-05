@@ -13,5 +13,6 @@ urlpatterns = [
     path('uploads/<int:pk>/excluir/', views.upload_delete, name='upload_delete'),
     path('painel-uploads/<int:pk>/excluir/', views.panel_upload_delete, name='panel_upload_delete'),
     path('eventos-painel/<int:pk>/excluir/', views.evento_painel_delete, name='evento_painel_delete'),
+    path('eventos-painel/template/', views.evento_painel_template_download, name='evento_painel_template_download'),
     path('uploads/<int:pk>/mapeamento/', views.manual_mapping, name='manual_mapping'),
 ]

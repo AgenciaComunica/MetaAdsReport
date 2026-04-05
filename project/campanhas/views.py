@@ -3,6 +3,7 @@ from urllib.parse import urlencode
 from django import forms
 from django.contrib import messages
 from django.db.models import Prefetch
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -15,7 +16,7 @@ from concorrentes.services import competitor_profiles, competitor_summary, compe
 from ia.models import AnaliseConcorrencial
 from relatorios.models import Relatorio
 
-from .forms import ComparePeriodForm, EventoPainelForm, UploadCampanhaForm, UploadPainelArquivoForm
+from .forms import ComparePeriodForm, EventoPainelForm, EventoPainelImportForm, UploadCampanhaForm, UploadPainelArquivoForm
 from .models import EventoPainel, UploadCampanha, UploadPainel
 from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
@@ -268,6 +269,7 @@ def dashboard(request):
     traffic_upload_form = UploadCampanhaForm(prefix='upload-trafego', empresa_inicial=empresa)
     painel_upload_forms = {}
     evento_painel_forms = {}
+    evento_import_forms = {}
 
     dashboard_upload_tabs = (
         build_dashboard_upload_tabs(
@@ -321,6 +323,7 @@ def dashboard(request):
         if configuracao:
             if active_upload_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
                 evento_painel_forms[active_upload_tab['key']] = EventoPainelForm(prefix=f'evento-{active_upload_tab["key"]}')
+                evento_import_forms[active_upload_tab['key']] = EventoPainelImportForm(prefix=f'evento-import-{active_upload_tab["key"]}')
             else:
                 painel_upload_forms[active_upload_tab['key']] = UploadPainelArquivoForm(
                     prefix=f'upload-{active_upload_tab["key"]}',
@@ -421,6 +424,10 @@ def dashboard(request):
                 if painel_form.is_valid():
                     uploaded_file = painel_form.cleaned_data['arquivo']
                     tipo_upload = painel_form.cleaned_data.get('tipo_upload', '')
+                    if not tipo_upload and configuracao.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+                        digital_type = str((configuracao.configuracao_analise_json or {}).get('digital_type', 'instagram')).strip()
+                        if digital_type != 'instagram':
+                            tipo_upload = 'principal'
                     preview = inspect_uploaded_file(uploaded_file, uploaded_file.name)
                     panel_upload = UploadPainel.objects.create(
                         configuracao=configuracao,
@@ -454,6 +461,22 @@ def dashboard(request):
                     evento.configuracao = configuracao
                     evento.save()
                     messages.success(request, f'Dado adicionado ao painel "{configuracao.nome}".')
+                    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+                show_upload_modal_key = panel_key
+        elif action == 'importar_dados_evento':
+            panel_key = request.POST.get('panel_key', '')
+            panel_tab = dashboard_upload_tab_map.get(panel_key)
+            if panel_tab and panel_tab.get('config_id') and panel_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+                configuracao = get_object_or_404(
+                    ConfiguracaoUploadEmpresa.objects.select_related('empresa'),
+                    pk=panel_tab['config_id'],
+                    empresa=empresa,
+                )
+                import_form = EventoPainelImportForm(request.POST, request.FILES, prefix=f'evento-import-{panel_key}')
+                evento_import_forms[panel_key] = import_form
+                if import_form.is_valid():
+                    imported_count = _import_eventos_painel_file(configuracao, import_form.cleaned_data['arquivo'])
+                    messages.success(request, f'{imported_count} evento(s) importado(s) para o painel "{configuracao.nome}".')
                     return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
                 show_upload_modal_key = panel_key
 
@@ -532,6 +555,7 @@ def dashboard(request):
         'traffic_upload_form': traffic_upload_form,
         'painel_upload_forms': painel_upload_forms,
         'evento_painel_forms': evento_painel_forms,
+        'evento_import_forms': evento_import_forms,
         'active_upload_tab': active_upload_tab,
         'analise_completa_tab': dashboard_upload_tab_map.get('analise_completa'),
         'uploads_list': uploads_list,
@@ -551,3 +575,73 @@ def evento_painel_delete(request, pk):
         evento.delete()
         messages.success(request, 'Dado do painel removido com sucesso.')
     return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+
+
+def evento_painel_template_download(request):
+    try:
+        from openpyxl import Workbook
+    except Exception:
+        messages.error(request, 'Não foi possível gerar o template Excel neste ambiente.')
+        return redirect('campanhas:dashboard')
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Eventos'
+    headers = ['Nome do Evento', 'Data do Evento', 'Impacto', 'Pessoas Alcançadas']
+    examples = [
+        ['Feira Futsal', '2026-03-15', 'alto', 120],
+        ['Ação no Clube', '2026-03-22', 'medio', 80],
+    ]
+    sheet.append(headers)
+    for row in examples:
+        sheet.append(row)
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="template_presenca_fisica.xlsx"'
+    workbook.save(response)
+    return response
+
+
+def _import_eventos_painel_file(configuracao, uploaded_file):
+    dataframe = read_uploaded_dataframe(uploaded_file, uploaded_file.name)
+    header_aliases = {
+        'nome do evento': 'nome_evento',
+        'evento': 'nome_evento',
+        'data do evento': 'data_evento',
+        'data': 'data_evento',
+        'impacto': 'impacto',
+        'acao': 'impacto',
+        'ação': 'impacto',
+        'pessoas alcançadas': 'leads_media',
+        'pessoas alcancadas': 'leads_media',
+        'leads alcançados em media': 'leads_media',
+        'leads alcancados em media': 'leads_media',
+        'leads_media': 'leads_media',
+    }
+    normalized_columns = {}
+    for column in dataframe.columns:
+        normalized = str(column).strip().lower()
+        normalized_columns[column] = header_aliases.get(normalized, normalized)
+
+    imported_count = 0
+    for _, source_row in dataframe.iterrows():
+        mapped = {}
+        for original_column, target_field in normalized_columns.items():
+            mapped[target_field] = source_row.get(original_column, '')
+        nome_evento = str(mapped.get('nome_evento', '')).strip()
+        if not nome_evento:
+            continue
+        impacto = str(mapped.get('impacto', '')).strip().lower() or EventoPainel.ImpactoChoices.MEDIO
+        if impacto not in {choice for choice, _ in EventoPainel.ImpactoChoices.choices}:
+            impacto = EventoPainel.ImpactoChoices.MEDIO
+        EventoPainel.objects.create(
+            configuracao=configuracao,
+            nome_evento=nome_evento,
+            data_evento=mapped.get('data_evento'),
+            impacto=impacto,
+            leads_media=int(mapped.get('leads_media') or 0),
+        )
+        imported_count += 1
+    return imported_count

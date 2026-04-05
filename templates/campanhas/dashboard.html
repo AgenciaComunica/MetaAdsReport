@@ -28,7 +28,7 @@
 {% if active_upload_tab and active_upload_tab.panel_type == 'trafego_pago' %}
 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
     <div>
-        <h3 class="mb-1">{{ active_upload_tab.title|default:'Tráfego Pago' }}</h3>
+        <h3 class="mb-1">{{ active_upload_tab.title|default:'Ads Digital' }}</h3>
         <p class="text-muted mb-0">Painel escalável para mídia paga, com foco em eficiência, qualidade e conversão.</p>
     </div>
     {% if active_upload_tab and active_upload_tab.config_id %}
@@ -318,6 +318,7 @@
             <div class="d-flex gap-2 align-items-center">
                 <span class="text-muted small">{{ active_upload_tab.config_name }}</span>
                 <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Adicionar dados</button>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#importarEventos{{ active_upload_tab.key }}Modal">Importar arquivo</button>
             </div>
         </div>
         <div class="row g-4 mt-1">
@@ -378,7 +379,7 @@
             </div>
         </div>
     {% else %}
-        <p class="text-muted mb-0">Configure um painel de Leads Eventos para exibir esta aba.</p>
+        <p class="text-muted mb-0">Configure um painel de Presença Física para exibir esta aba.</p>
     {% endif %}
 </div>
 {% elif active_upload_tab and active_upload_tab.panel_type == 'redes_sociais' %}
@@ -488,7 +489,7 @@
             </div>
         </div>
     {% else %}
-        <p class="text-muted mb-0">Configure um painel mapeado de Redes Sociais para exibir esta aba.</p>
+        <p class="text-muted mb-0">Configure um painel mapeado de Presença Digital para exibir esta aba.</p>
     {% endif %}
 </div>
 {% elif dashboard_tab == 'analise_completa' %}
@@ -624,7 +625,7 @@
             </div>
         </div>
     {% else %}
-        <p class="text-muted mb-0">Configure ao menos Tráfego Pago e Vendas para ter uma análise completa consistente.</p>
+        <p class="text-muted mb-0">Configure ao menos Ads Digital e Vendas para ter um resumo executivo consistente.</p>
     {% endif %}
 </div>
 {% elif dashboard_tab == 'concorrentes' %}
@@ -857,6 +858,38 @@
             </div>
         </div>
         {% if show_upload_modal_key == tab.key %}<div class="modal-backdrop fade show"></div>{% endif %}
+        {% if tab.panel_type == 'leads_eventos' %}
+            <div class="modal fade" id="importarEventos{{ tab.key }}Modal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <form method="post" enctype="multipart/form-data">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Importar arquivo - {{ tab.title }}</h5>
+                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
+                            </div>
+                            <div class="modal-body">
+                                {% csrf_token %}
+                                {% with import_form=evento_import_forms|get_item:tab.key %}
+                                    <input type="hidden" name="action" value="importar_dados_evento">
+                                    <input type="hidden" name="panel_key" value="{{ tab.key }}">
+                                    <div class="mb-3">
+                                        <a href="{% url 'campanhas:evento_painel_template_download' %}" class="btn btn-outline-dark btn-sm">Baixar template Excel</a>
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ import_form.arquivo.label_tag }}{{ import_form.arquivo }}
+                                        {% if import_form.arquivo.errors %}<div class="text-danger small mt-1">{{ import_form.arquivo.errors|join:', ' }}</div>{% endif %}
+                                    </div>
+                                {% endwith %}
+                            </div>
+                            <div class="modal-footer">
+                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
+                                <button class="btn btn-dark" type="submit">Importar arquivo</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
     {% endif %}
 {% endfor %}
 {% endblock %}

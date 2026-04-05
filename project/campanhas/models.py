@@ -30,6 +30,7 @@ class UploadCampanha(models.Model):
 class UploadPainel(models.Model):
     class TipoUpload(models.TextChoices):
         GENERICO = '', 'Não definido'
+        PRINCIPAL = 'principal', 'Arquivo principal'
         POSTS = 'posts', 'Posts'
         STORIES = 'stories', 'Stories'
 
