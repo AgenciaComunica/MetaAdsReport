@@ -303,6 +303,8 @@ def _build_tab_stub(config, traffic_has_data, key):
         ready = bool(config) and traffic_has_data
     elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
         ready = True
+    elif config.tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+        ready = True
     else:
         ready = bool(config.mapeamento_json)
     return {
@@ -385,14 +387,29 @@ def build_crm_tab(config, period_start=None, period_end=None, previous_start=Non
 def build_leads_tab(config, period_start=None, period_end=None, key='leads_eventos'):
     if not config:
         return _empty_tab('leads_eventos', 'Leads Eventos')
-    all_rows = _read_mapped_rows(config, date_key='data_evento')
-    rows = _filter_rows_by_period(all_rows, period_start, period_end, 'data_evento')
-    ages = [_to_decimal(row.get('idade')) for row in rows if row.get('idade') not in ('', None)]
-    avg_age = (sum(ages, Decimal('0')) / Decimal(len(ages))) if ages else Decimal('0')
+    rows = []
+    chart_categories = []
+    chart_series = []
+    current_entries = []
+    for entry in config.eventos_painel.all():
+        if period_start and entry.data_evento < period_start:
+            continue
+        if period_end and entry.data_evento > period_end:
+            continue
+        current_entries.append(entry)
+        rows.append(
+            {
+                'evento': entry.nome_evento,
+                'data_evento': entry.data_evento,
+                'impacto': entry.get_impacto_display(),
+                'leads_media': entry.leads_media,
+            }
+        )
+        chart_categories.append(entry.nome_evento)
+        chart_series.append(entry.leads_media)
     kpis = {
-        'leads_total': len(rows),
-        'eventos_total': len({row.get('evento') for row in rows if row.get('evento')}),
-        'idade_media': avg_age,
+        'eventos_total': len(current_entries),
+        'participantes_total': sum(entry.leads_media for entry in current_entries),
     }
     return {
         'key': key,
@@ -400,21 +417,22 @@ def build_leads_tab(config, period_start=None, period_end=None, key='leads_event
         'title': config.nome,
         'config_id': config.pk,
         'configured': True,
-        'ready': bool(rows),
+        'ready': True,
         'config_name': config.nome,
-        'description': 'Leads captados em eventos a partir do arquivo configurado.',
-        'rows': rows[:20],
+        'description': 'Entradas manuais de eventos com impacto e média de pessoas alcançadas.',
+        'rows': rows[:50],
         'kpis': kpis,
-        'metric_cards': _build_metric_cards(
-            kpis,
-            get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json),
-            {
-                'leads_total': ('Total de Leads', lambda value: str(value)),
-                'eventos_total': ('Eventos', lambda value: str(value)),
-                'idade_media': ('Idade Média', lambda value: f'{value:.1f}'),
-            },
-        ),
-        'events': _top_values(rows, 'evento'),
+        'chart': {
+            'key': 'eventos',
+            'type': 'bar',
+            'categories': chart_categories,
+            'series': [
+                {
+                    'name': 'Pessoas alcançadas',
+                    'data': chart_series,
+                }
+            ],
+        },
     }
 
 
@@ -493,31 +511,40 @@ def build_complete_analysis_tab_from_configs(
     previous_crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), previous_start, previous_end, 'data_contato') if crm_config else []
     crm_summary = _crm_period_summary(crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
     previous_crm_summary = _crm_period_summary(previous_crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
-    leads_rows = _filter_rows_by_period(_read_mapped_rows(leads_config, date_key='data_evento'), period_start, period_end, 'data_evento') if leads_config else []
+    leads_rows = _filter_leads_event_entries(leads_config, period_start, period_end) if leads_config else []
     social_rows = _filter_rows_by_period(_read_social_rows(social_config), period_start, period_end, 'data_publicacao') if social_config else []
     previous_social_rows = _filter_rows_by_period(_read_social_rows(social_config), previous_start, previous_end, 'data_publicacao') if social_config else []
     social_summary = _social_period_summary(social_rows) if social_config else {}
     previous_social_summary = _social_period_summary(previous_social_rows) if social_config else {}
+    leads_summary = _leads_event_period_summary(leads_rows) if leads_config else {}
+    previous_leads_rows = _filter_leads_event_entries(leads_config, previous_start, previous_end) if leads_config else []
+    previous_leads_summary = _leads_event_period_summary(previous_leads_rows) if leads_config else {}
     competitor_signals = _build_competitor_signals(traffic_config.empresa if traffic_config else (crm_config.empresa if crm_config else None))
 
     marketing_rows = [row for row in crm_rows if _is_marketing_sale(row, crm_config)]
     previous_marketing_rows = [row for row in previous_crm_rows if _is_marketing_sale(row, crm_config)]
-    operacao_rows = [row for row in crm_rows if _is_operacao_sale(row)]
-    previous_operacao_rows = [row for row in previous_crm_rows if _is_operacao_sale(row)]
-    cliente_base_rows = [row for row in crm_rows if _is_cliente_base_sale(row)]
-    previous_cliente_base_rows = [row for row in previous_crm_rows if _is_cliente_base_sale(row)]
-    current_cliente_base_marketing_share = _calculate_social_marketing_share(social_config, social_summary)
-    previous_cliente_base_marketing_share = _calculate_social_marketing_share(social_config, previous_social_summary)
+    operacao_rows = [row for row in crm_rows if _is_operacao_or_sem_categoria_sale(row, crm_config)]
+    previous_operacao_rows = [row for row in previous_crm_rows if _is_operacao_or_sem_categoria_sale(row, crm_config)]
+    current_operacao_marketing_share = _calculate_combined_marketing_share(
+        social_config,
+        social_summary,
+        leads_config,
+        leads_summary,
+    )
+    previous_operacao_marketing_share = _calculate_combined_marketing_share(
+        social_config,
+        previous_social_summary,
+        leads_config,
+        previous_leads_summary,
+    )
     marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in marketing_rows), Decimal('0'))
     previous_marketing_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_marketing_rows), Decimal('0'))
     operacao_revenue = sum((_to_decimal(row.get('valor_venda')) for row in operacao_rows), Decimal('0'))
     previous_operacao_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_operacao_rows), Decimal('0'))
-    cliente_base_revenue = sum((_to_decimal(row.get('valor_venda')) for row in cliente_base_rows), Decimal('0'))
-    previous_cliente_base_revenue = sum((_to_decimal(row.get('valor_venda')) for row in previous_cliente_base_rows), Decimal('0'))
-    marketing_revenue += cliente_base_revenue * current_cliente_base_marketing_share
-    previous_marketing_revenue += previous_cliente_base_revenue * previous_cliente_base_marketing_share
-    operacao_revenue -= cliente_base_revenue * current_cliente_base_marketing_share
-    previous_operacao_revenue -= previous_cliente_base_revenue * previous_cliente_base_marketing_share
+    marketing_revenue += operacao_revenue * current_operacao_marketing_share
+    previous_marketing_revenue += previous_operacao_revenue * previous_operacao_marketing_share
+    operacao_revenue -= operacao_revenue * current_operacao_marketing_share
+    previous_operacao_revenue -= previous_operacao_revenue * previous_operacao_marketing_share
     marketing_sales = sum(1 for row in marketing_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
     previous_marketing_sales = sum(1 for row in previous_marketing_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
     operacao_sales = sum(1 for row in operacao_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
@@ -664,6 +691,48 @@ def _calculate_social_marketing_share(social_config, social_summary):
     share_percent = (alcance / Decimal('1000')) * rate_per_1k if alcance > 0 else Decimal('0')
     share_percent = max(Decimal('0'), min(Decimal('100'), share_percent))
     return share_percent / Decimal('100')
+
+
+def _calculate_leads_marketing_share(leads_config, leads_summary):
+    if not leads_config:
+        return Decimal('0')
+    raw_rate = str((leads_config.configuracao_analise_json or {}).get('eventos_receita_percentual_por_1k_alcance', '')).strip()
+    if not raw_rate:
+        return Decimal('0')
+    try:
+        rate_per_1k = Decimal(raw_rate)
+    except (InvalidOperation, ValueError):
+        return Decimal('0')
+    alcance = _to_decimal((leads_summary or {}).get('participantes_total', Decimal('0')))
+    share_percent = (alcance / Decimal('1000')) * rate_per_1k if alcance > 0 else Decimal('0')
+    share_percent = max(Decimal('0'), min(Decimal('100'), share_percent))
+    return share_percent / Decimal('100')
+
+
+def _calculate_combined_marketing_share(social_config, social_summary, leads_config, leads_summary):
+    combined_share = _calculate_social_marketing_share(social_config, social_summary)
+    combined_share += _calculate_leads_marketing_share(leads_config, leads_summary)
+    return max(Decimal('0'), min(Decimal('0.4'), combined_share))
+
+
+def _filter_leads_event_entries(config, period_start=None, period_end=None):
+    if not config:
+        return []
+    rows = []
+    for entry in config.eventos_painel.all():
+        if period_start and entry.data_evento < period_start:
+            continue
+        if period_end and entry.data_evento > period_end:
+            continue
+        rows.append(entry)
+    return rows
+
+
+def _leads_event_period_summary(entries):
+    return {
+        'eventos_total': len(entries),
+        'participantes_total': sum(entry.leads_media for entry in entries),
+    }
 
 
 def _build_social_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None):
@@ -1428,6 +1497,17 @@ def _is_cliente_base_sale(row):
 def _is_operacao_sale(row):
     origem = _normalize_status_label(row.get('origem_lead', ''))
     return any(term in origem for term in ('cliente base', 'indicacao', 'indicação'))
+
+
+def _is_sem_categoria_sale(row, config):
+    return (
+        not _is_marketing_sale(row, config)
+        and not _is_operacao_sale(row)
+    )
+
+
+def _is_operacao_or_sem_categoria_sale(row, config):
+    return _is_operacao_sale(row) or _is_sem_categoria_sale(row, config)
 
 
 def _build_competitor_signals(empresa):

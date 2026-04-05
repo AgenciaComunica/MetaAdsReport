@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from .forms import ConfiguracaoUploadEmpresaForm, EmpresaForm, NovaConfiguracaoUploadForm
 from .models import ConfiguracaoUploadEmpresa, Empresa
+from .services import strip_empresa_legacy_digital_notes
 from .upload_config_services import get_field_schema, get_panel_metric_groups, inspect_uploaded_file
 
 
@@ -28,6 +29,7 @@ def empresa_detail(request, pk):
     )
     context = {
         'empresa': empresa,
+        'empresa_observacoes': strip_empresa_legacy_digital_notes(empresa.observacoes),
         'configuracoes_upload': empresa.configuracoes_upload.all(),
         'nova_configuracao_form': NovaConfiguracaoUploadForm(),
         'show_delete_upload_id': request.GET.get('delete_upload', ''),
@@ -81,7 +83,7 @@ def upload_config_update(request, empresa_pk, config_pk):
             file_name=configuracao.nome_arquivo_exemplo,
         )
 
-    require_mapping = action == 'salvar'
+    require_mapping = action == 'salvar' and configuracao.tipo_documento != ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS
     form = ConfiguracaoUploadEmpresaForm(
         request.POST or None,
         request.FILES or None,
@@ -123,6 +125,8 @@ def upload_config_update(request, empresa_pk, config_pk):
                 preview
                 or any((data or {}).get('columns') for data in social_previews.values())
             )
+        elif form.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+            has_saved_preview = True
         if not has_saved_preview:
             form.add_error('arquivo_exemplo', 'Envie um arquivo e clique em Mapear antes de salvar.')
         elif form.is_valid():

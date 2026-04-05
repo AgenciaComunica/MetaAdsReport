@@ -4,6 +4,7 @@ from django import forms
 import json
 
 from .models import ConfiguracaoUploadEmpresa, Empresa
+from .services import strip_empresa_legacy_digital_notes
 from .upload_config_services import get_default_social_mapping, get_field_schema, get_panel_metric_groups, get_panel_metric_schema, normalize_panel_metric_config
 
 
@@ -63,6 +64,7 @@ class EmpresaForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.initial['observacoes'] = strip_empresa_legacy_digital_notes(self.initial.get('observacoes') or self.instance.observacoes)
         redes = self.instance.redes_sociais_json if self.instance.pk else []
         if not redes and self.instance.instagram_profile_url:
             redes = [
@@ -159,6 +161,16 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             }
         ),
     )
+    eventos_receita_percentual_por_1k_alcance = forms.CharField(
+        required=False,
+        label='Percentual de receita a cada 1k pessoas alcançadas',
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Ex.: 1 para 1% a cada 1k pessoas alcançadas nos eventos.',
+            }
+        ),
+    )
 
     class Meta:
         model = ConfiguracaoUploadEmpresa
@@ -185,6 +197,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             else self.instance.tipo_documento
         )
         self.is_social_panel = self.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS
+        self.is_manual_leads_panel = self.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS
         stored_analysis = self.instance.configuracao_analise_json or {}
         self.social_columns = columns if isinstance(columns, dict) else {}
         self.social_example_kind_value = (
@@ -197,9 +210,12 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         self.fields['crm_origem_paga_contem'].initial = (self.instance.configuracao_analise_json or {}).get('crm_origem_paga_contem', '')
         self.fields['social_example_kind'].initial = self.social_example_kind_value
         self.fields['social_receita_percentual_por_1k_alcance'].initial = (self.instance.configuracao_analise_json or {}).get('social_receita_percentual_por_1k_alcance', '')
+        self.fields['eventos_receita_percentual_por_1k_alcance'].initial = (self.instance.configuracao_analise_json or {}).get('eventos_receita_percentual_por_1k_alcance', '')
         self.mapping_enabled = bool(columns) and bool(self.document_type)
         if self.is_social_panel:
             self.mapping_enabled = any(self.social_columns.values())
+        if self.is_manual_leads_panel:
+            self.mapping_enabled = False
         self.require_mapping = require_mapping and self.mapping_enabled
         metric_config = normalize_panel_metric_config(self.document_type, self.instance.metricas_painel_json)
 
@@ -351,7 +367,13 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         return cleaned_data
 
     def clean_social_receita_percentual_por_1k_alcance(self):
-        raw_value = str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', '')).strip()
+        return self._clean_percentage_field('social_receita_percentual_por_1k_alcance')
+
+    def clean_eventos_receita_percentual_por_1k_alcance(self):
+        return self._clean_percentage_field('eventos_receita_percentual_por_1k_alcance')
+
+    def _clean_percentage_field(self, field_name):
+        raw_value = str(self.cleaned_data.get(field_name, '')).strip()
         if not raw_value:
             return Decimal('0')
         normalized = raw_value.replace('%', '').replace(',', '.').strip()
@@ -429,6 +451,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
             'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
             'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
+            'eventos_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('eventos_receita_percentual_por_1k_alcance', Decimal('0'))),
         }
         if preview:
             if self.is_social_panel:
@@ -462,6 +485,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
                 'social_example_kind': self.cleaned_data.get('social_example_kind', 'posts'),
                 'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
+                'eventos_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('eventos_receita_percentual_por_1k_alcance', Decimal('0'))),
             }
             social_previews = analysis_config.get('social_previews', {})
             social_previews[self.cleaned_data.get('social_example_kind', 'posts')] = {
@@ -493,6 +517,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 **(instance.configuracao_analise_json or {}),
                 'crm_origem_paga_contem': self.cleaned_data.get('crm_origem_paga_contem', '').strip(),
                 'social_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('social_receita_percentual_por_1k_alcance', Decimal('0'))),
+                'eventos_receita_percentual_por_1k_alcance': str(self.cleaned_data.get('eventos_receita_percentual_por_1k_alcance', Decimal('0'))),
             }
         instance.save()
         return instance

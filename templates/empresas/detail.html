@@ -21,7 +21,7 @@
         </div>
         <a href="{% url 'core:home' %}?edit_company={{ empresa.pk }}" class="btn btn-outline-dark">Editar</a>
     </div>
-    <p>{{ empresa.observacoes|default:'Sem observações.' }}</p>
+    <p>{{ empresa_observacoes|default:'Sem observações.' }}</p>
     <p class="text-muted mb-0">Criado em {{ empresa.criado_em|date:'d/m/Y H:i' }}.</p>
 </div>
 

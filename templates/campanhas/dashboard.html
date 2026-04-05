@@ -309,6 +309,7 @@
 {% elif active_upload_tab and active_upload_tab.panel_type == 'leads_eventos' %}
 <div>
     {% if active_upload_tab and active_upload_tab.ready %}
+        {{ active_upload_tab.chart|json_script:"leads-eventos-chart-data" }}
         <div class="dashboard-tab-header">
             <div>
                 <h3 class="mb-1">{{ active_upload_tab.title }}</h3>
@@ -316,46 +317,32 @@
             </div>
             <div class="d-flex gap-2 align-items-center">
                 <span class="text-muted small">{{ active_upload_tab.config_name }}</span>
-                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Adicionar dados</button>
             </div>
-        </div>
-        <div class="row g-3 mt-1">
-            {% for item in active_upload_tab.metric_cards %}
-                <div class="col-md-4"><div class="kpi-card"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div></div>
-            {% endfor %}
         </div>
         <div class="row g-4 mt-1">
-            <div class="col-lg-4">
+            <div class="col-lg-6">
                 <div class="panel">
                     <h3>Eventos</h3>
-                    <ul class="mb-0">
-                        {% for label, count in active_upload_tab.events %}
-                            <li>{{ label }}: {{ count }}</li>
-                        {% empty %}
-                            <li>Sem eventos mapeados.</li>
-                        {% endfor %}
-                    </ul>
+                    <div id="leadsEventosChart"></div>
                 </div>
             </div>
-            <div class="col-lg-8">
+            <div class="col-lg-6">
                 <div class="panel">
-                    <h3>Leads de Eventos</h3>
+                    <h3>Lista de Eventos</h3>
                     <div class="table-responsive">
                         <table class="table align-middle">
-                            <thead><tr><th>Evento</th><th>Local</th><th>Data</th><th>Lead</th><th>Instagram</th><th>Telefone</th><th>Idade</th></tr></thead>
+                            <thead><tr><th>Evento</th><th>Data</th><th>Impacto</th><th>Pessoas alcançadas</th></tr></thead>
                             <tbody>
                             {% for row in active_upload_tab.rows %}
                                 <tr>
                                     <td>{{ row.evento }}</td>
-                                    <td>{{ row.local_evento }}</td>
-                                    <td>{{ row.data_evento }}</td>
-                                    <td>{{ row.nome_lead }}</td>
-                                    <td>{{ row.instagram }}</td>
-                                    <td>{{ row.telefone_contato }}</td>
-                                    <td>{{ row.idade }}</td>
+                                    <td>{{ row.data_evento|date:"d/m/Y" }}</td>
+                                    <td>{{ row.impacto }}</td>
+                                    <td>{{ row.leads_media }}</td>
                                 </tr>
                             {% empty %}
-                                <tr><td colspan="7">Nenhum registro disponível.</td></tr>
+                                <tr><td colspan="4">Sem dados disponíveis, adicione dados ao painel.</td></tr>
                             {% endfor %}
                             </tbody>
                         </table>
@@ -364,32 +351,34 @@
             </div>
         </div>
         <div class="panel mt-4">
-            <h3>Uploads do Painel</h3>
+            <h3>Dados do Painel</h3>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead><tr><th>Arquivo</th><th>Criado em</th><th>Colunas</th><th>Ações</th></tr></thead>
+                    <thead><tr><th>Evento</th><th>Data</th><th>Impacto</th><th>Pessoas alcançadas</th><th>Criado em</th><th>Ações</th></tr></thead>
                     <tbody>
-                    {% for upload in panel_uploads_list %}
+                    {% for evento in eventos_painel_list %}
                         <tr>
-                            <td>{{ upload.nome_arquivo }}</td>
-                            <td>{{ upload.criado_em|date:"d/m/Y H:i" }}</td>
-                            <td>{{ upload.colunas_detectadas_json|length }}</td>
+                            <td>{{ evento.nome_evento }}</td>
+                            <td>{{ evento.data_evento|date:"d/m/Y" }}</td>
+                            <td>{{ evento.get_impacto_display }}</td>
+                            <td>{{ evento.leads_media }}</td>
+                            <td>{{ evento.criado_em|date:"d/m/Y H:i" }}</td>
                             <td>
-                                <form method="post" action="{% url 'campanhas:panel_upload_delete' upload.pk %}?empresa={{ empresa.pk }}&tab={{ active_upload_tab.key }}">
+                                <form method="post" action="{% url 'campanhas:evento_painel_delete' evento.pk %}?empresa={{ empresa.pk }}&tab={{ active_upload_tab.key }}">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
                                 </form>
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="4">Nenhum upload disponível.</td></tr>
+                        <tr><td colspan="6">Nenhum dado cadastrado.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     {% else %}
-        <p class="text-muted mb-0">Configure um painel mapeado de Leads Eventos para exibir esta aba.</p>
+        <p class="text-muted mb-0">Configure um painel de Leads Eventos para exibir esta aba.</p>
     {% endif %}
 </div>
 {% elif active_upload_tab and active_upload_tab.panel_type == 'redes_sociais' %}
@@ -805,7 +794,7 @@
                 <div class="modal-content">
                     <form method="post" enctype="multipart/form-data">
                         <div class="modal-header">
-                            <h5 class="modal-title">Novo upload - {{ tab.title }}</h5>
+                            <h5 class="modal-title">{% if tab.panel_type == 'leads_eventos' %}Adicionar dados - {{ tab.title }}{% else %}Novo upload - {{ tab.title }}{% endif %}</h5>
                             <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
                         </div>
                         <div class="modal-body">
@@ -818,25 +807,50 @@
                                     {{ traffic_upload_form.empresa.as_hidden }}
                                 </div>
                             {% else %}
-                                {% with painel_form=painel_upload_forms|get_item:tab.key %}
-                                    <input type="hidden" name="action" value="novo_upload_painel">
-                                    <input type="hidden" name="panel_key" value="{{ tab.key }}">
-                                    {% if tab.panel_type == 'redes_sociais' %}
-                                        <div class="mb-3">
-                                            {{ painel_form.tipo_upload.label_tag }}{{ painel_form.tipo_upload }}
-                                            {% if painel_form.tipo_upload.errors %}<div class="text-danger small mt-1">{{ painel_form.tipo_upload.errors|join:', ' }}</div>{% endif %}
+                                {% if tab.panel_type == 'leads_eventos' %}
+                                    {% with evento_form=evento_painel_forms|get_item:tab.key %}
+                                        <input type="hidden" name="action" value="novo_dado_evento">
+                                        <input type="hidden" name="panel_key" value="{{ tab.key }}">
+                                        <div class="row g-3">
+                                            <div class="col-12">
+                                                {{ evento_form.nome_evento.label_tag }}{{ evento_form.nome_evento }}
+                                                {% if evento_form.nome_evento.errors %}<div class="text-danger small mt-1">{{ evento_form.nome_evento.errors|join:', ' }}</div>{% endif %}
+                                            </div>
+                                            <div class="col-md-6">
+                                                {{ evento_form.data_evento.label_tag }}{{ evento_form.data_evento }}
+                                                {% if evento_form.data_evento.errors %}<div class="text-danger small mt-1">{{ evento_form.data_evento.errors|join:', ' }}</div>{% endif %}
+                                            </div>
+                                            <div class="col-md-6">
+                                                {{ evento_form.impacto.label_tag }}{{ evento_form.impacto }}
+                                                {% if evento_form.impacto.errors %}<div class="text-danger small mt-1">{{ evento_form.impacto.errors|join:', ' }}</div>{% endif %}
+                                            </div>
+                                            <div class="col-12">
+                                                {{ evento_form.leads_media.label_tag }}{{ evento_form.leads_media }}
+                                                {% if evento_form.leads_media.errors %}<div class="text-danger small mt-1">{{ evento_form.leads_media.errors|join:', ' }}</div>{% endif %}
+                                            </div>
                                         </div>
-                                    {% else %}
-                                        {{ painel_form.tipo_upload }}
-                                    {% endif %}
-                                    {{ painel_form.arquivo.label_tag }}{{ painel_form.arquivo }}
-                                    {% if painel_form.arquivo.errors %}<div class="text-danger small mt-1">{{ painel_form.arquivo.errors|join:', ' }}</div>{% endif %}
-                                {% endwith %}
+                                    {% endwith %}
+                                {% else %}
+                                    {% with painel_form=painel_upload_forms|get_item:tab.key %}
+                                        <input type="hidden" name="action" value="novo_upload_painel">
+                                        <input type="hidden" name="panel_key" value="{{ tab.key }}">
+                                        {% if tab.panel_type == 'redes_sociais' %}
+                                            <div class="mb-3">
+                                                {{ painel_form.tipo_upload.label_tag }}{{ painel_form.tipo_upload }}
+                                                {% if painel_form.tipo_upload.errors %}<div class="text-danger small mt-1">{{ painel_form.tipo_upload.errors|join:', ' }}</div>{% endif %}
+                                            </div>
+                                        {% else %}
+                                            {{ painel_form.tipo_upload }}
+                                        {% endif %}
+                                        {{ painel_form.arquivo.label_tag }}{{ painel_form.arquivo }}
+                                        {% if painel_form.arquivo.errors %}<div class="text-danger small mt-1">{{ painel_form.arquivo.errors|join:', ' }}</div>{% endif %}
+                                    {% endwith %}
+                                {% endif %}
                             {% endif %}
                         </div>
                         <div class="modal-footer">
                             <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
-                            <button class="btn btn-dark" type="submit">Enviar arquivo</button>
+                            <button class="btn btn-dark" type="submit">{% if tab.panel_type == 'leads_eventos' %}Salvar dados{% else %}Enviar arquivo{% endif %}</button>
                         </div>
                     </form>
                 </div>
@@ -859,6 +873,8 @@
     };
     const filterForm = document.getElementById('dashboardFiltersForm');
     const companySelect = document.getElementById('id_empresa');
+    const leadsEventosChartDataNode = document.getElementById('leads-eventos-chart-data');
+    const leadsEventosChartData = leadsEventosChartDataNode ? JSON.parse(leadsEventosChartDataNode.textContent) : null;
 
     if (companySelect && filterForm) {
       companySelect.addEventListener('change', () => filterForm.submit());
@@ -898,6 +914,24 @@
         }
       });
     });
+
+    const leadsEventosChartEl = document.getElementById('leadsEventosChart');
+    if (leadsEventosChartEl) {
+      const categories = leadsEventosChartData?.categories || [];
+      const series = leadsEventosChartData?.series || [];
+      if (!categories.length || !series.length || !(series[0]?.data || []).length) {
+        leadsEventosChartEl.innerHTML = '<div class="chart-empty-state">Sem dados disponíveis, faça o cadastro dos eventos.</div>';
+      } else {
+        new ApexCharts(leadsEventosChartEl, {
+          chart: { type: 'bar', height: 320, toolbar: { show: false } },
+          series,
+          xaxis: { categories },
+          colors: ['#2d6a4f'],
+          dataLabels: { enabled: true },
+          legend: { show: false },
+        }).render();
+      }
+    }
 
     const readSavedFilterSelection = (blockKey) => {
       const filterGroupNode = document.querySelector(`.crm-filter-dropdown[data-crm-filter-group="${blockKey}"]`);

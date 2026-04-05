@@ -4,7 +4,7 @@ from django.http import QueryDict
 from empresas.models import Empresa
 from empresas.models import ConfiguracaoUploadEmpresa
 
-from .models import UploadCampanha, UploadPainel
+from .models import EventoPainel, UploadCampanha, UploadPainel
 
 class UploadCampanhaForm(forms.ModelForm):
     class Meta:
@@ -153,3 +153,15 @@ class ComparePeriodForm(forms.Form):
 
         _apply_display('periodo_atual', 'data_inicio', 'data_fim')
         _apply_display('periodo_anterior', 'data_inicio_anterior', 'data_fim_anterior')
+
+
+class EventoPainelForm(forms.ModelForm):
+    class Meta:
+        model = EventoPainel
+        fields = ['nome_evento', 'data_evento', 'impacto', 'leads_media']
+        widgets = {
+            'nome_evento': forms.TextInput(attrs={'class': 'form-control'}),
+            'data_evento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'impacto': forms.Select(attrs={'class': 'form-select'}),
+            'leads_media': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': 1}),
+        }

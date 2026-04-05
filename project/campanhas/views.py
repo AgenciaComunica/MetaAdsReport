@@ -15,8 +15,8 @@ from concorrentes.services import competitor_profiles, competitor_summary, compe
 from ia.models import AnaliseConcorrencial
 from relatorios.models import Relatorio
 
-from .forms import ComparePeriodForm, UploadCampanhaForm, UploadPainelArquivoForm
-from .models import UploadCampanha, UploadPainel
+from .forms import ComparePeriodForm, EventoPainelForm, UploadCampanhaForm, UploadPainelArquivoForm
+from .models import EventoPainel, UploadCampanha, UploadPainel
 from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
     COLUMN_ALIASES,
@@ -267,6 +267,7 @@ def dashboard(request):
     show_upload_modal_key = ''
     traffic_upload_form = UploadCampanhaForm(prefix='upload-trafego', empresa_inicial=empresa)
     painel_upload_forms = {}
+    evento_painel_forms = {}
 
     dashboard_upload_tabs = (
         build_dashboard_upload_tabs(
@@ -318,10 +319,13 @@ def dashboard(request):
             None,
         ) if empresa else None
         if configuracao:
-            painel_upload_forms[active_upload_tab['key']] = UploadPainelArquivoForm(
-                prefix=f'upload-{active_upload_tab["key"]}',
-                configuracao=configuracao,
-            )
+            if active_upload_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+                evento_painel_forms[active_upload_tab['key']] = EventoPainelForm(prefix=f'evento-{active_upload_tab["key"]}')
+            else:
+                painel_upload_forms[active_upload_tab['key']] = UploadPainelArquivoForm(
+                    prefix=f'upload-{active_upload_tab["key"]}',
+                    configuracao=configuracao,
+                )
 
     competitor_qs = ConcorrenteAd.objects.filter(empresa=empresa) if empresa else ConcorrenteAd.objects.none()
     competitor_analyses = AnaliseConcorrencial.objects.none()
@@ -434,6 +438,24 @@ def dashboard(request):
                     messages.success(request, f'Arquivo enviado para o painel "{configuracao.nome}".')
                     return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': form_key})}")
                 show_upload_modal_key = form_key
+        elif action == 'novo_dado_evento':
+            panel_key = request.POST.get('panel_key', '')
+            panel_tab = dashboard_upload_tab_map.get(panel_key)
+            if panel_tab and panel_tab.get('config_id') and panel_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS:
+                configuracao = get_object_or_404(
+                    ConfiguracaoUploadEmpresa.objects.select_related('empresa'),
+                    pk=panel_tab['config_id'],
+                    empresa=empresa,
+                )
+                evento_form = EventoPainelForm(request.POST, prefix=f'evento-{panel_key}')
+                evento_painel_forms[panel_key] = evento_form
+                if evento_form.is_valid():
+                    evento = evento_form.save(commit=False)
+                    evento.configuracao = configuracao
+                    evento.save()
+                    messages.success(request, f'Dado adicionado ao painel "{configuracao.nome}".')
+                    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+                show_upload_modal_key = panel_key
 
     uploads_list = UploadCampanha.objects.none()
     if active_upload_tab and active_upload_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
@@ -486,6 +508,11 @@ def dashboard(request):
         if active_upload_tab and active_upload_tab.get('config_id')
         else UploadPainel.objects.none()
     )
+    eventos_painel_list = (
+        EventoPainel.objects.filter(configuracao_id=active_upload_tab.get('config_id')).select_related('configuracao')
+        if active_upload_tab and active_upload_tab.get('panel_type') == ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS and active_upload_tab.get('config_id')
+        else EventoPainel.objects.none()
+    )
 
     context = {
         'dashboard_tab': dashboard_tab,
@@ -504,11 +531,23 @@ def dashboard(request):
         'show_upload_modal_key': show_upload_modal_key,
         'traffic_upload_form': traffic_upload_form,
         'painel_upload_forms': painel_upload_forms,
+        'evento_painel_forms': evento_painel_forms,
         'active_upload_tab': active_upload_tab,
         'analise_completa_tab': dashboard_upload_tab_map.get('analise_completa'),
         'uploads_list': uploads_list,
         'panel_uploads_list': panel_uploads_list,
+        'eventos_painel_list': eventos_painel_list,
         'concorrentes_list': concorrentes_list,
         'relatorios_list': relatorios_list,
     }
     return render(request, 'campanhas/dashboard.html', context)
+
+
+def evento_painel_delete(request, pk):
+    evento = get_object_or_404(EventoPainel.objects.select_related('configuracao__empresa'), pk=pk)
+    empresa = evento.configuracao.empresa
+    panel_key = request.GET.get('tab') or f'{evento.configuracao.tipo_documento}_{evento.configuracao.pk}'
+    if request.method == 'POST':
+        evento.delete()
+        messages.success(request, 'Dado do painel removido com sucesso.')
+    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")

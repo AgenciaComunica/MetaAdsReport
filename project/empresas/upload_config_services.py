@@ -41,15 +41,7 @@ UPLOAD_FIELD_SCHEMAS = {
         {'key': 'status_fechamento', 'label': 'Status Fechamento', 'required': False},
         {'key': 'origem_lead', 'label': 'Origem do Lead', 'required': False},
     ],
-    ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS: [
-        {'key': 'evento', 'label': 'Evento', 'required': True},
-        {'key': 'local_evento', 'label': 'Local do Evento', 'required': False},
-        {'key': 'data_evento', 'label': 'Data do Evento', 'required': True},
-        {'key': 'nome_lead', 'label': 'Nome do Lead', 'required': True},
-        {'key': 'instagram', 'label': 'Instagram', 'required': False},
-        {'key': 'telefone_contato', 'label': 'Telefone de Contato', 'required': False},
-        {'key': 'idade', 'label': 'Idade', 'required': False},
-    ],
+    ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS: [],
     ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS: [
         {'key': 'id_publicacao', 'label': 'ID da Publicação', 'required': True},
         {'key': 'data_publicacao', 'label': 'Data de Publicação', 'required': True},
@@ -136,9 +128,8 @@ PANEL_METRIC_SCHEMAS = {
         {'key': 'temperatura_lead', 'label': 'Temperatura do Lead'},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.LEADS_EVENTOS: [
-        {'key': 'leads_total', 'label': 'Total de Leads'},
         {'key': 'eventos_total', 'label': 'Eventos'},
-        {'key': 'idade_media', 'label': 'Idade Média'},
+        {'key': 'participantes_total', 'label': 'Pessoas Alcançadas'},
     ],
     ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS: [
         {'key': 'quantidade_publicacoes', 'label': 'Quantidade de Publicações'},

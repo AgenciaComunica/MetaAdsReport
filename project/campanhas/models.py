@@ -50,6 +50,28 @@ class UploadPainel(models.Model):
         return f'{self.configuracao.nome} - {self.nome_arquivo}'
 
 
+class EventoPainel(models.Model):
+    class ImpactoChoices(models.TextChoices):
+        BAIXO = 'baixo', 'Baixo impacto'
+        MEDIO = 'medio', 'Médio impacto'
+        ALTO = 'alto', 'Alto impacto'
+
+    configuracao = models.ForeignKey('empresas.ConfiguracaoUploadEmpresa', on_delete=models.CASCADE, related_name='eventos_painel')
+    nome_evento = models.CharField(max_length=255)
+    data_evento = models.DateField()
+    impacto = models.CharField(max_length=10, choices=ImpactoChoices.choices)
+    leads_media = models.PositiveIntegerField(default=0)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-data_evento', '-pk']
+        verbose_name = 'Evento do Painel'
+        verbose_name_plural = 'Eventos do Painel'
+
+    def __str__(self):
+        return f'{self.configuracao.nome} - {self.nome_evento}'
+
+
 class CampanhaMetric(models.Model):
     upload = models.ForeignKey(UploadCampanha, on_delete=models.CASCADE, related_name='metricas')
     fingerprint = models.CharField(max_length=64, db_index=True, blank=True)
