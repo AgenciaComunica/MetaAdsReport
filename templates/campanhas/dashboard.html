@@ -240,11 +240,9 @@
                                 </div>
                             {% endif %}
                         {% else %}
-                            {% if block.chart %}
-                                <div class="mt-3">
-                                    <div id="crmCategoryChart-{{ block.chart.key }}" style="min-height: {% if block.chart_type == 'pie' %}360px{% else %}280px{% endif %};"></div>
-                                </div>
-                            {% endif %}
+                            <div class="mt-3 {% if not block.chart %}d-none{% endif %}">
+                                <div id="crmCategoryChart-{{ block.key }}" style="min-height: {% if block.chart_type == 'pie' %}360px{% else %}280px{% endif %};"></div>
+                            </div>
                             {% if block.rows %}
                                 <div class="table-responsive mt-3 {% if block.chart_type == 'pie' %}crm-status-table-wrap{% endif %}">
                                     <table class="table align-middle traffic-summary-table mb-0">
@@ -974,9 +972,20 @@
       const chart = block.filter_options?.length ? buildFilteredChart(block, getSelectedOptions(block.key)) : block.chart;
       const node = document.getElementById(nodeId);
       if (!node || !chart) return;
+      const hasData = (() => {
+        if (block.chart_type === 'pie') {
+          return Array.isArray(chart.series) && chart.series.some((value) => Number(value || 0) > 0);
+        }
+        return Array.isArray(chart.series) && chart.series.some((serie) => Array.isArray(serie.data) && serie.data.some((value) => Number(value || 0) > 0));
+      })();
       if (chartStore[block.key]) {
         chartStore[block.key].destroy();
       }
+      if (!hasData) {
+        node.innerHTML = '<div class="chart-empty-state">Sem dados disponíveis, faça o upload de dados.</div>';
+        return;
+      }
+      node.innerHTML = '';
       const chartType = block.chart_type || 'bar_compare';
       let apexChart;
       if (chartType === 'pie') {
@@ -1123,12 +1132,12 @@
 
     const crmBlocksPayloadNode = document.getElementById('crm-category-blocks-data');
     if (crmBlocksPayloadNode) {
-      const crmBlocks = JSON.parse(crmBlocksPayloadNode.textContent);
-      const crmCharts = {};
+        const crmBlocks = JSON.parse(crmBlocksPayloadNode.textContent);
+        const crmCharts = {};
       crmBlocks.forEach((block) => {
         const renderCrmChart = () => {
           if (block.chart) {
-            renderBlockChart(block, `crmCategoryChart-${block.chart.key}`, crmCharts);
+            renderBlockChart(block, `crmCategoryChart-${block.key}`, crmCharts);
           }
         };
         setupBlockFilter(block, renderCrmChart);

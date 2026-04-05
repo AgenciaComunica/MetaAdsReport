@@ -239,6 +239,19 @@ body {
     overflow: hidden;
 }
 
+.chart-empty-state {
+    align-items: center;
+    background: rgba(203, 95, 44, 0.06);
+    border: 1px dashed var(--line);
+    border-radius: 16px;
+    color: var(--muted);
+    display: flex;
+    justify-content: center;
+    min-height: 220px;
+    padding: 1.5rem;
+    text-align: center;
+}
+
 .dashboard-primary-tabs {
     display: flex;
     flex-wrap: wrap;
