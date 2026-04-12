@@ -1,125 +1,58 @@
-# Meta Competitive Report
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-Sistema web em Django para leitura de campanhas Meta Ads, análise competitiva de concorrentes e geração de relatórios estratégicos com apoio de IA.
+<p align="center">
+<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+</p>
 
-## O que já está implementado
+## About Laravel
 
-- cadastro completo de empresas/clientes
-- seleção de empresa ativa no layout
-- upload de CSVs do Meta Ads Manager
-- normalização automática de colunas com fallback para mapeamento manual
-- KPIs e dashboard por período
-- comparativo entre períodos
-- cadastro e importação de concorrentes via CSV/JSON
-- integração com OpenRouter para insights estratégicos
-- geração de relatório consolidado em HTML
-- exportação PDF com WeasyPrint quando a dependência do sistema estiver disponível
+Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
-## Estrutura do projeto
+- [Simple, fast routing engine](https://laravel.com/docs/routing).
+- [Powerful dependency injection container](https://laravel.com/docs/container).
+- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
+- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
+- [Robust background job processing](https://laravel.com/docs/queues).
+- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-```text
-MetaAdsReport/
-├── .env.example
-├── README.md
-├── requirements.txt
-├── scripts/
-│   └── run_local_windows.bat
-├── static/
-├── templates/
-└── project/
-    ├── manage.py
-    ├── core/
-    ├── empresas/
-    ├── campanhas/
-    ├── concorrentes/
-    ├── relatorios/
-    ├── ia/
-    └── setup/
+Laravel is accessible, powerful, and provides tools required for large, robust applications.
+
+## Learning Laravel
+
+Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+
+In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+
+You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+
+## Agentic Development
+
+Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+
+```bash
+composer require laravel/boost --dev
+
+php artisan boost:install
 ```
 
-## Setup local no Windows
+Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
 
-1. Criar e ativar a virtualenv:
+## Contributing
 
-```bat
-py -3.12 -m venv .venv
-.venv\Scripts\activate
-```
+Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
 
-2. Instalar dependências:
+## Code of Conduct
 
-```bat
-pip install -r requirements.txt
-```
+In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
 
-3. Copiar o arquivo de ambiente:
+## Security Vulnerabilities
 
-```bat
-copy .env.example .env
-```
+If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
-4. Ajustar o `.env`:
+## License
 
-- para ambiente local simples, deixe SQLite
-- para MariaDB, troque `DATABASE_URL`
-- para IA, configure `OPENROUTER_API_KEY`
-
-5. Rodar migrações:
-
-```bat
-python project\manage.py makemigrations
-python project\manage.py migrate
-```
-
-6. Criar superusuário:
-
-```bat
-python project\manage.py createsuperuser
-```
-
-7. Subir o servidor:
-
-```bat
-python project\manage.py runserver
-```
-
-Abra `http://127.0.0.1:8000`.
-
-## Fluxo recomendado de uso
-
-1. cadastrar uma empresa
-2. selecionar a empresa ativa no topo
-3. importar um CSV do Meta Ads
-4. revisar o dashboard e o comparativo de períodos
-5. cadastrar ou importar anúncios de concorrentes
-6. gerar um relatório estratégico consolidado
-
-## Variáveis de ambiente principais
-
-```env
-SECRET_KEY=troque-esta-chave
-DEBUG=True
-DATABASE_URL=sqlite:///db.sqlite3
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=openai/gpt-4o-mini
-```
-
-## Observações técnicas
-
-- o parser tenta detectar separador, encoding e sinônimos comuns de colunas
-- se a coluna de campanha não for identificada, a tela de mapeamento manual é exibida
-- a análise competitiva usa apenas dados observáveis/importados dos concorrentes
-- o sistema não infere métricas privadas reais como CPC, CTR, leads ou ROAS dos concorrentes
-- o PDF depende do WeasyPrint e das libs nativas do sistema operacional
-
-## Ambientes futuros
-
-O projeto já está modularizado para crescer com:
-
-- autenticação por usuário/equipe
-- jobs assíncronos para importação
-- cache
-- storage remoto
-- banco relacional de produção
-- observabilidade e deploy
-
+The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
