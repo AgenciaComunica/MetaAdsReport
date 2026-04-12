@@ -71,7 +71,6 @@ class UploadPainelArquivoForm(forms.Form):
 
 
 class ComparePeriodForm(forms.Form):
-    empresa = forms.ModelChoiceField(queryset=Empresa.objects.order_by('nome'), widget=forms.Select(attrs={'class': 'form-select'}))
     periodo_atual = forms.CharField(
         label='Período atual',
         required=False,

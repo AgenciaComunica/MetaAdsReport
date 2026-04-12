@@ -263,10 +263,10 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         if self.is_manual_leads_panel:
             self.mapping_enabled = False
         self.require_mapping = require_mapping and self.mapping_enabled
-        metric_config = normalize_panel_metric_config(self.document_type, self.instance.metricas_painel_json)
+        metric_config = normalize_panel_metric_config(self.document_type, self.instance.metricas_painel_json, variant=self.digital_type_value)
 
         if self.document_type:
-            for group in get_panel_metric_groups(self.document_type):
+            for group in get_panel_metric_groups(self.document_type, self.digital_type_value):
                 filter_state = (metric_config.get('filters') or {}).get(group['key'], {'enabled': False})
                 self.fields[f'filter_enabled__{group["key"]}'] = forms.BooleanField(
                     required=False,
@@ -300,9 +300,9 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                 social_choices = [('', 'Selecione uma coluna')] + [(column, column) for column in self.social_columns.get(social_type, [])]
                 social_mapping = social_mappings.get(social_type, {}) if isinstance(social_mappings.get(social_type, {}), dict) else {}
                 if not social_mapping:
-                    social_mapping = get_default_social_mapping(social_type, self.social_columns.get(social_type, []))
+                    social_mapping = get_default_social_mapping(social_type, self.social_columns.get(social_type, []), digital_type=self.digital_type_value)
                 social_primary = set(social_primaries.get(social_type, [])) if isinstance(social_primaries.get(social_type, []), list) else set()
-                for field_def in get_field_schema(self.document_type):
+                for field_def in get_field_schema(self.document_type, self.digital_type_value):
                     key = field_def['key']
                     self.fields[f'map__{social_type}__{key}'] = forms.ChoiceField(
                         choices=social_choices,
@@ -319,7 +319,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                     )
             return
 
-        for field_def in get_field_schema(self.document_type):
+        for field_def in get_field_schema(self.document_type, self.digital_type_value):
             key = field_def['key']
             self.fields[f'map__{key}'] = forms.ChoiceField(
                 choices=choices,
@@ -351,7 +351,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             for social_type, social_label in self.social_mapping_types:
                 selected_columns = {}
                 has_any_mapping = False
-                for field_def in get_field_schema(self.document_type):
+                for field_def in get_field_schema(self.document_type, self.digital_type_value):
                     key = field_def['key']
                     mapped_column = cleaned_data.get(f'map__{social_type}__{key}')
                     if not mapped_column:
@@ -362,12 +362,12 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                         self.add_error(f'map__{social_type}__{key}', f'A coluna "{mapped_column}" já foi usada em outro campo do sistema.')
                     selected_columns[mapped_column] = key
                 if has_any_mapping:
-                    for field_def in get_field_schema(self.document_type):
+                    for field_def in get_field_schema(self.document_type, self.digital_type_value):
                         if field_def['required'] and not cleaned_data.get(f'map__{social_type}__{field_def["key"]}'):
                             self.add_error(f'map__{social_type}__{field_def["key"]}', f'Preencha o campo obrigatório de {social_label}.')
             if self.document_type:
                 cleaned_data['metricas_painel_json'] = self._build_metric_config(cleaned_data)
-                for group in get_panel_metric_groups(self.document_type):
+                for group in get_panel_metric_groups(self.document_type, self.digital_type_value):
                     group_has_any_metric = any(
                         cleaned_data.get(f'metric_table__{metric["key"]}') or cleaned_data.get(f'metric_chart__{metric["key"]}')
                         for metric in group['metrics']
@@ -382,7 +382,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
                         raise forms.ValidationError(f'Ative ao menos uma métrica de Gráfico em "{group["label"]}".')
             return cleaned_data
 
-        for field_def in get_field_schema(cleaned_data.get('tipo_documento') or self.document_type):
+        for field_def in get_field_schema(cleaned_data.get('tipo_documento') or self.document_type, self.digital_type_value):
             key = field_def['key']
             mapped_column = cleaned_data.get(f'map__{key}')
             if not mapped_column:
@@ -394,7 +394,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
 
         if self.document_type:
             cleaned_data['metricas_painel_json'] = self._build_metric_config(cleaned_data)
-            for group in get_panel_metric_groups(self.document_type):
+            for group in get_panel_metric_groups(self.document_type, self.digital_type_value):
                 group_has_any_metric = any(
                     cleaned_data.get(f'metric_table__{metric["key"]}') or cleaned_data.get(f'metric_chart__{metric["key"]}')
                     for metric in group['metrics']
@@ -440,7 +440,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             return {'categories': {}, 'metrics': {}, 'filters': {}}
 
         metricas = {'categories': {}, 'metrics': {}, 'filters': {}}
-        for group in get_panel_metric_groups(self.document_type):
+        for group in get_panel_metric_groups(self.document_type, self.digital_type_value):
             group_key = group['key']
             group_is_active = False
             for metric_def in group['metrics']:
@@ -470,7 +470,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             for social_type, _ in self.social_mapping_types:
                 social_mapping = {}
                 social_primary = []
-                for field_def in get_field_schema(instance.tipo_documento):
+                for field_def in get_field_schema(instance.tipo_documento, self.digital_type_value):
                     key = field_def['key']
                     mapped_column = self.cleaned_data.get(f'map__{social_type}__{key}')
                     if mapped_column:
@@ -486,7 +486,7 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
         else:
             mapping = {}
             principais = []
-            for field_def in get_field_schema(instance.tipo_documento):
+            for field_def in get_field_schema(instance.tipo_documento, self.digital_type_value):
                 key = field_def['key']
                 mapped_column = self.cleaned_data.get(f'map__{key}')
                 if mapped_column:
@@ -553,9 +553,9 @@ class ConfiguracaoUploadEmpresaForm(forms.ModelForm):
             social_mapping = instance.mapeamento_json if isinstance(instance.mapeamento_json, dict) else {}
             social_primary = instance.campos_principais_json if isinstance(instance.campos_principais_json, dict) else {}
             if not social_mapping.get(target_kind):
-                social_mapping[target_kind] = get_default_social_mapping(target_kind, preview.columns)
+                social_mapping[target_kind] = get_default_social_mapping(target_kind, preview.columns, digital_type=self.digital_type_value)
             if not social_primary.get(target_kind):
-                social_primary[target_kind] = [item['key'] for item in get_field_schema(instance.tipo_documento) if item['required']]
+                social_primary[target_kind] = [item['key'] for item in get_field_schema(instance.tipo_documento, self.digital_type_value) if item['required']]
             instance.mapeamento_json = social_mapping
             instance.campos_principais_json = social_primary
             instance.colunas_detectadas_json = []

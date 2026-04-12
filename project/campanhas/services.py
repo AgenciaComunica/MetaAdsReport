@@ -182,6 +182,16 @@ def _parse_single_date(value):
             return pd.Timestamp(iso_match.group(0)).date()
         except Exception:
             pass
+    # Exportações do Meta Ads e Instagram usam formato US (MM/DD/YYYY).
+    # Tenta padrões US explícitos antes de cair no dayfirst=True (PT-BR).
+    if '/' in text:
+        for pattern in ('%m/%d/%Y %H:%M:%S', '%m/%d/%Y %H:%M', '%m/%d/%Y'):
+            try:
+                parsed = pd.to_datetime(text, format=pattern, errors='coerce')
+                if not pd.isna(parsed):
+                    return parsed.date()
+            except Exception:
+                continue
     parsed = pd.to_datetime(text, errors='coerce', dayfirst=True)
     if pd.isna(parsed):
         return None

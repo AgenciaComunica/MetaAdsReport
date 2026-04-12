@@ -145,7 +145,7 @@ def upload_config_update(request, empresa_pk, config_pk):
         if form.document_type == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
             for social_type, social_label in form.social_mapping_types:
                 section_rows = []
-                for item in get_field_schema(form.document_type):
+                for item in get_field_schema(form.document_type, form.digital_type_value):
                     key = item['key']
                     section_rows.append(
                         {
@@ -168,7 +168,7 @@ def upload_config_update(request, empresa_pk, config_pk):
                     }
                 )
         else:
-            for item in get_field_schema(form.document_type):
+            for item in get_field_schema(form.document_type, form.digital_type_value):
                 key = item['key']
                 mapping_rows.append(
                     {
@@ -182,7 +182,7 @@ def upload_config_update(request, empresa_pk, config_pk):
 
     metric_groups = []
     if form.document_type:
-        for group in get_panel_metric_groups(form.document_type):
+        for group in get_panel_metric_groups(form.document_type, form.digital_type_value):
             metric_groups.append(
                 {
                     'key': group['key'],

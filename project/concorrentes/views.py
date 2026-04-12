@@ -23,12 +23,7 @@ from .services import (
 
 
 def concorrente_list(request):
-    query = {}
-    empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
-    if empresa_id:
-        query['empresa'] = empresa_id
-    query['tab'] = 'concorrentes'
-    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
+    return redirect(f"{reverse('campanhas:dashboard')}?tab=concorrentes")
 
 
 def concorrente_create(request):
@@ -108,8 +103,10 @@ def concorrente_delete(request, pk):
 
 
 def concorrente_avaliar_agora(request):
-    empresa_id = request.POST.get('empresa') or request.GET.get('empresa') or request.session.get('active_company_id')
-    empresa = get_object_or_404(Empresa, pk=empresa_id)
+    empresa = Empresa.objects.order_by('pk').first()
+    if not empresa:
+        messages.error(request, 'Nenhuma empresa configurada.')
+        return redirect('campanhas:dashboard')
     period_start = parse_date(request.POST.get('data_inicio') or request.GET.get('data_inicio') or '')
     period_end = parse_date(request.POST.get('data_fim') or request.GET.get('data_fim') or '')
     previous_start_raw = request.POST.get('data_inicio_anterior') or request.GET.get('data_inicio_anterior') or ''

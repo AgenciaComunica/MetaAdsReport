@@ -22,12 +22,7 @@ from .services import render_pdf_bytes, render_report_html
 
 
 def relatorio_list(request):
-    query = {}
-    empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
-    if empresa_id:
-        query['empresa'] = empresa_id
-    query['tab'] = 'analise_completa'
-    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
+    return redirect(f"{reverse('campanhas:dashboard')}?tab=analise_completa")
 
 
 def relatorio_generate(request):
@@ -35,7 +30,10 @@ def relatorio_generate(request):
         messages.info(request, 'Gere o relatório a partir do dashboard para considerar os dados exibidos na tela.')
         return redirect('campanhas:dashboard')
 
-    empresa = get_object_or_404(Empresa, pk=request.POST.get('empresa'))
+    empresa = Empresa.objects.order_by('pk').first()
+    if not empresa:
+        messages.error(request, 'Nenhuma empresa configurada.')
+        return redirect('campanhas:dashboard')
     default_ranges = last_complete_month_ranges()
     periodo_inicio = parse_date(request.POST.get('data_inicio') or '') or default_ranges['current_start']
     periodo_fim = parse_date(request.POST.get('data_fim') or '') or default_ranges['current_end']
