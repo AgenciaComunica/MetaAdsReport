@@ -697,11 +697,6 @@
                             <td>{{ relatorio.criado_em|date:'d/m/Y H:i' }}</td>
                             <td class="d-flex gap-2">
                                 <a class="btn btn-sm btn-outline-dark" href="{% url 'relatorios:detail' relatorio.pk %}">Abrir</a>
-                                {% if relatorio.pdf_arquivo %}
-                                    <a class="btn btn-sm btn-dark" href="{% url 'relatorios:pdf_export' relatorio.pk %}">PDF</a>
-                                {% else %}
-                                    <a class="btn btn-sm btn-outline-secondary disabled" href="#" tabindex="-1" aria-disabled="true">PDF</a>
-                                {% endif %}
                                 <a class="btn btn-sm btn-outline-danger" href="{% url 'relatorios:delete' relatorio.pk %}">Excluir</a>
                             </td>
                         </tr>
