@@ -1,32 +1,27 @@
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
+from empresas.forms import EmpresaForm
 from empresas.models import Empresa
-
-from .forms import ActiveCompanyForm
 
 
 def home(request):
-    empresa = None
-    company_id = request.session.get('active_company_id')
-    if company_id:
-        empresa = Empresa.objects.filter(pk=company_id).first()
+    empresa = Empresa.objects.order_by('pk').first()
+
+    if request.method == 'POST':
+        if empresa:
+            form = EmpresaForm(request.POST, instance=empresa)
+        else:
+            form = EmpresaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Configurações salvas com sucesso.')
+            return redirect('core:home')
+    else:
+        form = EmpresaForm(instance=empresa) if empresa else EmpresaForm()
+
     context = {
         'empresa': empresa,
-        'empresas': Empresa.objects.order_by('nome'),
-        'active_company_form': ActiveCompanyForm(initial={'empresa': empresa}),
+        'form': form,
     }
     return render(request, 'core/home.html', context)
-
-
-def set_active_company(request):
-    form = ActiveCompanyForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        empresa = form.cleaned_data['empresa']
-        if empresa:
-            request.session['active_company_id'] = empresa.pk
-            messages.success(request, f'Empresa ativa definida como {empresa.nome}.')
-        else:
-            request.session.pop('active_company_id', None)
-            messages.success(request, 'Filtro de empresa removido.')
-    return redirect(request.META.get('HTTP_REFERER', 'core:home'))

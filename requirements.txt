@@ -4,7 +4,8 @@ sqlparse==0.5.3
 python-decouple==3.8
 dj-database-url==3.0.0
 pandas==2.3.2
+openpyxl==3.1.5
+xlrd==2.0.1
 requests==2.32.5
-weasyprint==65.0
 PyMySQL==1.1.1
 python-dotenv==1.1.1

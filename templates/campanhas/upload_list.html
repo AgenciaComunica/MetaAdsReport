@@ -1,9 +1,41 @@
 {% extends 'base.html' %}
-{% block page_title %}Uploads Meta Ads{% endblock %}
+{% block page_title %}Uploads{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
-    <p class="text-muted mb-0">Importe CSVs exportados do Meta Ads Manager e normalize automaticamente as colunas.</p>
-    <a href="{% url 'campanhas:upload_create' %}" class="btn btn-dark">Novo upload</a>
+    <div>
+        {% if empresa %}
+            <p class="text-muted mb-0">Uploads da empresa <strong>{{ empresa.nome }}</strong>.</p>
+        {% else %}
+            <p class="text-muted mb-0">Importe CSVs exportados do Meta Ads Manager e normalize automaticamente as colunas.</p>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        {% if empresa %}
+            <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Configurar Uploads</a>
+        {% endif %}
+        <a href="{% url 'campanhas:upload_create' %}" class="btn btn-dark">Novo upload</a>
+    </div>
+</div>
+<div class="panel mb-4">
+    <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label for="{{ company_filter_form.empresa.id_for_label }}" class="form-label">Empresa</label>
+            <select
+                name="{{ company_filter_form.empresa.html_name }}"
+                id="{{ company_filter_form.empresa.id_for_label }}"
+                class="form-select"
+                onchange="this.form.submit()"
+            >
+                <option value="">Todas as empresas</option>
+                {% for option in company_filter_form.empresa.field.queryset %}
+                    <option value="{{ option.pk }}"{% if empresa and empresa.pk == option.pk %} selected{% endif %}>{{ option.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-auto">
+            <button type="submit" class="btn btn-outline-dark">Filtrar</button>
+        </div>
+    </form>
 </div>
 <div class="panel">
     <div class="table-responsive">

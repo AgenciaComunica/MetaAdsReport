@@ -3,7 +3,9 @@ from django.db import models
 
 class Empresa(models.Model):
     nome = models.CharField(max_length=255)
+    cnpj = models.CharField(max_length=18, blank=True)
     segmento = models.CharField(max_length=255, blank=True)
+    redes_sociais_json = models.JSONField(default=list, blank=True)
     instagram_profile_url = models.URLField(blank=True)
     ads_biblioteca_ativo = models.BooleanField(default=False)
     ads_biblioteca_query = models.CharField(max_length=255, blank=True)
@@ -28,17 +30,17 @@ class Empresa(models.Model):
     def __str__(self):
         return self.nome
 
+    @property
+    def redes_sociais(self):
+        return self.redes_sociais_json or []
+
 
 class ConfiguracaoUploadEmpresa(models.Model):
     class TipoDocumento(models.TextChoices):
-        TRAFEGO_PAGO = 'trafego_pago', 'Tráfego Pago'
-        EVENTOS = 'eventos', 'Eventos'
-        VENDAS = 'vendas', 'Vendas'
-        LEADS = 'leads', 'Leads'
-        CRM = 'crm', 'CRM'
-        FINANCEIRO = 'financeiro', 'Financeiro'
-        ESTOQUE = 'estoque', 'Estoque'
-        ATENDIMENTO = 'atendimento', 'Atendimento'
+        TRAFEGO_PAGO = 'trafego_pago', 'Ads Digital'
+        CRM_VENDAS = 'crm_vendas', 'Vendas'
+        LEADS_EVENTOS = 'leads_eventos', 'Presença Física'
+        REDES_SOCIAIS = 'redes_sociais', 'Presença Digital'
 
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='configuracoes_upload')
     nome = models.CharField(max_length=255)
@@ -49,6 +51,8 @@ class ConfiguracaoUploadEmpresa(models.Model):
     preview_json = models.JSONField(default=list, blank=True)
     mapeamento_json = models.JSONField(default=dict, blank=True)
     campos_principais_json = models.JSONField(default=list, blank=True)
+    metricas_painel_json = models.JSONField(default=list, blank=True)
+    configuracao_analise_json = models.JSONField(default=dict, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 

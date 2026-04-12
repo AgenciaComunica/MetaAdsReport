@@ -5,11 +5,17 @@
     <form method="post">
         {% csrf_token %}
         <div class="row g-3">
-            <div class="col-md-8">{{ form.nome.label_tag }}{{ form.nome }}</div>
-            <div class="col-md-4">{{ form.segmento.label_tag }}{{ form.segmento }}</div>
+            <div class="col-md-6">{{ form.nome.label_tag }}{{ form.nome }}</div>
+            <div class="col-md-6">{{ form.cnpj.label_tag }}{{ form.cnpj }}</div>
+            <div class="col-md-6">{{ form.segmento.label_tag }}{{ form.segmento }}</div>
             <div class="col-12">{{ form.instagram_profile_url.label_tag }}{{ form.instagram_profile_url }}</div>
             <div class="col-12">{{ form.observacoes.label_tag }}{{ form.observacoes }}</div>
-            <div class="col-12 form-check">{{ form.ativo }} <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Empresa ativa</label></div>
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    {{ form.ativo }}
+                    <label class="form-check-label" for="{{ form.ativo.id_for_label }}">Empresa ativa</label>
+                </div>
+            </div>
         </div>
         <button class="btn btn-dark mt-4" type="submit">Salvar</button>
     </form>

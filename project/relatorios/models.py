@@ -16,7 +16,6 @@ class Relatorio(models.Model):
     resumo_ia = models.TextField(blank=True)
     insights_ia = models.TextField(blank=True)
     html_renderizado = models.TextField(blank=True)
-    pdf_arquivo = models.FileField(upload_to='relatorios/pdf/', blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -6,6 +6,4 @@ app_name = 'core'
 
 urlpatterns = [
     path('', views.home, name='home'),
-    path('empresa-ativa/', views.set_active_company, name='set_active_company'),
 ]
-

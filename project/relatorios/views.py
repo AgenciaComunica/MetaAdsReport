@@ -1,9 +1,10 @@
+from urllib.parse import urlencode
+
 from django.contrib import messages
-from django.core.files.base import ContentFile
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.dateparse import parse_date
-from django.utils.text import slugify
 
 from campanhas.services import campaign_table, comparison_summary, metrics_queryset, stacked_campaign_comparison_chart, summarize_metrics
 from concorrentes.models import ConcorrenteAd
@@ -15,15 +16,11 @@ from ia.models import AnaliseConcorrencial
 from ia.services import build_report_payload, generate_report_insights, split_analysis_sections
 
 from .models import Relatorio
-from .services import render_pdf_bytes, render_report_html
+from .services import render_report_html
 
 
 def relatorio_list(request):
-    relatorios = Relatorio.objects.select_related('empresa')
-    company_id = request.session.get('active_company_id')
-    if company_id:
-        relatorios = relatorios.filter(empresa_id=company_id)
-    return render(request, 'relatorios/list.html', {'relatorios': relatorios})
+    return redirect(f"{reverse('campanhas:dashboard')}?tab=analise_completa")
 
 
 def relatorio_generate(request):
@@ -31,7 +28,10 @@ def relatorio_generate(request):
         messages.info(request, 'Gere o relatório a partir do dashboard para considerar os dados exibidos na tela.')
         return redirect('campanhas:dashboard')
 
-    empresa = get_object_or_404(Empresa, pk=request.POST.get('empresa'))
+    empresa = Empresa.objects.order_by('pk').first()
+    if not empresa:
+        messages.error(request, 'Nenhuma empresa configurada.')
+        return redirect('campanhas:dashboard')
     default_ranges = last_complete_month_ranges()
     periodo_inicio = parse_date(request.POST.get('data_inicio') or '') or default_ranges['current_start']
     periodo_fim = parse_date(request.POST.get('data_fim') or '') or default_ranges['current_end']
@@ -145,13 +145,7 @@ def relatorio_generate(request):
         insights_ia=insight_text,
         html_renderizado=html,
     )
-    pdf_bytes = render_pdf_bytes(html, base_url=request.build_absolute_uri('/'))
-    if pdf_bytes:
-        filename = f"{slugify(relatorio.titulo)}.pdf"
-        relatorio.pdf_arquivo.save(filename, ContentFile(pdf_bytes), save=True)
-        messages.success(request, 'Relatório gerado com PDF.')
-    else:
-        messages.info(request, 'Relatório gerado em HTML. PDF indisponível neste ambiente.')
+    messages.success(request, 'Relatório gerado com sucesso.')
     return redirect('relatorios:detail', pk=relatorio.pk)
 
 
@@ -165,22 +159,11 @@ def relatorio_html_export(request, pk):
     return HttpResponse(relatorio.html_renderizado, content_type='text/html; charset=utf-8')
 
 
-def relatorio_pdf_export(request, pk):
-    relatorio = get_object_or_404(Relatorio, pk=pk)
-    if not relatorio.pdf_arquivo:
-        messages.error(request, 'PDF não disponível para este relatório.')
-        return redirect('relatorios:detail', pk=pk)
-    response = HttpResponse(relatorio.pdf_arquivo.read(), content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{slugify(relatorio.titulo)}.pdf"'
-    return response
-
 
 def relatorio_delete(request, pk):
     relatorio = get_object_or_404(Relatorio.objects.select_related('empresa'), pk=pk)
     if request.method == 'POST':
         titulo = relatorio.titulo
-        if relatorio.pdf_arquivo:
-            relatorio.pdf_arquivo.delete(save=False)
         relatorio.delete()
         messages.success(request, f'Relatório "{titulo}" removido com sucesso.')
         return redirect('relatorios:list')

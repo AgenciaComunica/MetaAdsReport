@@ -23,38 +23,7 @@ from .services import (
 
 
 def concorrente_list(request):
-    queryset = ConcorrenteAd.objects.select_related('empresa').filter(categoria='Perfil importado')
-    empresa_id = request.session.get('active_company_id')
-    empresa = Empresa.objects.filter(pk=empresa_id).first() if empresa_id else None
-    competitor_status_map = {item['nome']: item for item in competitor_profiles(queryset)}
-    analyses = AnaliseConcorrencial.objects.exclude(concorrente_nome='')
-    analysis_map = {
-        (analysis.empresa_id, analysis.concorrente_nome): analysis
-        for analysis in analyses
-    }
-    ads = list(queryset[:300])
-    for ad in ads:
-        profile = competitor_status_map.get(ad.concorrente_nome.strip())
-        ad.activity_label = profile['activity_label'] if profile else 'Sem Avaliação Feita'
-        ad.activity_class = profile['activity_class'] if profile else 'is-none'
-        ad.analysis = analysis_map.get((ad.empresa_id, ad.concorrente_nome))
-        ad.has_analysis = ad.analysis is not None
-        ad.open_analysis_url = (
-            f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': ad.empresa.id, 'open_analysis': ad.concorrente_nome})}#analise-digital"
-            if ad.has_analysis
-            else ''
-        )
-        if ad.has_analysis and ad.activity_label == 'Sem Avaliação Feita':
-            ad.activity_label = 'Sem Ads'
-    return render(
-        request,
-        'concorrentes/list.html',
-        {
-            'ads': ads,
-            'empresa': empresa,
-            'competitor_profiles': list(competitor_status_map.values()),
-        },
-    )
+    return redirect(f"{reverse('campanhas:dashboard')}?tab=concorrentes")
 
 
 def concorrente_create(request):
@@ -134,8 +103,10 @@ def concorrente_delete(request, pk):
 
 
 def concorrente_avaliar_agora(request):
-    empresa_id = request.POST.get('empresa') or request.GET.get('empresa') or request.session.get('active_company_id')
-    empresa = get_object_or_404(Empresa, pk=empresa_id)
+    empresa = Empresa.objects.order_by('pk').first()
+    if not empresa:
+        messages.error(request, 'Nenhuma empresa configurada.')
+        return redirect('campanhas:dashboard')
     period_start = parse_date(request.POST.get('data_inicio') or request.GET.get('data_inicio') or '')
     period_end = parse_date(request.POST.get('data_fim') or request.GET.get('data_fim') or '')
     previous_start_raw = request.POST.get('data_inicio_anterior') or request.GET.get('data_inicio_anterior') or ''

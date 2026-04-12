@@ -12,6 +12,34 @@ from concorrentes.services import (
     extract_instagram_username,
 )
 
+LEGACY_DIGITAL_NOTE_MARKERS = (
+    'Instagram da empresa:',
+    'Meta Ads Library:',
+    'Busca usada:',
+    'Ads ativos encontrados:',
+)
+
+
+def strip_empresa_legacy_digital_notes(text):
+    raw_text = (text or '').strip()
+    if not raw_text:
+        return ''
+
+    cleaned_lines = []
+    for line in raw_text.splitlines():
+        normalized = line.strip()
+        if not normalized:
+            if cleaned_lines and cleaned_lines[-1]:
+                cleaned_lines.append('')
+            continue
+        if any(normalized.startswith(marker) for marker in LEGACY_DIGITAL_NOTE_MARKERS):
+            continue
+        cleaned_lines.append(line)
+
+    while cleaned_lines and not cleaned_lines[-1].strip():
+        cleaned_lines.pop()
+    return '\n'.join(cleaned_lines).strip()
+
 
 def refresh_empresa_profile_record(empresa, ads_session=None):
     profile_url = empresa.instagram_profile_url
@@ -65,15 +93,7 @@ def refresh_empresa_profile_record(empresa, ads_session=None):
     empresa.feed_cadencia = feed_insights['cadencia'][:100]
     empresa.feed_formatos = feed_insights['formatos']
 
-    extra = (
-        f'\n\nInstagram da empresa: @{username}'
-        f'\nMeta Ads Library: {ad_library_url}'
-        f'\nBusca usada: {ads_library["query"] or "-"}'
-        f'\nAds ativos encontrados: {ads_library["signal"]}'
-    )
-    if extra not in (empresa.observacoes or ''):
-        empresa.observacoes = (empresa.observacoes or '').strip()
-        empresa.observacoes = f'{empresa.observacoes}{extra}'.strip()
+    empresa.observacoes = strip_empresa_legacy_digital_notes(empresa.observacoes)
 
     empresa.save(
         update_fields=[

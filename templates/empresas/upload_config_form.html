@@ -1,19 +1,31 @@
 {% extends 'base.html' %}
 {% load empresas_extras %}
-{% block page_title %}Configurar Upload{% endblock %}
+{% block page_title %}Configurar Painel{% endblock %}
+{% block page_actions %}
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Voltar para Configurações</a>
+        <button class="btn btn-dark" type="submit" form="configurarPainelForm" name="action" value="salvar">Salvar configuração</button>
+    </div>
+{% endblock %}
 {% block content %}
+<div class="upload-config-page">
 <div class="panel mt-4">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
             <span class="eyebrow">Empresa</span>
             <h2 class="mb-1">{{ empresa.nome }}</h2>
-            <p class="text-muted mb-0">Configuração reutilizável para uploads do tipo {{ configuracao.get_tipo_documento_display }}.</p>
+            <p class="text-muted mb-0">
+                {% if configuracao.tipo_documento %}
+                    Painel configurável do tipo {{ configuracao.get_tipo_documento_display }}.
+                {% else %}
+                    Defina o tipo do painel, envie o arquivo e clique em Mapear para abrir o mapeamento.
+                {% endif %}
+            </p>
         </div>
-        <a href="{% url 'empresas:detail' empresa.pk %}" class="btn btn-outline-dark">Voltar</a>
     </div>
 </div>
 
-<form method="post" enctype="multipart/form-data" class="panel mt-4 form-panel" data-loading-title="Lendo arquivo" data-loading-text="Aguarde enquanto o arquivo é analisado e o mapeamento é salvo.">
+<form id="configurarPainelForm" method="post" enctype="multipart/form-data" class="panel mt-4 form-panel" data-loading-title="Lendo arquivo" data-loading-text="Aguarde enquanto o arquivo é analisado e o mapeamento é salvo.">
     {% csrf_token %}
     {% if form.non_field_errors %}
         <div class="alert alert-danger">{{ form.non_field_errors|join:', ' }}</div>
@@ -29,83 +41,332 @@
                 {{ form.tipo_documento.label_tag }}{{ form.tipo_documento }}
                 {% if form.tipo_documento.errors %}<div class="text-danger small mt-1">{{ form.tipo_documento.errors|join:', ' }}</div>{% endif %}
             </div>
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="mb-3">
+                    {{ form.digital_type.label_tag }}{{ form.digital_type }}
+                    {% if form.digital_type.errors %}<div class="text-danger small mt-1">{{ form.digital_type.errors|join:', ' }}</div>{% endif %}
+                </div>
+            {% elif form.document_type == 'trafego_pago' %}
+                <div class="mb-3">
+                    {{ form.ads_type.label_tag }}{{ form.ads_type }}
+                    {% if form.ads_type.errors %}<div class="text-danger small mt-1">{{ form.ads_type.errors|join:', ' }}</div>{% endif %}
+                </div>
+            {% endif %}
             <div class="mb-3">
-                {{ form.arquivo_exemplo.label_tag }}{{ form.arquivo_exemplo }}
-                {% if form.arquivo_exemplo.errors %}<div class="text-danger small mt-1">{{ form.arquivo_exemplo.errors|join:', ' }}</div>{% endif %}
+                {% if form.document_type != 'leads_eventos' %}
+                    {{ form.arquivo_exemplo.label_tag }}{{ form.arquivo_exemplo }}
+                    {% if form.arquivo_exemplo.errors %}<div class="text-danger small mt-1">{{ form.arquivo_exemplo.errors|join:', ' }}</div>{% endif %}
+                {% endif %}
             </div>
-            {% if configuracao.nome_arquivo_exemplo %}
-                <p class="text-muted small mb-0">Último arquivo lido: {{ configuracao.nome_arquivo_exemplo }}</p>
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="mb-3">
+                    {{ form.social_example_kind.label_tag }}{{ form.social_example_kind }}
+                    {% if form.social_example_kind.errors %}<div class="text-danger small mt-1">{{ form.social_example_kind.errors|join:', ' }}</div>{% endif %}
+                </div>
+            {% endif %}
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                {% if form.document_type != 'leads_eventos' %}
+                    <button class="btn btn-outline-dark" type="submit" name="action" value="mapear">Mapear</button>
+                    {% if has_example_file %}
+                        <button class="btn btn-outline-secondary" type="submit" name="action" value="limpar_arquivo">Limpar planilha exemplo</button>
+                    {% endif %}
+                {% endif %}
+            </div>
+            {% if form.document_type == 'leads_eventos' %}
+                <p class="text-muted small mb-0">Esse painel usa entrada manual no dashboard. Basta salvar a configuração para começar a cadastrar eventos.</p>
+            {% elif configuracao.nome_arquivo_exemplo %}
+                <p class="text-muted small mb-0">Arquivo de exemplo: {{ configuracao.nome_arquivo_exemplo }}</p>
             {% else %}
-                <p class="text-muted small mb-0">Defina o tipo do documento e envie um arquivo de exemplo para concluir esta configuração.</p>
+                <p class="text-muted small mb-0">Selecione o tipo, envie o arquivo e clique em Mapear.</p>
             {% endif %}
         </div>
-        <div class="col-lg-8">
-            <h3 class="mb-3">Mapeamento do sistema</h3>
+    </div>
+    <div class="panel mt-4">
+        <h3 class="mb-3">Análise do Painel</h3>
+        {% if metric_groups %}
+            <p class="text-muted small">Selecione as métricas que devem aparecer nesta aba do dashboard.</p>
+            <p class="text-muted small">Cada métrica pode aparecer na Tabela, no Gráfico ou nos dois. Você também pode desligar a categoria inteira.</p>
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-6">
+                        <div class="panel">
+                            <h4 class="mb-2">Composição de Receita</h4>
+                            <p class="text-muted small mb-3">Define quanto da <strong>base operacional</strong> migra de Operação para Marketing no Resumo Executivo, com base no alcance social do período.</p>
+                            {{ form.social_receita_percentual_por_1k_alcance.label_tag }}
+                            {{ form.social_receita_percentual_por_1k_alcance }}
+                            {% if form.social_receita_percentual_por_1k_alcance.errors %}<div class="text-danger small mt-1">{{ form.social_receita_percentual_por_1k_alcance.errors|join:', ' }}</div>{% endif %}
+                            <p class="text-muted small mb-0 mt-2">Exemplo: se o valor for <strong>1</strong> e a conta tiver <strong>30 mil</strong> de alcance no período, <strong>30%</strong> da receita operacional sai de Operação e entra em Marketing.</p>
+                        </div>
+                    </div>
+                </div>
+            {% elif form.document_type == 'leads_eventos' %}
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-6">
+                        <div class="panel">
+                            <h4 class="mb-2">Composição de Receita</h4>
+                            <p class="text-muted small mb-3">Define quanto da <strong>base operacional</strong> migra de Operação para Marketing no Resumo Executivo, com base no alcance presencial dos eventos.</p>
+                            {{ form.eventos_receita_percentual_por_1k_alcance.label_tag }}
+                            {{ form.eventos_receita_percentual_por_1k_alcance }}
+                            {% if form.eventos_receita_percentual_por_1k_alcance.errors %}<div class="text-danger small mt-1">{{ form.eventos_receita_percentual_por_1k_alcance.errors|join:', ' }}</div>{% endif %}
+                            <p class="text-muted small mb-0 mt-2">Exemplo: se o valor for <strong>1</strong> e os eventos tiverem <strong>30 mil</strong> pessoas alcançadas no período, <strong>30%</strong> da receita operacional sai de Operação e entra em Marketing.</p>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            <div class="analysis-config-grid" data-analysis-config>
+                {% for group in metric_groups %}
+                    <div class="panel analysis-config-group" data-analysis-category="{{ group.key }}">
+                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                            <div>
+                                <h4 class="mb-1">{{ group.label }}</h4>
+                                <p class="text-muted mb-0">{{ group.description }}</p>
+                            </div>
+                            <div class="form-check form-switch analysis-filter-switch mb-0">
+                                {{ group.filter_field }}
+                                <label class="form-check-label" for="{{ group.filter_field.id_for_label }}">Habilitar filtro</label>
+                            </div>
+                        </div>
+                        <div class="table-responsive mt-3">
+                            <table class="table align-middle mb-0 analysis-config-table">
+                                <thead>
+                                    <tr>
+                                        <th>Métrica</th>
+                                        <th class="text-center">Tabela</th>
+                                        <th class="text-center">Gráfico</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for metric in group.metrics %}
+                                        <tr data-analysis-metric="{{ metric.key }}">
+                                            <td>
+                                                <span class="kpi-label">
+                                                    {{ metric.label }}
+                                                    {% if metric.tooltip %}
+                                                        <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ metric.tooltip }}">?</button>
+                                                    {% endif %}
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0" data-analysis-metric-table>
+                                                    {{ metric.table_field }}
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="form-check form-switch d-inline-flex justify-content-center mb-0" data-analysis-metric-chart>
+                                                    {{ metric.chart_field }}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% elif form.tipo_documento.value or configuracao.tipo_documento %}
+            <p class="text-muted mb-0">Escolha um tipo de painel para liberar a configuração das métricas.</p>
+        {% else %}
+            <p class="text-muted mb-0">Defina o tipo do painel para configurar as métricas exibidas.</p>
+        {% endif %}
+    </div>
+
+    {% if form.document_type != 'leads_eventos' %}
+    <div class="panel mt-4">
+        <h3 class="mb-3">Mapeamento do Sistema</h3>
+        {% if show_mapping %}
+            {% if form.document_type == 'redes_sociais' %}
+                <div class="row g-4">
+                    {% for section in mapping_sections %}
+                        <div class="col-lg-6">
+                            <div class="panel h-100">
+                                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                                    <div>
+                                        <h4 class="mb-1">{{ section.label }}</h4>
+                                        <p class="text-muted mb-0">
+                                            {% if section.file_name %}
+                                                Arquivo exemplo: {{ section.file_name }}
+                                            {% else %}
+                                                Faça o mapeamento específico para {{ section.label|lower }}.
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table align-middle upload-mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Campo do sistema</th>
+                                                <th>Campo do arquivo</th>
+                                                <th class="text-center">Principal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in section.rows %}
+                                                <tr>
+                                                    <td>
+                                                        <strong>{{ row.label }}</strong>
+                                                        {% if row.required %}
+                                                            <span class="badge text-bg-dark ms-2">Obrigatório</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {{ row.map_field }}
+                                                        {% if row.map_field.errors %}
+                                                            <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <div class="form-check d-inline-flex justify-content-center">
+                                                            {{ row.primary_field }}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table align-middle upload-mapping-table">
+                        <thead>
+                            <tr>
+                                <th>Campo do sistema</th>
+                                <th>Campo do arquivo</th>
+                                <th class="text-center">Principal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in mapping_rows %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ row.label }}</strong>
+                                        {% if row.required %}
+                                            <span class="badge text-bg-dark ms-2">Obrigatório</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if form.document_type == 'crm_vendas' and row.key == 'ads_parametros_url' %}
+                                            <div class="crm-traffic-map-row">
+                                                <div class="crm-traffic-map-select">
+                                                    {{ row.map_field }}
+                                                </div>
+                                                <div class="crm-traffic-param-config">
+                                                    {{ form.crm_origem_paga_contem }}
+                                                    {% if form.crm_origem_paga_contem.errors %}<div class="text-danger small mt-1">{{ form.crm_origem_paga_contem.errors|join:', ' }}</div>{% endif %}
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            {{ row.map_field }}
+                                        {% endif %}
+                                        {% if row.map_field.errors %}
+                                            <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check d-inline-flex justify-content-center">
+                                            {{ row.primary_field }}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="upload-config-empty-state">
+                <p class="mb-0 text-muted">O mapeamento do sistema aparece depois que você envia o arquivo e clica em <strong>Mapear</strong>.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if form.document_type != 'leads_eventos' %}
+    <div class="panel mt-4">
+        <h3 class="mb-3">Leitura prévia do arquivo</h3>
+        {% if form.document_type == 'redes_sociais' %}
+            <ul class="nav nav-tabs dashboard-data-tabs mb-3" role="tablist">
+                {% for section in mapping_sections %}
+                    <li class="nav-item" role="presentation">
+                        <button
+                            class="nav-link {% if forloop.first %}active{% endif %}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#social-preview-{{ section.key }}"
+                            type="button"
+                            role="tab"
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                        >
+                            {{ section.label }}
+                        </button>
+                    </li>
+                {% endfor %}
+            </ul>
+            <div class="tab-content">
+                {% for section in mapping_sections %}
+                    <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="social-preview-{{ section.key }}" role="tabpanel">
+                        <div class="panel">
+                            <h4 class="mb-3">{{ section.label }}</h4>
+                            {% if section.preview_columns %}
+                                <p class="text-muted mb-2">Colunas detectadas: {{ section.preview_columns|join:', ' }}</p>
+                                <div class="table-responsive">
+                                    <table class="table align-middle">
+                                        <thead>
+                                            <tr>
+                                                {% for column in section.preview_columns %}
+                                                    <th>{{ column }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in section.preview_rows %}
+                                                <tr>
+                                                    {% for column in section.preview_columns %}
+                                                        <td>{{ row|get_item:column }}</td>
+                                                    {% endfor %}
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <p class="text-muted mb-0">O preview de {{ section.label|lower }} aparece depois da ação Mapear.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% elif preview_columns %}
+            <p class="text-muted mb-2">Colunas detectadas: {{ preview_columns|join:', ' }}</p>
             <div class="table-responsive">
-                <table class="table align-middle upload-mapping-table">
+                <table class="table align-middle">
                     <thead>
                         <tr>
-                            <th>Campo do sistema</th>
-                            <th>Campo do arquivo</th>
-                            <th class="text-center">Principal</th>
+                            {% for column in preview_columns %}
+                                <th>{{ column }}</th>
+                            {% endfor %}
                         </tr>
                     </thead>
                     <tbody>
-                        {% for row in mapping_rows %}
+                        {% for row in preview_rows %}
                             <tr>
-                                <td>
-                                    <strong>{{ row.label }}</strong>
-                                    {% if row.required %}
-                                        <span class="badge text-bg-dark ms-2">Obrigatório</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {{ row.map_field }}
-                                    {% if row.map_field.errors %}
-                                        <div class="text-danger small mt-1">{{ row.map_field.errors|join:', ' }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <div class="form-check d-inline-flex justify-content-center">
-                                        {{ row.primary_field }}
-                                    </div>
-                                </td>
+                                {% for column in preview_columns %}
+                                    <td>{{ row|get_item:column }}</td>
+                                {% endfor %}
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-            <button class="btn btn-dark mt-3" type="submit">Salvar configuração</button>
-        </div>
+        {% else %}
+            <p class="text-muted mb-0">O preview do arquivo aparece depois da ação Mapear.</p>
+        {% endif %}
     </div>
-</form>
-
-<div class="panel mt-4">
-    <h3 class="mb-3">Leitura prévia do arquivo</h3>
-    {% if preview_columns %}
-        <p class="text-muted mb-2">Colunas detectadas: {{ preview_columns|join:', ' }}</p>
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        {% for column in preview_columns %}
-                            <th>{{ column }}</th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in preview_rows %}
-                        <tr>
-                            {% for column in preview_columns %}
-                                <td>{{ row|get_item:column }}</td>
-                            {% endfor %}
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <p class="text-muted mb-0">Envie um arquivo de exemplo para detectar colunas e montar o mapeamento.</p>
     {% endif %}
+</form>
 </div>
 {% endblock %}
