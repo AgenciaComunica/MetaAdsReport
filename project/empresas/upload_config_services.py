@@ -63,37 +63,130 @@ UPLOAD_FIELD_SCHEMAS = {
     ],
 }
 
+SOCIAL_DIGITAL_FIELD_SCHEMAS = {
+    'instagram': UPLOAD_FIELD_SCHEMAS[ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS],
+    'facebook': [
+        {'key': 'id_publicacao', 'label': 'ID da Publicação', 'required': True},
+        {'key': 'data_publicacao', 'label': 'Data de Publicação', 'required': True},
+        {'key': 'tipo_conteudo', 'label': 'Tipo de Conteúdo', 'required': False},
+        {'key': 'descricao', 'label': 'Descrição', 'required': False},
+        {'key': 'link_permanente', 'label': 'Link Permanente', 'required': False},
+        {'key': 'visualizacoes', 'label': 'Visualizações', 'required': False},
+        {'key': 'alcance', 'label': 'Alcance', 'required': False},
+        {'key': 'curtidas', 'label': 'Curtidas / Reações', 'required': False},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos', 'required': False},
+        {'key': 'comentarios', 'label': 'Comentários', 'required': False},
+        {'key': 'cliques_link', 'label': 'Cliques no Link', 'required': False},
+        {'key': 'seguimentos', 'label': 'Seguimentos', 'required': False},
+    ],
+    'tiktok': [
+        {'key': 'id_publicacao', 'label': 'ID do Conteúdo', 'required': True},
+        {'key': 'data_publicacao', 'label': 'Data de Publicação', 'required': True},
+        {'key': 'tipo_conteudo', 'label': 'Tipo de Conteúdo', 'required': False},
+        {'key': 'descricao', 'label': 'Descrição', 'required': False},
+        {'key': 'link_permanente', 'label': 'Link Permanente', 'required': False},
+        {'key': 'visualizacoes', 'label': 'Visualizações', 'required': False},
+        {'key': 'alcance', 'label': 'Alcance', 'required': False},
+        {'key': 'curtidas', 'label': 'Curtidas', 'required': False},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos', 'required': False},
+        {'key': 'comentarios', 'label': 'Comentários', 'required': False},
+        {'key': 'salvamentos', 'label': 'Salvamentos', 'required': False},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil', 'required': False},
+        {'key': 'seguimentos', 'label': 'Seguimentos', 'required': False},
+    ],
+    'x': [
+        {'key': 'id_publicacao', 'label': 'ID da Publicação', 'required': True},
+        {'key': 'data_publicacao', 'label': 'Data da Publicação', 'required': True},
+        {'key': 'tipo_conteudo', 'label': 'Tipo de Conteúdo', 'required': False},
+        {'key': 'descricao', 'label': 'Texto do Post', 'required': False},
+        {'key': 'link_permanente', 'label': 'Link Permanente', 'required': False},
+        {'key': 'visualizacoes', 'label': 'Impressões', 'required': False},
+        {'key': 'alcance', 'label': 'Alcance', 'required': False},
+        {'key': 'curtidas', 'label': 'Curtidas', 'required': False},
+        {'key': 'compartilhamentos', 'label': 'Reposts / Compartilhamentos', 'required': False},
+        {'key': 'comentarios', 'label': 'Respostas', 'required': False},
+        {'key': 'cliques_link', 'label': 'Cliques no Link', 'required': False},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil', 'required': False},
+        {'key': 'seguimentos', 'label': 'Seguimentos', 'required': False},
+    ],
+    'website': [
+        {'key': 'id_publicacao', 'label': 'Página / Landing Page', 'required': True},
+        {'key': 'data_publicacao', 'label': 'Data', 'required': True},
+        {'key': 'descricao', 'label': 'Título / Página', 'required': False},
+        {'key': 'link_permanente', 'label': 'URL', 'required': False},
+        {'key': 'usuarios', 'label': 'Usuários', 'required': False},
+        {'key': 'novos_usuarios', 'label': 'Novos Usuários', 'required': False},
+        {'key': 'sessoes', 'label': 'Sessões', 'required': False},
+        {'key': 'sessoes_engajadas', 'label': 'Sessões Engajadas', 'required': False},
+        {'key': 'visualizacoes_pagina', 'label': 'Visualizações de Página', 'required': False},
+        {'key': 'taxa_engajamento', 'label': 'Taxa de Engajamento', 'required': False},
+        {'key': 'conversoes', 'label': 'Conversões', 'required': False},
+    ],
+    'outro': [
+        {'key': 'id_publicacao', 'label': 'ID do Conteúdo', 'required': True},
+        {'key': 'data_publicacao', 'label': 'Data de Publicação', 'required': True},
+        {'key': 'tipo_conteudo', 'label': 'Tipo de Conteúdo', 'required': False},
+        {'key': 'descricao', 'label': 'Descrição', 'required': False},
+        {'key': 'link_permanente', 'label': 'Link Permanente', 'required': False},
+        {'key': 'visualizacoes', 'label': 'Visualizações', 'required': False},
+        {'key': 'alcance', 'label': 'Alcance', 'required': False},
+        {'key': 'curtidas', 'label': 'Curtidas', 'required': False},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos', 'required': False},
+        {'key': 'comentarios', 'label': 'Comentários', 'required': False},
+        {'key': 'cliques_link', 'label': 'Cliques no Link', 'required': False},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil', 'required': False},
+        {'key': 'seguimentos', 'label': 'Seguimentos', 'required': False},
+    ],
+}
+
 SOCIAL_FIXED_HEADER_MAPPINGS = {
-    'posts': {
-        'id_publicacao': 'Identificação do post',
-        'data_publicacao': 'Horário de publicação',
-        'tipo_conteudo': 'Tipo de post',
-        'descricao': 'Descrição',
-        'link_permanente': 'Link permanente',
-        'visualizacoes': 'Visualizações',
-        'alcance': 'Alcance',
-        'curtidas': 'Curtidas',
-        'compartilhamentos': 'Compartilhamentos',
-        'comentarios': 'Comentários',
-        'salvamentos': 'Salvamentos',
-        'seguimentos': 'Seguimentos',
+    'instagram': {
+        'posts': {
+            'id_publicacao': ['Identificação do post'],
+            'data_publicacao': ['Horário de publicação'],
+            'tipo_conteudo': ['Tipo de post'],
+            'descricao': ['Descrição'],
+            'link_permanente': ['Link permanente'],
+            'visualizacoes': ['Visualizações'],
+            'alcance': ['Alcance'],
+            'curtidas': ['Curtidas'],
+            'compartilhamentos': ['Compartilhamentos'],
+            'comentarios': ['Comentários'],
+            'salvamentos': ['Salvamentos'],
+            'seguimentos': ['Seguimentos'],
+        },
+        'stories': {
+            'id_publicacao': ['Identificação do post'],
+            'data_publicacao': ['Horário de publicação'],
+            'tipo_conteudo': ['Tipo de post'],
+            'descricao': ['Descrição'],
+            'link_permanente': ['Link permanente'],
+            'visualizacoes': ['Visualizações'],
+            'alcance': ['Alcance'],
+            'curtidas': ['Curtidas'],
+            'compartilhamentos': ['Compartilhamentos'],
+            'respostas': ['Respostas'],
+            'cliques_link': ['Cliques no link'],
+            'visitas_perfil': ['Visitas ao perfil'],
+            'navegacao': ['Navegação'],
+            'toques_figurinha': ['Toques em figurinhas'],
+            'seguimentos': ['Seguimentos'],
+        },
     },
-    'stories': {
-        'id_publicacao': 'Identificação do post',
-        'data_publicacao': 'Horário de publicação',
-        'tipo_conteudo': 'Tipo de post',
-        'descricao': 'Descrição',
-        'link_permanente': 'Link permanente',
-        'visualizacoes': 'Visualizações',
-        'alcance': 'Alcance',
-        'curtidas': 'Curtidas',
-        'compartilhamentos': 'Compartilhamentos',
-        'respostas': 'Respostas',
-        'cliques_link': 'Cliques no link',
-        'visitas_perfil': 'Visitas ao perfil',
-        'navegacao': 'Navegação',
-        'toques_figurinha': 'Toques em figurinhas',
-        'seguimentos': 'Seguimentos',
+    'website': {
+        'principal': {
+            'id_publicacao': ['Landing page', 'Página de destino', 'Page path + query string'],
+            'data_publicacao': ['Data'],
+            'descricao': ['Título da página', 'Page title', 'Título'],
+            'link_permanente': ['Landing page', 'Page path + query string', 'URL'],
+            'usuarios': ['Usuários', 'Usuários ativos', 'Active users'],
+            'novos_usuarios': ['Novos usuários', 'New users'],
+            'sessoes': ['Sessões', 'Sessions'],
+            'sessoes_engajadas': ['Sessões engajadas', 'Engaged sessions'],
+            'visualizacoes_pagina': ['Visualizações', 'Views', 'Visualizações de página', 'Page views'],
+            'taxa_engajamento': ['Taxa de engajamento', 'Engagement rate'],
+            'conversoes': ['Conversões', 'Key events', 'Eventos principais'],
+        },
     },
 }
 
@@ -152,6 +245,62 @@ PANEL_METRIC_SCHEMAS = {
         {'key': 'respostas', 'label': 'Respostas'},
         {'key': 'cliques_link', 'label': 'Cliques no Link'},
         {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil'},
+    ],
+}
+
+SOCIAL_DIGITAL_METRIC_SCHEMAS = {
+    'instagram': PANEL_METRIC_SCHEMAS[ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS],
+    'facebook': [
+        {'key': 'quantidade_publicacoes', 'label': 'Quantidade de Publicações'},
+        {'key': 'visualizacoes', 'label': 'Visualizações'},
+        {'key': 'alcance', 'label': 'Alcance'},
+        {'key': 'curtidas', 'label': 'Curtidas / Reações'},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos'},
+        {'key': 'comentarios', 'label': 'Comentários'},
+        {'key': 'cliques_link', 'label': 'Cliques no Link'},
+        {'key': 'seguimentos', 'label': 'Seguimentos'},
+    ],
+    'tiktok': [
+        {'key': 'quantidade_publicacoes', 'label': 'Quantidade de Conteúdos'},
+        {'key': 'visualizacoes', 'label': 'Visualizações'},
+        {'key': 'alcance', 'label': 'Alcance'},
+        {'key': 'curtidas', 'label': 'Curtidas'},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos'},
+        {'key': 'comentarios', 'label': 'Comentários'},
+        {'key': 'salvamentos', 'label': 'Salvamentos'},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil'},
+        {'key': 'seguimentos', 'label': 'Seguimentos'},
+    ],
+    'x': [
+        {'key': 'quantidade_publicacoes', 'label': 'Quantidade de Posts'},
+        {'key': 'visualizacoes', 'label': 'Impressões'},
+        {'key': 'alcance', 'label': 'Alcance'},
+        {'key': 'curtidas', 'label': 'Curtidas'},
+        {'key': 'compartilhamentos', 'label': 'Reposts / Compartilhamentos'},
+        {'key': 'comentarios', 'label': 'Respostas'},
+        {'key': 'cliques_link', 'label': 'Cliques no Link'},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil'},
+        {'key': 'seguimentos', 'label': 'Seguimentos'},
+    ],
+    'website': [
+        {'key': 'usuarios', 'label': 'Usuários'},
+        {'key': 'novos_usuarios', 'label': 'Novos Usuários'},
+        {'key': 'sessoes', 'label': 'Sessões'},
+        {'key': 'sessoes_engajadas', 'label': 'Sessões Engajadas'},
+        {'key': 'visualizacoes_pagina', 'label': 'Visualizações de Página'},
+        {'key': 'taxa_engajamento', 'label': 'Taxa de Engajamento'},
+        {'key': 'conversoes', 'label': 'Conversões'},
+    ],
+    'outro': [
+        {'key': 'quantidade_publicacoes', 'label': 'Quantidade de Conteúdos'},
+        {'key': 'visualizacoes', 'label': 'Visualizações'},
+        {'key': 'alcance', 'label': 'Alcance'},
+        {'key': 'curtidas', 'label': 'Curtidas'},
+        {'key': 'compartilhamentos', 'label': 'Compartilhamentos'},
+        {'key': 'comentarios', 'label': 'Comentários'},
+        {'key': 'cliques_link', 'label': 'Cliques no Link'},
+        {'key': 'visitas_perfil', 'label': 'Visitas ao Perfil'},
+        {'key': 'seguimentos', 'label': 'Seguimentos'},
     ],
 }
 
@@ -255,12 +404,6 @@ CRM_PANEL_CATEGORY_DEFINITIONS = [
         'metrics': ['receita_marketing_pago', 'receita_marketing_organico', 'receita_operacional', 'receita_sem_categoria'],
     },
     {
-        'key': 'status',
-        'label': 'Status',
-        'description': 'Distribuição atual e comparativo por status de fechamento.',
-        'metrics': ['status_fechamento'],
-    },
-    {
         'key': 'temperatura',
         'label': 'Temperatura Leads',
         'description': 'Distribuição por tags/temperatura dos leads e comparativo entre períodos.',
@@ -277,7 +420,6 @@ CRM_METRIC_TOOLTIPS = {
     'receita_marketing_organico': 'Receita atribuída ao marketing orgânico, como Marketing e Google.',
     'receita_operacional': 'Receita atribuída à operação, como Indicação e Cliente Base.',
     'receita_sem_categoria': 'Receita sem classificação conhecida de origem.',
-    'status_fechamento': 'Comparativo por status de fechamento.',
     'temperatura_lead': 'Distribuição das tags/temperatura configuradas no CRM.',
 }
 SOCIAL_PANEL_CATEGORY_DEFINITIONS = [
@@ -329,6 +471,166 @@ SOCIAL_METRIC_TOOLTIPS = {
     'visitas_perfil': 'Total de visitas ao perfil no período.',
 }
 
+SOCIAL_DIGITAL_CATEGORY_DEFINITIONS = {
+    'instagram': SOCIAL_PANEL_CATEGORY_DEFINITIONS,
+    'facebook': [
+        {
+            'key': 'visao_geral',
+            'label': 'Visão Geral',
+            'description': 'Desempenho consolidado da presença orgânica no Facebook.',
+            'metrics': ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+        },
+        {
+            'key': 'engajamento',
+            'label': 'Engajamento',
+            'description': 'Interações principais do conteúdo publicado.',
+            'metrics': ['curtidas', 'compartilhamentos', 'comentarios'],
+        },
+        {
+            'key': 'crescimento',
+            'label': 'Crescimento',
+            'description': 'Sinais de tráfego e crescimento da conta.',
+            'metrics': ['cliques_link', 'seguimentos'],
+        },
+    ],
+    'tiktok': [
+        {
+            'key': 'visao_geral',
+            'label': 'Visão Geral',
+            'description': 'Desempenho consolidado do conteúdo publicado no TikTok.',
+            'metrics': ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+        },
+        {
+            'key': 'engajamento',
+            'label': 'Engajamento',
+            'description': 'Interações do conteúdo com a audiência.',
+            'metrics': ['curtidas', 'compartilhamentos', 'comentarios', 'salvamentos'],
+        },
+        {
+            'key': 'audiencia',
+            'label': 'Audiência',
+            'description': 'Sinais de interesse pela conta e crescimento.',
+            'metrics': ['visitas_perfil', 'seguimentos'],
+        },
+    ],
+    'x': [
+        {
+            'key': 'visao_geral',
+            'label': 'Visão Geral',
+            'description': 'Desempenho consolidado do conteúdo publicado no X.',
+            'metrics': ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+        },
+        {
+            'key': 'interacao',
+            'label': 'Interação',
+            'description': 'Respostas e compartilhamentos do conteúdo.',
+            'metrics': ['curtidas', 'compartilhamentos', 'comentarios'],
+        },
+        {
+            'key': 'trafego',
+            'label': 'Tráfego',
+            'description': 'Sinais de tráfego gerado e interesse no perfil.',
+            'metrics': ['cliques_link', 'visitas_perfil', 'seguimentos'],
+        },
+    ],
+    'website': [
+        {
+            'key': 'visao_geral',
+            'label': 'Visão Geral',
+            'description': 'Leitura consolidada do tráfego do website no período.',
+            'metrics': ['usuarios', 'sessoes', 'visualizacoes_pagina'],
+        },
+        {
+            'key': 'aquisicao',
+            'label': 'Aquisição',
+            'description': 'Indicadores de aquisição e qualidade de sessão.',
+            'metrics': ['novos_usuarios', 'sessoes_engajadas', 'taxa_engajamento'],
+        },
+        {
+            'key': 'conversao',
+            'label': 'Conversão',
+            'description': 'Indicadores de conversão e resultado do site.',
+            'metrics': ['conversoes'],
+        },
+    ],
+    'outro': [
+        {
+            'key': 'visao_geral',
+            'label': 'Visão Geral',
+            'description': 'Desempenho consolidado do conteúdo publicado.',
+            'metrics': ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+        },
+        {
+            'key': 'engajamento',
+            'label': 'Engajamento',
+            'description': 'Interações principais do conteúdo.',
+            'metrics': ['curtidas', 'compartilhamentos', 'comentarios'],
+        },
+        {
+            'key': 'audiencia',
+            'label': 'Audiência',
+            'description': 'Sinais de tráfego e crescimento.',
+            'metrics': ['cliques_link', 'visitas_perfil', 'seguimentos'],
+        },
+    ],
+}
+
+SOCIAL_DIGITAL_METRIC_TOOLTIPS = {
+    'instagram': SOCIAL_METRIC_TOOLTIPS,
+    'facebook': {
+        'quantidade_publicacoes': 'Total de publicações válidas importadas no período.',
+        'visualizacoes': 'Total de visualizações do conteúdo no período.',
+        'alcance': 'Total de alcance orgânico no período.',
+        'curtidas': 'Total de curtidas ou reações no período.',
+        'compartilhamentos': 'Total de compartilhamentos no período.',
+        'comentarios': 'Total de comentários no período.',
+        'cliques_link': 'Total de cliques em links no período.',
+        'seguimentos': 'Total de novos seguimentos no período.',
+    },
+    'tiktok': {
+        'quantidade_publicacoes': 'Total de conteúdos válidos importados no período.',
+        'visualizacoes': 'Total de visualizações no período.',
+        'alcance': 'Total de alcance no período.',
+        'curtidas': 'Total de curtidas no período.',
+        'compartilhamentos': 'Total de compartilhamentos no período.',
+        'comentarios': 'Total de comentários no período.',
+        'salvamentos': 'Total de salvamentos no período.',
+        'visitas_perfil': 'Total de visitas ao perfil no período.',
+        'seguimentos': 'Total de novos seguidores no período.',
+    },
+    'x': {
+        'quantidade_publicacoes': 'Total de posts válidos importados no período.',
+        'visualizacoes': 'Total de impressões no período.',
+        'alcance': 'Total de alcance no período.',
+        'curtidas': 'Total de curtidas no período.',
+        'compartilhamentos': 'Total de reposts/compartilhamentos no período.',
+        'comentarios': 'Total de respostas no período.',
+        'cliques_link': 'Total de cliques em links no período.',
+        'visitas_perfil': 'Total de visitas ao perfil no período.',
+        'seguimentos': 'Total de novos seguidores no período.',
+    },
+    'website': {
+        'usuarios': 'Usuários totais do website no período.',
+        'novos_usuarios': 'Novos usuários no período.',
+        'sessoes': 'Sessões totais do website no período.',
+        'sessoes_engajadas': 'Sessões engajadas no período.',
+        'visualizacoes_pagina': 'Visualizações de página no período.',
+        'taxa_engajamento': 'Percentual de sessões engajadas sobre o total de sessões.',
+        'conversoes': 'Conversões registradas no período.',
+    },
+    'outro': {
+        'quantidade_publicacoes': 'Total de conteúdos válidos importados no período.',
+        'visualizacoes': 'Total de visualizações no período.',
+        'alcance': 'Total de alcance no período.',
+        'curtidas': 'Total de curtidas no período.',
+        'compartilhamentos': 'Total de compartilhamentos no período.',
+        'comentarios': 'Total de comentários no período.',
+        'cliques_link': 'Total de cliques em links no período.',
+        'visitas_perfil': 'Total de visitas ao perfil no período.',
+        'seguimentos': 'Total de novos seguimentos no período.',
+    },
+}
+
 
 @dataclass
 class UploadPreview:
@@ -337,7 +639,9 @@ class UploadPreview:
     file_name: str
 
 
-def get_field_schema(tipo_documento):
+def get_field_schema(tipo_documento, variant=None):
+    if tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+        return SOCIAL_DIGITAL_FIELD_SCHEMAS.get(variant or 'instagram', SOCIAL_DIGITAL_FIELD_SCHEMAS['instagram'])
     if tipo_documento in UPLOAD_FIELD_SCHEMAS:
         return UPLOAD_FIELD_SCHEMAS[tipo_documento]
     return LEGACY_FIELD_SCHEMAS.get(tipo_documento, [])
@@ -347,21 +651,30 @@ def get_type_label(tipo_documento):
     return dict(UPLOAD_TYPE_CHOICES).get(tipo_documento, tipo_documento)
 
 
-def get_default_social_mapping(kind, columns):
-    available = set(columns or [])
+def get_default_social_mapping(kind, columns, digital_type='instagram'):
+    available = {str(column).strip(): str(column).strip() for column in (columns or [])}
     mapping = {}
-    for field_key, header in SOCIAL_FIXED_HEADER_MAPPINGS.get(kind, {}).items():
-        if header in available:
-            mapping[field_key] = header
+    type_mappings = SOCIAL_FIXED_HEADER_MAPPINGS.get(digital_type, {})
+    header_map = type_mappings.get(kind, {}) if isinstance(type_mappings, dict) else {}
+    if not header_map and kind in SOCIAL_FIXED_HEADER_MAPPINGS:
+        header_map = SOCIAL_FIXED_HEADER_MAPPINGS.get(kind, {})
+    for field_key, headers in header_map.items():
+        candidates = headers if isinstance(headers, list) else [headers]
+        for header in candidates:
+            if header in available:
+                mapping[field_key] = available[header]
+                break
     return mapping
 
 
-def get_panel_metric_schema(tipo_documento):
+def get_panel_metric_schema(tipo_documento, variant=None):
+    if tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
+        return SOCIAL_DIGITAL_METRIC_SCHEMAS.get(variant or 'instagram', SOCIAL_DIGITAL_METRIC_SCHEMAS['instagram'])
     return PANEL_METRIC_SCHEMAS.get(tipo_documento, [])
 
 
-def get_panel_metric_groups(tipo_documento):
-    metrics = get_panel_metric_schema(tipo_documento)
+def get_panel_metric_groups(tipo_documento, variant=None):
+    metrics = get_panel_metric_schema(tipo_documento, variant=variant)
     if tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
         metric_map = {item['key']: item for item in metrics}
         groups = []
@@ -405,7 +718,9 @@ def get_panel_metric_groups(tipo_documento):
     if tipo_documento == ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS:
         metric_map = {item['key']: item for item in metrics}
         groups = []
-        for category in SOCIAL_PANEL_CATEGORY_DEFINITIONS:
+        categories = SOCIAL_DIGITAL_CATEGORY_DEFINITIONS.get(variant or 'instagram', SOCIAL_DIGITAL_CATEGORY_DEFINITIONS['instagram'])
+        tooltips = SOCIAL_DIGITAL_METRIC_TOOLTIPS.get(variant or 'instagram', SOCIAL_DIGITAL_METRIC_TOOLTIPS['instagram'])
+        for category in categories:
             groups.append(
                 {
                     'key': category['key'],
@@ -414,7 +729,7 @@ def get_panel_metric_groups(tipo_documento):
                     'metrics': [
                         {
                             **metric_map[key],
-                            'tooltip': SOCIAL_METRIC_TOOLTIPS.get(key, ''),
+                            'tooltip': tooltips.get(key, ''),
                         }
                         for key in category['metrics']
                         if key in metric_map
@@ -432,8 +747,8 @@ def get_panel_metric_groups(tipo_documento):
     ]
 
 
-def normalize_panel_metric_config(tipo_documento, raw_config):
-    groups = get_panel_metric_groups(tipo_documento)
+def normalize_panel_metric_config(tipo_documento, raw_config, variant=None):
+    groups = get_panel_metric_groups(tipo_documento, variant=variant)
     metric_keys = [metric['key'] for group in groups for metric in group['metrics']]
     category_keys = [group['key'] for group in groups]
     if isinstance(raw_config, dict):
@@ -478,10 +793,10 @@ def normalize_panel_metric_config(tipo_documento, raw_config):
 
 
 
-def get_enabled_table_metric_keys(tipo_documento, raw_config):
-    config = normalize_panel_metric_config(tipo_documento, raw_config)
+def get_enabled_table_metric_keys(tipo_documento, raw_config, variant=None):
+    config = normalize_panel_metric_config(tipo_documento, raw_config, variant=variant)
     enabled = []
-    for group in get_panel_metric_groups(tipo_documento):
+    for group in get_panel_metric_groups(tipo_documento, variant=variant):
         if not config['categories'].get(group['key'], True):
             continue
         for metric in group['metrics']:
@@ -490,10 +805,10 @@ def get_enabled_table_metric_keys(tipo_documento, raw_config):
     return enabled
 
 
-def get_enabled_chart_metric_keys(tipo_documento, raw_config):
-    config = normalize_panel_metric_config(tipo_documento, raw_config)
+def get_enabled_chart_metric_keys(tipo_documento, raw_config, variant=None):
+    config = normalize_panel_metric_config(tipo_documento, raw_config, variant=variant)
     enabled = []
-    for group in get_panel_metric_groups(tipo_documento):
+    for group in get_panel_metric_groups(tipo_documento, variant=variant):
         if not config['categories'].get(group['key'], True):
             continue
         for metric in group['metrics']:
@@ -502,11 +817,11 @@ def get_enabled_chart_metric_keys(tipo_documento, raw_config):
     return enabled
 
 
-def get_category_filter_enabled_map(tipo_documento, raw_config):
-    config = normalize_panel_metric_config(tipo_documento, raw_config)
+def get_category_filter_enabled_map(tipo_documento, raw_config, variant=None):
+    config = normalize_panel_metric_config(tipo_documento, raw_config, variant=variant)
     return {
         group['key']: bool((config.get('filters') or {}).get(group['key'], {}).get('enabled', False))
-        for group in get_panel_metric_groups(tipo_documento)
+        for group in get_panel_metric_groups(tipo_documento, variant=variant)
     }
 
 

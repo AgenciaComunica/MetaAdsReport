@@ -8,19 +8,42 @@
     {% endif %}
 {% endblock %}
 {% block content %}
+<style>
+.panel-collapse-btn {
+  color: #94a3b8;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.panel-collapse-btn:hover { color: #334155; }
+.panel-collapse-btn svg {
+  display: block;
+  transition: transform 0.2s ease;
+}
+.panel-collapse-btn[aria-expanded="false"] svg { transform: rotate(-180deg); }
+</style>
 <div class="panel mt-4 form-panel">
-    <form method="get" class="row g-3" id="dashboardFiltersForm">
-        <input type="hidden" name="tab" value="{{ dashboard_tab }}">
-        <div class="col-md-4">{{ form.empresa.label_tag }}{{ form.empresa }}</div>
-        <div class="col-md-4">{{ form.periodo_anterior.label_tag }}{{ form.periodo_anterior }}{{ form.data_inicio_anterior }}{{ form.data_fim_anterior }}</div>
-        <div class="col-md-4">{{ form.periodo_atual.label_tag }}{{ form.periodo_atual }}{{ form.data_inicio }}{{ form.data_fim }}</div>
-    </form>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <form method="get" id="monthSelectorForm" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="tab" value="{{ dashboard_tab }}">
+            <label for="monthSelect" class="form-label mb-0 fw-semibold text-nowrap">Período</label>
+            <select id="monthSelect" name="mes" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                {% for mes in meses_disponiveis %}
+                    <option value="{{ mes.value }}" {% if mes.value == mes_param %}selected{% endif %}>{{ mes.label }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <span class="text-muted small">Comparando com {{ periodo_anterior_resumo }}</span>
+    </div>
 </div>
 <div class="panel mt-4">
     <ul class="nav nav-tabs dashboard-data-tabs" role="tablist">
         {% for tab in visible_dashboard_tabs %}
             <li class="nav-item" role="presentation">
-                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="nav-link {% if dashboard_tab == tab.key %}active{% endif %}">{{ tab.title }}</a>
+                <a href="{% url 'campanhas:dashboard' %}?tab={{ tab.key }}" class="nav-link {% if dashboard_tab == tab.key %}active{% endif %}">{{ tab.title }}</a>
             </li>
         {% endfor %}
     </ul>
@@ -35,6 +58,14 @@
         <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
     {% endif %}
 </div>
+{% if active_upload_tab.tab_chart %}
+    {{ active_upload_tab.tab_chart|json_script:"traffic-tab-chart-data" }}
+    <div class="panel mt-4">
+        <h3 class="mb-1">Evolução Mensal</h3>
+        <p class="text-muted mb-0 small">Últimos 12 meses com dados — todas as métricas chave em uma visão consolidada.</p>
+        <div id="trafficTabChart" class="mt-3" style="min-height: 320px;"></div>
+    </div>
+{% endif %}
 
 <div class="row g-4 mt-1">
     {% for block in active_upload_tab.metric_blocks %}
@@ -45,6 +76,7 @@
                         <h3 class="mb-1">{{ block.title }}</h3>
                         <p class="text-muted mb-0">{{ block.description }}</p>
                     </div>
+                    <div class="d-flex align-items-center gap-2">
                     {% if block.filter_options %}
                         <div class="crm-filter-dropdown" data-crm-filter-group="{{ block.key }}" data-crm-filter-storage="{{ active_upload_tab.key }}::{{ block.key }}">
                             <button type="button" class="btn btn-sm btn-outline-dark" data-crm-filter-toggle>
@@ -70,18 +102,18 @@
                             </div>
                         </div>
                     {% endif %}
-                </div>
-                {% if block.chart %}
-                    <div class="mt-3">
-                        <div id="trafficBlockComparisonChart-{{ block.chart.key }}" style="min-height: 280px;"></div>
+                    <button class="panel-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#panel-body-traffic-{{ block.key }}" aria-expanded="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                    </button>
                     </div>
-                {% endif %}
+                </div>
+                <div class="collapse show" id="panel-body-traffic-{{ block.key }}">
                 <div class="table-responsive mt-3">
                     <table class="table align-middle traffic-summary-table mb-0">
                         <thead>
                             <tr>
                                 <th>Métrica</th>
-                                <th>Anterior / Atual</th>
+                                <th>Valor</th>
                                 <th>Variação</th>
                             </tr>
                         </thead>
@@ -91,16 +123,17 @@
                                     <td>
                                         <span class="kpi-label">
                                             {{ row.label }}
-                                            <button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ row.tooltip }}">?</button>
+                                            {% if row.tooltip %}<button type="button" class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ row.tooltip }}">?</button>{% endif %}
                                         </span>
                                     </td>
-                                    <td><strong>{{ row.period_value }}</strong></td>
-                                    <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
+                                    <td><strong>{{ row.current_value }}</strong></td>
+                                    <td class="{{ row.variation_class }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ previous_month_label }}: {{ row.previous_value }}">{{ row.variation_value }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+                </div>{# /collapse show #}
             </div>
         </div>
     {% endfor %}
@@ -174,15 +207,24 @@
                 <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
             </div>
         </div>
+        {% if active_upload_tab.tab_chart %}
+            {{ active_upload_tab.tab_chart|json_script:"crm-tab-chart-data" }}
+            <div class="panel mt-4">
+                <h3 class="mb-1">Evolução Mensal — Resultado</h3>
+                <p class="text-muted mb-0 small">Últimos 12 meses com dados.</p>
+                <div id="crmTabChart" class="mt-3" style="min-height: 320px;"></div>
+            </div>
+        {% endif %}
         <div class="row g-4 mt-1">
             {% for block in active_upload_tab.category_blocks %}
-                <div class="{% if block.key == 'vendedor' %}col-12{% else %}col-lg-6{% endif %}">
+                <div class="{% if block.key == 'vendedor' or block.chart_type == 'pie' %}col-12{% else %}col-lg-6{% endif %}">
                     <div class="panel traffic-block-panel">
                         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                             <div>
                                 <h3 class="mb-1">{{ block.title }}</h3>
                                 <p class="text-muted mb-0">{{ block.description }}</p>
                             </div>
+                            <div class="d-flex align-items-center gap-2">
                             {% if block.filter_options %}
                                 <div class="crm-filter-dropdown" data-crm-filter-group="{{ block.key }}" data-crm-filter-storage="{{ active_upload_tab.key }}::{{ block.key }}">
                                     <button type="button" class="btn btn-sm btn-outline-dark" data-crm-filter-toggle>
@@ -208,7 +250,12 @@
                                     </div>
                                 </div>
                             {% endif %}
+                            <button class="panel-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#panel-body-crm-{{ block.key }}" aria-expanded="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                            </button>
+                            </div>
                         </div>
+                        <div class="collapse show" id="panel-body-crm-{{ block.key }}">
                         {% if block.key == 'vendedor' %}
                             {% if block.chart %}
                                 <div class="mt-3">
@@ -240,32 +287,67 @@
                                 </div>
                             {% endif %}
                         {% else %}
-                            <div class="mt-3 {% if not block.chart %}d-none{% endif %}">
-                                <div id="crmCategoryChart-{{ block.key }}" style="min-height: {% if block.chart_type == 'pie' %}360px{% else %}280px{% endif %};"></div>
-                            </div>
-                            {% if block.rows %}
-                                <div class="table-responsive mt-3 {% if block.chart_type == 'pie' %}crm-status-table-wrap{% endif %}">
-                                    <table class="table align-middle traffic-summary-table mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Métrica</th>
-                                                <th>Anterior / Atual</th>
-                                                <th>Variação</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for row in block.rows %}
-                                                <tr data-crm-row-label="{{ row.label }}">
-                                                    <td {% if row.label_color %}style="color: {{ row.label_color }}; font-weight: 700;"{% endif %}>{{ row.label }}</td>
-                                                    <td><strong>{{ row.period_value }}</strong></td>
-                                                    <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
-                                                </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
+                            {% if block.chart_type == 'pie' and block.chart %}
+                                <div class="row mt-3 align-items-center g-0">
+                                    <div class="col-md-5">
+                                        <div id="crmCategoryChart-{{ block.key }}" style="min-height: 300px;"></div>
+                                    </div>
+                                    <div class="col-md-7">
+                                        {% if block.rows %}
+                                            <div class="table-responsive ps-md-3">
+                                                <table class="table align-middle traffic-summary-table mb-0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Métrica</th>
+                                                            <th>Valor</th>
+                                                            <th>Variação</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for row in block.rows %}
+                                                            <tr data-crm-row-label="{{ row.label }}">
+                                                                <td {% if row.label_color %}style="color: {{ row.label_color }}; font-weight: 700;"{% endif %}>{{ row.label }}</td>
+                                                                <td><strong>{{ row.current_value }}</strong></td>
+                                                                <td class="{{ row.variation_class }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ previous_month_label }}: {{ row.previous_value }}">{{ row.variation_value }}</td>
+                                                            </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        {% endif %}
+                                    </div>
                                 </div>
+                            {% else %}
+                                {% if block.chart %}
+                                    <div class="mt-3">
+                                        <div id="crmCategoryChart-{{ block.key }}" style="min-height: 280px;"></div>
+                                    </div>
+                                {% endif %}
+                                {% if block.rows %}
+                                    <div class="table-responsive mt-3">
+                                        <table class="table align-middle traffic-summary-table mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Métrica</th>
+                                                    <th>Valor</th>
+                                                    <th>Variação</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for row in block.rows %}
+                                                    <tr data-crm-row-label="{{ row.label }}">
+                                                        <td {% if row.label_color %}style="color: {{ row.label_color }}; font-weight: 700;"{% endif %}>{{ row.label }}</td>
+                                                        <td><strong>{{ row.current_value }}</strong></td>
+                                                        <td class="{{ row.variation_class }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ previous_month_label }}: {{ row.previous_value }}">{{ row.variation_value }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% endif %}
                             {% endif %}
                         {% endif %}
+                        </div>{# /collapse show #}
                     </div>
                 </div>
             {% empty %}
@@ -309,7 +391,7 @@
 {% elif active_upload_tab and active_upload_tab.panel_type == 'leads_eventos' %}
 <div>
     {% if active_upload_tab and active_upload_tab.ready %}
-        {{ active_upload_tab.chart|json_script:"leads-eventos-chart-data" }}
+        {{ active_upload_tab.tab_chart|json_script:"leads-eventos-chart-data" }}
         <div class="dashboard-tab-header">
             <div>
                 <h3 class="mb-1">{{ active_upload_tab.title }}</h3>
@@ -321,34 +403,29 @@
                 <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#importarEventos{{ active_upload_tab.key }}Modal">Importar arquivo</button>
             </div>
         </div>
-        <div class="row g-4 mt-1">
-            <div class="col-lg-6">
-                <div class="panel">
-                    <h3>Eventos</h3>
-                    <div id="leadsEventosChart"></div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="panel">
-                    <h3>Lista de Eventos</h3>
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead><tr><th>Evento</th><th>Data</th><th>Impacto</th><th>Pessoas alcançadas</th></tr></thead>
-                            <tbody>
-                            {% for row in active_upload_tab.rows %}
-                                <tr>
-                                    <td>{{ row.evento }}</td>
-                                    <td>{{ row.data_evento|date:"d/m/Y" }}</td>
-                                    <td>{{ row.impacto }}</td>
-                                    <td>{{ row.leads_media }}</td>
-                                </tr>
-                            {% empty %}
-                                <tr><td colspan="4">Sem dados disponíveis, adicione dados ao painel.</td></tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <div class="panel mt-4">
+            <h3 class="mb-1">Evolução Mensal — Pessoas Alcançadas</h3>
+            <p class="text-muted mb-0 small">Últimos 12 meses com dados.</p>
+            <div id="leadsEventosChart" class="mt-3" style="min-height: 320px;"></div>
+        </div>
+        <div class="panel mt-4">
+            <h3>Lista de Eventos</h3>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Evento</th><th>Data</th><th>Impacto</th><th>Pessoas alcançadas</th></tr></thead>
+                    <tbody>
+                    {% for row in active_upload_tab.rows %}
+                        <tr>
+                            <td>{{ row.evento }}</td>
+                            <td>{{ row.data_evento|date:"d/m/Y" }}</td>
+                            <td>{{ row.impacto }}</td>
+                            <td>{{ row.leads_media }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4">Sem dados disponíveis, adicione dados ao painel.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
         <div class="panel mt-4">
@@ -395,6 +472,14 @@
                 <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#novoUpload{{ active_upload_tab.key }}Modal">Novo upload</button>
             </div>
         </div>
+        {% if active_upload_tab.tab_chart %}
+            {{ active_upload_tab.tab_chart|json_script:"social-tab-chart-data" }}
+            <div class="panel mt-4">
+                <h3 class="mb-1">Evolução Mensal</h3>
+                <p class="text-muted mb-0 small">Últimos 12 meses com dados.</p>
+                <div id="socialTabChart" class="mt-3" style="min-height: 320px;"></div>
+            </div>
+        {% endif %}
         <div class="row g-4 mt-1">
             {% for block in active_upload_tab.category_blocks %}
                 <div class="col-lg-6">
@@ -404,6 +489,7 @@
                                 <h3 class="mb-1">{{ block.title }}</h3>
                                 <p class="text-muted mb-0">{{ block.description }}</p>
                             </div>
+                            <div class="d-flex align-items-center gap-2">
                             {% if block.filter_options %}
                                 <div class="crm-filter-dropdown" data-crm-filter-group="{{ block.key }}" data-crm-filter-storage="{{ active_upload_tab.key }}::{{ block.key }}">
                                     <button type="button" class="btn btn-sm btn-outline-dark" data-crm-filter-toggle>
@@ -429,19 +515,19 @@
                                     </div>
                                 </div>
                             {% endif %}
-                        </div>
-                        {% if block.chart %}
-                            <div class="mt-3">
-                                <div id="socialCategoryChart-{{ block.chart.key }}" style="min-height: 280px;"></div>
+                            <button class="panel-collapse-btn" type="button" data-bs-toggle="collapse" data-bs-target="#panel-body-social-{{ block.key }}" aria-expanded="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                            </button>
                             </div>
-                        {% endif %}
+                        </div>
+                        <div class="collapse show" id="panel-body-social-{{ block.key }}">
                         {% if block.rows %}
                             <div class="table-responsive mt-3">
                                 <table class="table align-middle traffic-summary-table mb-0">
                                     <thead>
                                         <tr>
                                             <th>Métrica</th>
-                                            <th>Anterior / Atual</th>
+                                            <th>Valor</th>
                                             <th>Variação</th>
                                         </tr>
                                     </thead>
@@ -449,14 +535,15 @@
                                         {% for row in block.rows %}
                                             <tr data-crm-row-label="{{ row.label }}">
                                                 <td>{{ row.label }}</td>
-                                                <td><strong>{{ row.period_value }}</strong></td>
-                                                <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
+                                                <td><strong>{{ row.current_value }}</strong></td>
+                                                <td class="{{ row.variation_class }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ previous_month_label }}: {{ row.previous_value }}">{{ row.variation_value }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
                             </div>
                         {% endif %}
+                        </div>{# /collapse show #}
                     </div>
                 </div>
             {% endfor %}
@@ -504,17 +591,24 @@
                 {% if empresa %}
                     <form method="post" action="{% url 'relatorios:generate' %}" data-loading-title="Gerando Relatório" data-loading-text="Aguarde enquanto o relatório é montado e a página é aberta.">
                         {% csrf_token %}
-                        <input type="hidden" name="empresa" value="{{ empresa.id }}">
-                        <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
-                        <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
-                        <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
-                        <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
-                        <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ form.data_inicio.value|default:'' }} a {{ form.data_fim.value|default:'' }}">
+                        <input type="hidden" name="data_inicio" value="{{ current_start_iso }}">
+                        <input type="hidden" name="data_fim" value="{{ current_end_iso }}">
+                        <input type="hidden" name="data_inicio_anterior" value="{{ previous_start_iso }}">
+                        <input type="hidden" name="data_fim_anterior" value="{{ previous_end_iso }}">
+                        <input type="hidden" name="titulo" value="Relatório {{ empresa.nome }} {{ mes_label }}">
                         <button type="submit" class="btn btn-dark">Gerar Relatório</button>
                     </form>
                 {% endif %}
             </div>
         </div>
+        {% if analise_completa_tab.tab_chart %}
+            {{ analise_completa_tab.tab_chart|json_script:"executive-tab-chart-data" }}
+            <div class="panel mt-4">
+                <h3 class="mb-1">Evolução Mensal — Visão Geral</h3>
+                <p class="text-muted mb-0 small">Últimos 12 meses com dados — alcance, investimento, receita e conversas.</p>
+                <div id="executiveTabChart" class="mt-3" style="min-height: 320px;"></div>
+            </div>
+        {% endif %}
         <div class="row g-3 mt-1">
             {% for item in analise_completa_tab.top_cards %}
                 <div class="col-md-6 col-xl-3">
@@ -536,18 +630,13 @@
                     <div class="panel traffic-block-panel h-100">
                         <h3 class="mb-1">{{ panel.title }}</h3>
                         <p class="text-muted mb-0">{{ panel.description }}</p>
-                        {% if panel.chart %}
-                            <div class="mt-3">
-                                <div id="executiveSummaryChart-{{ panel.chart.key }}" style="min-height: 280px;"></div>
-                            </div>
-                        {% endif %}
                         {% if panel.rows %}
                             <div class="table-responsive mt-3">
                                 <table class="table align-middle traffic-summary-table mb-0">
                                     <thead>
                                         <tr>
                                             <th>Métrica</th>
-                                            <th>Anterior / Atual</th>
+                                            <th>Valor</th>
                                             <th>Variação</th>
                                         </tr>
                                     </thead>
@@ -555,8 +644,8 @@
                                         {% for row in panel.rows %}
                                             <tr>
                                                 <td>{{ row.label }}</td>
-                                                <td><strong>{{ row.period_value }}</strong></td>
-                                                <td class="{{ row.variation_class }}">{{ row.variation_value }}</td>
+                                                <td><strong>{{ row.current_value }}</strong></td>
+                                                <td class="{{ row.variation_class }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ previous_month_label }}: {{ row.previous_value }}">{{ row.variation_value }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>
@@ -567,7 +656,6 @@
                 </div>
             {% endfor %}
         </div>
-        {{ analise_completa_tab.summary_panels|json_script:"executive-summary-panels-data" }}
         <div class="panel mt-4">
             <h3>Sinais dos Concorrentes</h3>
             <p class="text-muted mb-3">Resumo rápido de algumas ações e intensidade digital dos concorrentes monitorados.</p>
@@ -699,11 +787,10 @@
             {% if empresa %}
                 <form method="post" action="{% url 'concorrentes:evaluate_now' %}" data-loading-title="Avaliando Redes Sociais" data-loading-text="Aguarde enquanto o sistema atualiza os dados públicos e roda a análise de IA.">
                     {% csrf_token %}
-                    <input type="hidden" name="empresa" value="{{ empresa.id }}">
-                    <input type="hidden" name="data_inicio" value="{{ form.data_inicio.value|default:'' }}">
-                    <input type="hidden" name="data_fim" value="{{ form.data_fim.value|default:'' }}">
-                    <input type="hidden" name="data_inicio_anterior" value="{{ form.data_inicio_anterior.value|default:'' }}">
-                    <input type="hidden" name="data_fim_anterior" value="{{ form.data_fim_anterior.value|default:'' }}">
+                    <input type="hidden" name="data_inicio" value="{{ current_start_iso }}">
+                    <input type="hidden" name="data_fim" value="{{ current_end_iso }}">
+                    <input type="hidden" name="data_inicio_anterior" value="{{ previous_start_iso }}">
+                    <input type="hidden" name="data_fim_anterior" value="{{ previous_end_iso }}">
                     <button type="submit" class="btn btn-dark competitor-evaluate-btn">Avaliar Redes Sociais</button>
                 </form>
             {% endif %}
@@ -796,7 +883,7 @@
                     <form method="post" enctype="multipart/form-data">
                         <div class="modal-header">
                             <h5 class="modal-title">{% if tab.panel_type == 'leads_eventos' %}Adicionar dados - {{ tab.title }}{% else %}Novo upload - {{ tab.title }}{% endif %}</h5>
-                            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
+                            <a href="{% url 'campanhas:dashboard' %}?tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
                         </div>
                         <div class="modal-body">
                             {% csrf_token %}
@@ -850,7 +937,7 @@
                             {% endif %}
                         </div>
                         <div class="modal-footer">
-                            <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
+                            <a href="{% url 'campanhas:dashboard' %}?tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
                             <button class="btn btn-dark" type="submit">{% if tab.panel_type == 'leads_eventos' %}Salvar dados{% else %}Enviar arquivo{% endif %}</button>
                         </div>
                     </form>
@@ -865,7 +952,7 @@
                         <form method="post" enctype="multipart/form-data">
                             <div class="modal-header">
                                 <h5 class="modal-title">Importar arquivo - {{ tab.title }}</h5>
-                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
+                                <a href="{% url 'campanhas:dashboard' %}?tab={{ tab.key }}" class="btn-close" aria-label="Fechar"></a>
                             </div>
                             <div class="modal-body">
                                 {% csrf_token %}
@@ -882,7 +969,7 @@
                                 {% endwith %}
                             </div>
                             <div class="modal-footer">
-                                <a href="{% url 'campanhas:dashboard' %}?empresa={{ empresa.pk|default:'' }}&tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
+                                <a href="{% url 'campanhas:dashboard' %}?tab={{ tab.key }}" class="btn btn-outline-secondary">Cancelar</a>
                                 <button class="btn btn-dark" type="submit">Importar arquivo</button>
                             </div>
                         </form>
@@ -956,12 +1043,16 @@
         leadsEventosChartEl.innerHTML = '<div class="chart-empty-state">Sem dados disponíveis, faça o cadastro dos eventos.</div>';
       } else {
         new ApexCharts(leadsEventosChartEl, {
-          chart: { type: 'bar', height: 320, toolbar: { show: false } },
+          chart: { type: 'line', height: 320, toolbar: { show: false }, zoom: { enabled: false } },
           series,
-          xaxis: { categories },
+          xaxis: { categories, labels: { style: { fontSize: '11px' } } },
+          yaxis: { labels: { formatter(v) { return formatNumberBr(v, 0); } } },
           colors: ['#2d6a4f'],
-          dataLabels: { enabled: true },
+          stroke: { curve: 'smooth', width: 2 },
+          markers: { size: 5 },
+          dataLabels: { enabled: false },
           legend: { show: false },
+          tooltip: { y: { formatter(v) { return formatNumberBr(v, 0); } } },
         }).render();
       }
     }
@@ -1068,6 +1159,86 @@
           labels: chart.labels || [],
           dataLabels: { enabled: true },
           legend: { show: false, position: 'bottom' }
+        });
+      } else if (chartType === 'line') {
+        apexChart = new ApexCharts(node, {
+          chart: { type: 'line', height: 360, toolbar: { show: false }, zoom: { enabled: false } },
+          colors: ['#175cd3', '#2d6a4f', '#c67a1a', '#7c3aed', '#dc2626', '#0f766e'],
+          series: chart.series,
+          xaxis: {
+            categories: chart.categories || [],
+            labels: { style: { fontSize: '11px' } }
+          },
+          yaxis: {
+            labels: {
+              formatter(value) {
+                return formatNumberBr(value, 2);
+              }
+            }
+          },
+          stroke: { curve: 'smooth', width: 2 },
+          markers: { size: 4 },
+          dataLabels: {
+            enabled: true,
+            formatter(value) {
+              return formatNumberBr(value, 0);
+            },
+            style: { fontSize: '10px', fontWeight: '600' },
+            background: { enabled: true, borderRadius: 3, padding: 2, opacity: 0.85 },
+            offsetY: -6
+          },
+          legend: { position: 'bottom' },
+          tooltip: {
+            shared: true,
+            y: {
+              formatter(value) {
+                return formatNumberBr(value, 2);
+              }
+            }
+          }
+        });
+      } else if (chartType === 'area_stacked' || chartType === 'mixed_area') {
+        const strokeWidths = (chart.series || []).map(s => s.type === 'line' ? 3 : 2);
+        const fillTypes = (chart.series || []).map(s => s.type === 'line' ? 'solid' : 'gradient');
+        apexChart = new ApexCharts(node, {
+          chart: { type: 'line', height: 360, toolbar: { show: false }, zoom: { enabled: false }, stacked: false },
+          colors: chart.colors || ['#0f172a', '#175cd3', '#2d6a4f', '#c67a1a', '#94a3b8'],
+          series: chart.series,
+          xaxis: {
+            categories: chart.categories || [],
+            labels: { style: { fontSize: '11px' } }
+          },
+          yaxis: {
+            labels: {
+              formatter(value) {
+                return formatNumberBr(value, 2);
+              }
+            }
+          },
+          stroke: { curve: 'smooth', width: strokeWidths },
+          markers: { size: 4 },
+          fill: {
+            type: fillTypes,
+            gradient: { opacityFrom: 0.45, opacityTo: 0.05 }
+          },
+          dataLabels: {
+            enabled: true,
+            formatter(value) {
+              return formatNumberBr(value, 0);
+            },
+            style: { fontSize: '10px', fontWeight: '600' },
+            background: { enabled: true, borderRadius: 3, padding: 2, opacity: 0.85 },
+            offsetY: -6
+          },
+          legend: { position: 'bottom' },
+          tooltip: {
+            shared: true,
+            y: {
+              formatter(value) {
+                return formatNumberBr(value, 2);
+              }
+            }
+          }
         });
       } else {
         apexChart = new ApexCharts(node, {
@@ -1187,25 +1358,24 @@
       syncBlockTableRows(block.key, initialSelection);
     };
 
-    const trafficBlocksPayloadNode = document.getElementById('traffic-blocks-data');
-    if (trafficBlocksPayloadNode) {
-      const trafficBlocks = JSON.parse(trafficBlocksPayloadNode.textContent);
-      const trafficCharts = {};
-      trafficBlocks.forEach((block) => {
-        const renderTrafficChart = () => {
-          if (block.chart) {
-            renderBlockChart(block, `trafficBlockComparisonChart-${block.chart.key}`, trafficCharts);
-          }
-        };
-        setupBlockFilter(block, renderTrafficChart);
-        renderTrafficChart();
-      });
+    // Render traffic tab-level combined chart
+    const trafficTabChartNode = document.getElementById('traffic-tab-chart-data');
+    if (trafficTabChartNode) {
+      const chart = JSON.parse(trafficTabChartNode.textContent);
+      const block = { key: 'traffic_combined', chart_type: 'line', chart };
+      const trafficBlocksPayloadNode = document.getElementById('traffic-blocks-data');
+      if (trafficBlocksPayloadNode) {
+        const trafficBlocks = JSON.parse(trafficBlocksPayloadNode.textContent);
+        trafficBlocks.forEach((b) => setupBlockFilter(b, () => {}));
+      }
+      renderBlockChart(block, 'trafficTabChart', {});
     }
 
+    // CRM block filters (pie charts still per-block)
     const crmBlocksPayloadNode = document.getElementById('crm-category-blocks-data');
     if (crmBlocksPayloadNode) {
-        const crmBlocks = JSON.parse(crmBlocksPayloadNode.textContent);
-        const crmCharts = {};
+      const crmBlocks = JSON.parse(crmBlocksPayloadNode.textContent);
+      const crmCharts = {};
       crmBlocks.forEach((block) => {
         const renderCrmChart = () => {
           if (block.chart) {
@@ -1217,36 +1387,47 @@
       });
     }
 
+    // CRM tab-level combined line chart
+    const crmTabChartNode = document.getElementById('crm-tab-chart-data');
+    if (crmTabChartNode) {
+      const chart = JSON.parse(crmTabChartNode.textContent);
+      renderBlockChart({ key: 'crm_combined', chart_type: chart.chart_type || 'area_stacked', chart }, 'crmTabChart', {});
+    }
+
+    // Social block filters only (no per-block charts)
     const socialBlocksPayloadNode = document.getElementById('social-category-blocks-data');
     if (socialBlocksPayloadNode) {
       const socialBlocks = JSON.parse(socialBlocksPayloadNode.textContent);
-      const socialCharts = {};
-      socialBlocks.forEach((block) => {
-        const renderSocialChart = () => {
-          if (block.chart) {
-            renderBlockChart(block, `socialCategoryChart-${block.chart.key}`, socialCharts);
-          }
-        };
-        setupBlockFilter(block, renderSocialChart);
-        renderSocialChart();
-      });
+      socialBlocks.forEach((block) => setupBlockFilter(block, () => {}));
     }
 
-    const executiveSummaryPayloadNode = document.getElementById('executive-summary-panels-data');
-    if (executiveSummaryPayloadNode) {
-      const executivePanels = JSON.parse(executiveSummaryPayloadNode.textContent);
-      const executiveCharts = {};
-      executivePanels.forEach((panel) => {
-        if (panel.chart) {
-          renderBlockChart(panel, `executiveSummaryChart-${panel.chart.key}`, executiveCharts);
-        }
-      });
+    // Social tab-level combined line chart
+    const socialTabChartNode = document.getElementById('social-tab-chart-data');
+    if (socialTabChartNode) {
+      const chart = JSON.parse(socialTabChartNode.textContent);
+      renderBlockChart({ key: 'social_combined', chart_type: 'line', chart }, 'socialTabChart', {});
+    }
+
+    // Executive summary tab-level combined line chart
+    const executiveTabChartNode = document.getElementById('executive-tab-chart-data');
+    if (executiveTabChartNode) {
+      const chart = JSON.parse(executiveTabChartNode.textContent);
+      renderBlockChart({ key: 'executive_combined', chart_type: 'line', chart }, 'executiveTabChart', {});
     }
 
     document.addEventListener('click', (event) => {
       if (!event.target.closest('.crm-filter-dropdown')) {
         document.querySelectorAll('[data-crm-filter-menu]').forEach((menu) => menu.classList.add('d-none'));
       }
+    });
+
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+      new bootstrap.Tooltip(el, { trigger: 'hover' });
+    });
+
+    // Trigger ApexCharts resize when a collapsed panel is expanded
+    document.addEventListener('shown.bs.collapse', () => {
+      window.dispatchEvent(new Event('resize'));
     });
 
   });

@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from core.utils import last_complete_month_ranges
+from core.utils import available_months, last_complete_month_ranges, month_ranges_for_param
 from empresas.services import empresa_digital_summary
 from empresas.models import ConfiguracaoUploadEmpresa, Empresa
 from empresas.upload_config_services import inspect_uploaded_file, read_uploaded_dataframe
@@ -16,7 +16,7 @@ from concorrentes.services import competitor_profiles, competitor_summary, compe
 from ia.models import AnaliseConcorrencial
 from relatorios.models import Relatorio
 
-from .forms import ComparePeriodForm, EventoPainelForm, EventoPainelImportForm, UploadCampanhaForm, UploadPainelArquivoForm
+from .forms import EventoPainelForm, EventoPainelImportForm, UploadCampanhaForm, UploadPainelArquivoForm
 from .models import EventoPainel, UploadCampanha, UploadPainel
 from .dashboard_upload_tabs import build_dashboard_upload_tabs
 from .services import (
@@ -31,20 +31,13 @@ from .services import (
 
 
 def upload_list(request):
-    query = {}
-    empresa_id = request.GET.get('empresa') or request.session.get('active_company_id')
-    if empresa_id:
-        query['empresa'] = empresa_id
-    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode(query)}")
+    return redirect('campanhas:dashboard')
 
 
 def upload_create(request):
     if request.method != 'POST':
         return redirect('campanhas:dashboard')
-    empresa_inicial = None
-    empresa_id = request.session.get('active_company_id')
-    if empresa_id:
-        empresa_inicial = Empresa.objects.filter(pk=empresa_id).first()
+    empresa_inicial = Empresa.objects.order_by('pk').first()
     form = UploadCampanhaForm(request.POST or None, request.FILES or None, empresa_inicial=empresa_inicial)
     if request.method == 'POST' and form.is_valid():
         upload = form.save(commit=False)
@@ -200,70 +193,38 @@ def panel_upload_delete(request, pk):
                 configuracao.preview_json = []
             configuracao.save(update_fields=['arquivo_exemplo', 'nome_arquivo_exemplo', 'colunas_detectadas_json', 'preview_json'])
         messages.success(request, 'Upload removido com sucesso.')
-    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+    return redirect(f"{reverse('campanhas:dashboard')}?tab={panel_key}")
 
 
 def dashboard(request):
     dashboard_tab = request.GET.get('tab') or ''
     default_ranges = last_complete_month_ranges()
-    initial = {
-        'data_inicio': default_ranges['current_start'],
-        'data_fim': default_ranges['current_end'],
-        'data_inicio_anterior': default_ranges['previous_start'],
-        'data_fim_anterior': default_ranges['previous_end'],
-    }
     empresa_prefetch = Prefetch(
         'configuracoes_upload',
         queryset=ConfiguracaoUploadEmpresa.objects.exclude(tipo_documento='').prefetch_related('uploads_painel').order_by('nome', 'pk'),
     )
-    empresa = None
-    company_id = request.session.get('active_company_id')
-    if company_id:
-        empresa = Empresa.objects.prefetch_related(empresa_prefetch).filter(pk=company_id).first()
-    if empresa is None:
-        empresa = Empresa.objects.prefetch_related(empresa_prefetch).order_by('nome', 'pk').first()
-        if empresa:
-            request.session['active_company_id'] = empresa.pk
-    if empresa:
-        initial['empresa'] = empresa
-    form = ComparePeriodForm(request.GET or None, initial=initial)
+    empresa = Empresa.objects.prefetch_related(empresa_prefetch).order_by('pk').first()
+    mes_param = request.GET.get('mes') or ''
+    if mes_param:
+        ranges = month_ranges_for_param(mes_param)
+    else:
+        ranges = default_ranges
+        mes_param = default_ranges['current_start'].strftime('%Y-%m')
+    current_start = ranges['current_start']
+    current_end = ranges['current_end']
+    previous_start = ranges['previous_start']
+    previous_end = ranges['previous_end']
+    meses_disponiveis = available_months()
     queryset = metrics_queryset(
         empresa=empresa,
-        data_inicio=default_ranges['current_start'],
-        data_fim=default_ranges['current_end'],
+        data_inicio=current_start,
+        data_fim=current_end,
     )
-    current_start = default_ranges['current_start']
-    current_end = default_ranges['current_end']
-    previous_start = default_ranges['previous_start']
-    previous_end = default_ranges['previous_end']
     previous_qs = metrics_queryset(
         empresa=empresa,
-        data_inicio=default_ranges['previous_start'],
-        data_fim=default_ranges['previous_end'],
+        data_inicio=previous_start,
+        data_fim=previous_end,
     )
-
-    if form.is_valid():
-        empresa = form.cleaned_data.get('empresa') or empresa
-        if empresa:
-            empresa = Empresa.objects.prefetch_related(empresa_prefetch).filter(pk=empresa.pk).first()
-            request.session['active_company_id'] = empresa.pk
-        current_start = form.cleaned_data.get('data_inicio') or default_ranges['current_start']
-        current_end = form.cleaned_data.get('data_fim') or default_ranges['current_end']
-        previous_start = form.cleaned_data.get('data_inicio_anterior') or default_ranges['previous_start']
-        previous_end = form.cleaned_data.get('data_fim_anterior') or default_ranges['previous_end']
-        queryset = metrics_queryset(
-            empresa=empresa,
-            data_inicio=current_start,
-            data_fim=current_end,
-        )
-        previous_qs = metrics_queryset(
-            empresa=empresa,
-            data_inicio=previous_start,
-            data_fim=previous_end,
-        )
-    else:
-        current_start = default_ranges['current_start']
-        current_end = default_ranges['current_end']
 
     show_upload_modal_key = ''
     traffic_upload_form = UploadCampanhaForm(prefix='upload-trafego', empresa_inicial=empresa)
@@ -271,34 +232,21 @@ def dashboard(request):
     evento_painel_forms = {}
     evento_import_forms = {}
 
-    dashboard_upload_tabs = (
-        build_dashboard_upload_tabs(
-            empresa,
-            queryset,
-            current_start,
-            current_end,
-            previous_start=previous_start,
-            previous_end=previous_end,
-            previous_queryset=previous_qs,
-            active_key=None,
-        )
-        if empresa
-        else []
-    )
-    dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
-    visible_dashboard_tabs = list(dashboard_upload_tabs)
+    # Determine valid tab keys from prefetched configs (no extra DB query needed)
     if empresa:
-        analise_index = next(
-            (index for index, item in enumerate(visible_dashboard_tabs) if item['key'] == 'analise_completa'),
-            len(visible_dashboard_tabs),
-        )
-        insert_index = analise_index + 1 if analise_index < len(visible_dashboard_tabs) else len(visible_dashboard_tabs)
-        visible_dashboard_tabs.insert(insert_index, {'key': 'concorrentes', 'title': 'Concorrentes'})
-    visible_keys = {item['key'] for item in visible_dashboard_tabs}
-    if dashboard_tab not in visible_keys and visible_dashboard_tabs:
-        dashboard_tab = visible_dashboard_tabs[0]['key']
-    elif dashboard_tab not in visible_keys:
+        _configs_preview = list(empresa.configuracoes_upload.all())
+        if _configs_preview:
+            _valid_keys = {'analise_completa', 'concorrentes'} | {
+                f'{c.tipo_documento}_{c.pk}' for c in _configs_preview
+            }
+            if dashboard_tab not in _valid_keys:
+                dashboard_tab = 'analise_completa'
+        else:
+            if dashboard_tab not in {'concorrentes'}:
+                dashboard_tab = 'concorrentes'
+    else:
         dashboard_tab = 'concorrentes'
+
     dashboard_upload_tabs = (
         build_dashboard_upload_tabs(
             empresa,
@@ -314,6 +262,14 @@ def dashboard(request):
         else []
     )
     dashboard_upload_tab_map = {tab['key']: tab for tab in dashboard_upload_tabs}
+    visible_dashboard_tabs = list(dashboard_upload_tabs)
+    if empresa:
+        analise_index = next(
+            (index for index, item in enumerate(visible_dashboard_tabs) if item['key'] == 'analise_completa'),
+            len(visible_dashboard_tabs),
+        )
+        insert_index = analise_index + 1 if analise_index < len(visible_dashboard_tabs) else len(visible_dashboard_tabs)
+        visible_dashboard_tabs.insert(insert_index, {'key': 'concorrentes', 'title': 'Concorrentes'})
     active_upload_tab = dashboard_upload_tab_map.get(dashboard_tab)
     if active_upload_tab and active_upload_tab.get('config_id') and active_upload_tab.get('panel_type') != ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO:
         configuracao = next(
@@ -461,7 +417,7 @@ def dashboard(request):
                     evento.configuracao = configuracao
                     evento.save()
                     messages.success(request, f'Dado adicionado ao painel "{configuracao.nome}".')
-                    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+                    return redirect(f"{reverse('campanhas:dashboard')}?tab={panel_key}")
                 show_upload_modal_key = panel_key
         elif action == 'importar_dados_evento':
             panel_key = request.POST.get('panel_key', '')
@@ -477,7 +433,7 @@ def dashboard(request):
                 if import_form.is_valid():
                     imported_count = _import_eventos_painel_file(configuracao, import_form.cleaned_data['arquivo'])
                     messages.success(request, f'{imported_count} evento(s) importado(s) para o painel "{configuracao.nome}".')
-                    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+                    return redirect(f"{reverse('campanhas:dashboard')}?tab={panel_key}")
                 show_upload_modal_key = panel_key
 
     uploads_list = UploadCampanha.objects.none()
@@ -537,12 +493,23 @@ def dashboard(request):
         else EventoPainel.objects.none()
     )
 
+    from core.utils import _mes_label
+    mes_label = _mes_label(current_start)
+    previous_month_label = _mes_label(previous_start)
+
     context = {
         'dashboard_tab': dashboard_tab,
-        'form': form,
         'empresa': empresa,
+        'mes_param': mes_param,
+        'mes_label': mes_label,
+        'previous_month_label': previous_month_label,
+        'meses_disponiveis': meses_disponiveis,
         'periodo_atual_resumo': f'{current_start:%d-%m-%y} até {current_end:%d-%m-%y}',
         'periodo_anterior_resumo': f'{previous_start:%d-%m-%y} até {previous_end:%d-%m-%y}',
+        'current_start_iso': current_start.isoformat(),
+        'current_end_iso': current_end.isoformat(),
+        'previous_start_iso': previous_start.isoformat(),
+        'previous_end_iso': previous_end.isoformat(),
         'campaign_rows': campaign_table(queryset),
         'company_digital': company_digital,
         'competitor_analyses': competitor_analyses,
@@ -574,7 +541,7 @@ def evento_painel_delete(request, pk):
     if request.method == 'POST':
         evento.delete()
         messages.success(request, 'Dado do painel removido com sucesso.')
-    return redirect(f"{reverse('campanhas:dashboard')}?{urlencode({'empresa': empresa.pk, 'tab': panel_key})}")
+    return redirect(f"{reverse('campanhas:dashboard')}?tab={panel_key}")
 
 
 def evento_painel_template_download(request):

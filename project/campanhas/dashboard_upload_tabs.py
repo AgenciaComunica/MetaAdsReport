@@ -10,6 +10,7 @@ from empresas.models import ConfiguracaoUploadEmpresa
 from empresas.upload_config_services import (
     get_category_filter_enabled_map,
     get_enabled_chart_metric_keys,
+    get_panel_metric_groups,
     get_enabled_table_metric_keys,
     read_uploaded_dataframe,
 )
@@ -174,6 +175,14 @@ SOCIAL_POSITIVE_WHEN_HIGHER = {
     'respostas',
     'cliques_link',
     'visitas_perfil',
+    'seguimentos',
+    'usuarios',
+    'novos_usuarios',
+    'sessoes',
+    'sessoes_engajadas',
+    'visualizacoes_pagina',
+    'taxa_engajamento',
+    'conversoes',
 }
 SOCIAL_PLAUSIBLE_VARIATION_LIMITS = {key: Decimal('15') for key in SOCIAL_POSITIVE_WHEN_HIGHER}
 CRM_STATUS_COLOR_MAP = {
@@ -324,10 +333,13 @@ def build_traffic_tab(config, queryset, previous_queryset=None, key='trafego_pag
     filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json) if config else {}
     previous_metrics = _build_traffic_metric_values(previous_summary, {})
     block_cards = _build_traffic_blocks(derived_metrics, previous_metrics, metric_definitions, selected_table_keys, filter_enabled_map)
-    block_comparison_charts = _build_traffic_block_comparison_charts(derived_metrics, previous_metrics, metric_definitions, selected_chart_keys)
-    chart_map = {chart['key']: chart for chart in block_comparison_charts}
-    for block in block_cards:
-        block['chart'] = chart_map.get(block['key'])
+    all_chart_keys = []
+    for block_def in TRAFFIC_BLOCK_DEFINITIONS:
+        keys = [k for k in block_def.get('chart_metrics', []) if k in set(selected_chart_keys)]
+        if not keys:
+            keys = [k for k in block_def.get('chart_metrics', []) if k in set(selected_table_keys)]
+        all_chart_keys.extend(k for k in keys if k not in all_chart_keys)
+    tab_chart = _build_traffic_line_chart(config.empresa if config else None, 'traffic_combined', all_chart_keys, metric_definitions) if config and getattr(config, 'empresa', None) else None
     return {
         'key': key,
         'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.TRAFEGO_PAGO,
@@ -340,6 +352,7 @@ def build_traffic_tab(config, queryset, previous_queryset=None, key='trafego_pag
         'kpis': summary,
         'result_label': result_label,
         'metric_blocks': block_cards,
+        'tab_chart': tab_chart,
         'campaign_rows': campaign_table(queryset),
     }
 
@@ -356,12 +369,22 @@ def build_crm_tab(config, period_start=None, period_end=None, previous_start=Non
     filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json)
     current_summary = _crm_period_summary(rows, closed_status, config)
     previous_summary = _crm_period_summary(previous_rows, closed_status, config)
+    resultado_metrics = [
+        ('receita_total', 'Receita Total', True, ''),
+        ('vendas_concluidas', 'Vendas Concluídas', False, ''),
+        ('taxa_conversao', 'Taxa de Conversão', False, '%'),
+        ('conversas', 'Conversas', False, ''),
+        ('ticket_medio', 'Ticket Médio', True, ''),
+    ]
+    tab_chart = _build_origem_stacked_area_chart(all_rows, config)
     category_blocks = _build_crm_category_blocks(
         selected_table_keys,
         selected_chart_keys,
         current_summary,
         previous_summary,
         filter_enabled_map,
+        all_rows=all_rows,
+        config=config,
     )
     return {
         'key': key,
@@ -374,6 +397,7 @@ def build_crm_tab(config, period_start=None, period_end=None, previous_start=Non
         'description': 'Leitura do arquivo configurado para CRM e vendas.',
         'rows': rows[:20],
         'kpis': current_summary['geral'],
+        'tab_chart': tab_chart,
         'category_blocks': category_blocks,
     }
 
@@ -416,32 +440,37 @@ def build_leads_tab(config, period_start=None, period_end=None, key='leads_event
         'description': 'Entradas manuais de eventos com impacto e média de pessoas alcançadas.',
         'rows': rows[:50],
         'kpis': kpis,
-        'chart': {
-            'key': 'eventos',
-            'type': 'bar',
-            'categories': chart_categories,
-            'series': [
-                {
-                    'name': 'Pessoas alcançadas',
-                    'data': chart_series,
-                }
-            ],
-        },
+        'tab_chart': _build_leads_monthly_line_chart(config, key=f'leads_{key}'),
     }
 
 
 def build_social_tab(config, period_start=None, period_end=None, previous_start=None, previous_end=None, key='redes_sociais'):
     if not config:
         return _empty_tab('redes_sociais', 'Presença Digital')
+    digital_type = _get_social_digital_type(config)
     all_rows = _read_social_rows(config)
     rows = _filter_rows_by_period(all_rows, period_start, period_end, 'data_publicacao')
-    selected_table_keys = set(get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json))
-    selected_chart_keys = set(get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json))
-    filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json)
-    current_summary = _social_period_summary(rows)
+    selected_table_keys = set(get_enabled_table_metric_keys(config.tipo_documento, config.metricas_painel_json, variant=digital_type))
+    selected_chart_keys = set(get_enabled_chart_metric_keys(config.tipo_documento, config.metricas_painel_json, variant=digital_type))
+    filter_enabled_map = get_category_filter_enabled_map(config.tipo_documento, config.metricas_painel_json, variant=digital_type)
+    current_summary = _social_period_summary(rows, digital_type=digital_type)
     previous_rows = _filter_rows_by_period(all_rows, previous_start, previous_end, 'data_publicacao')
-    previous_summary = _social_period_summary(previous_rows)
-    category_blocks = _build_social_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map)
+    previous_summary = _social_period_summary(previous_rows, digital_type=digital_type)
+    definitions = _get_social_block_definitions(digital_type)
+    combined_chart_keys = []
+    combined_metric_defs = []
+    for _, _, _, metric_defs, chart_defaults in definitions:
+        keys = [k for k in chart_defaults if k in selected_chart_keys]
+        if not keys:
+            keys = [item[0] for item in metric_defs if item[0] in selected_table_keys]
+        for k in keys:
+            if k not in combined_chart_keys:
+                combined_chart_keys.append(k)
+        for item in metric_defs:
+            if item[0] in combined_chart_keys and item not in combined_metric_defs:
+                combined_metric_defs.append(item)
+    tab_chart = _build_social_monthly_line_chart(all_rows, digital_type, 'social_combined', combined_metric_defs, combined_chart_keys)
+    category_blocks = _build_social_category_blocks(digital_type, selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map)
     return {
         'key': key,
         'panel_type': ConfiguracaoUploadEmpresa.TipoDocumento.REDES_SOCIAIS,
@@ -450,8 +479,9 @@ def build_social_tab(config, period_start=None, period_end=None, previous_start=
         'configured': True,
         'ready': True,
         'config_name': config.nome,
-        'description': 'Comparativo do desempenho orgânico entre período atual e anterior, baseado apenas em uploads reais.',
+        'description': _social_tab_description(digital_type),
         'rows': rows[:20],
+        'tab_chart': tab_chart,
         'category_blocks': category_blocks,
     }
 
@@ -503,8 +533,9 @@ def build_complete_analysis_tab_from_configs(
     social_configs = social_configs or []
     traffic_summary = summarize_metrics(traffic_queryset)
     previous_traffic_summary = summarize_metrics(previous_queryset) if previous_queryset is not None else {}
-    crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), period_start, period_end, 'data_contato') if crm_config else []
-    previous_crm_rows = _filter_rows_by_period(_read_mapped_rows(crm_config, date_key='data_contato'), previous_start, previous_end, 'data_contato') if crm_config else []
+    all_crm_rows_raw = _read_mapped_rows(crm_config, date_key='data_contato') if crm_config else []
+    crm_rows = _filter_rows_by_period(all_crm_rows_raw, period_start, period_end, 'data_contato')
+    previous_crm_rows = _filter_rows_by_period(all_crm_rows_raw, previous_start, previous_end, 'data_contato')
     crm_summary = _crm_period_summary(crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
     previous_crm_summary = _crm_period_summary(previous_crm_rows, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}, crm_config) if crm_config else {'geral': {}, 'origem': {}}
     leads_rows = []
@@ -517,14 +548,16 @@ def build_complete_analysis_tab_from_configs(
     social_summaries = []
     previous_social_summaries = []
     for config in social_configs:
-        current_rows = _filter_rows_by_period(_read_social_rows(config), period_start, period_end, 'data_publicacao')
-        previous_rows = _filter_rows_by_period(_read_social_rows(config), previous_start, previous_end, 'data_publicacao')
+        digital_type = _get_social_digital_type(config)
+        _all_config_social_rows = _read_social_rows(config)
+        current_rows = _filter_rows_by_period(_all_config_social_rows, period_start, period_end, 'data_publicacao')
+        previous_rows = _filter_rows_by_period(_all_config_social_rows, previous_start, previous_end, 'data_publicacao')
         social_rows.extend(current_rows)
         previous_social_rows.extend(previous_rows)
-        social_summaries.append((config, _social_period_summary(current_rows)))
-        previous_social_summaries.append((config, _social_period_summary(previous_rows)))
-    social_summary = _social_period_summary(social_rows) if social_configs else {}
-    previous_social_summary = _social_period_summary(previous_social_rows) if social_configs else {}
+        social_summaries.append((config, _social_period_summary(current_rows, digital_type=digital_type)))
+        previous_social_summaries.append((config, _social_period_summary(previous_rows, digital_type=digital_type)))
+    social_summary = _aggregate_social_summaries([item[1] for item in social_summaries]) if social_configs else {}
+    previous_social_summary = _aggregate_social_summaries([item[1] for item in previous_social_summaries]) if social_configs else {}
     leads_summaries = [(config, _leads_event_period_summary(_filter_leads_event_entries(config, period_start, period_end))) for config in leads_configs]
     previous_leads_summaries = [(config, _leads_event_period_summary(_filter_leads_event_entries(config, previous_start, previous_end))) for config in leads_configs]
     leads_summary = _leads_event_period_summary(leads_rows) if leads_configs else {}
@@ -550,11 +583,75 @@ def build_complete_analysis_tab_from_configs(
     operacao_sales = sum(1 for row in operacao_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
     previous_operacao_sales = sum(1 for row in previous_operacao_rows if _crm_is_closed_sale(row, {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}))
 
+    # Monthly charts for executive summary panels
+    empresa = (
+        traffic_config.empresa if traffic_config and getattr(traffic_config, 'empresa', None)
+        else (crm_config.empresa if crm_config and getattr(crm_config, 'empresa', None)
+              else (social_configs[0].empresa if social_configs else None))
+    )
+    all_crm_rows = all_crm_rows_raw
+
+    _exec_closed_status = {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}
+
+    def _exec_monthly_crm_chart(chart_key, series_builders):
+        """series_builders: list of (name, fn(monthly_summary) -> float)"""
+        groups = _group_rows_by_month(all_crm_rows, 'data_contato')
+        month_keys = _last_n_months(12)
+        active = [mk for mk in month_keys if mk in groups]
+        if not active:
+            return None
+        cats = [_short_month_label(y, m) for y, m in active]
+        series = []
+        for name, fn in series_builders:
+            data = []
+            for mk in active:
+                ms = _crm_period_summary(groups[mk], _exec_closed_status, crm_config)
+                data.append(_decimal_to_float(_to_decimal(fn(ms))))
+            series.append({'name': name, 'data': data})
+        return {'key': chart_key, 'title': 'Evolução Mensal', 'categories': cats, 'series': series}
+
+    # Build single combined line chart for executive summary
+    tab_chart_series = []
+    tab_chart_categories = None
+
+    if empresa:
+        monthly_traffic = _build_monthly_traffic_data(empresa)
+        month_keys_exec = _last_n_months(12)
+        active_exec = [mk for mk in month_keys_exec if mk in monthly_traffic]
+        if active_exec:
+            tab_chart_categories = [_short_month_label(y, m) for y, m in active_exec]
+            tab_chart_series.append({'name': 'Alcance (Tráfego)', 'data': [_decimal_to_float(monthly_traffic[mk].get('alcance', 0)) for mk in active_exec]})
+            tab_chart_series.append({'name': 'Investimento', 'data': [_decimal_to_float(monthly_traffic[mk].get('investimento', 0)) for mk in active_exec]})
+
+    if all_crm_rows:
+        groups_exec = _group_rows_by_month(all_crm_rows, 'data_contato')
+        month_keys_crm = _last_n_months(12)
+        active_crm = [mk for mk in month_keys_crm if mk in groups_exec]
+        if active_crm:
+            crm_cats = [_short_month_label(y, m) for y, m in active_crm]
+            if tab_chart_categories is None:
+                tab_chart_categories = crm_cats
+            _exec_cs = {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}
+            receita_data, conversas_data = [], []
+            for mk in active_crm:
+                ms = _crm_period_summary(groups_exec[mk], _exec_cs, crm_config)
+                receita_data.append(_decimal_to_float(_to_decimal(ms['origem'].get('receita_marketing_pago', Decimal('0')) + ms['origem'].get('receita_marketing_organico', Decimal('0')))))
+                conversas_data.append(_decimal_to_float(_to_decimal(ms['geral'].get('conversas', Decimal('0')))))
+            tab_chart_series.append({'name': 'Receita Marketing', 'data': receita_data})
+            tab_chart_series.append({'name': 'Conversas', 'data': conversas_data})
+
+    tab_chart = {
+        'key': 'executive_combined',
+        'title': 'Evolução Mensal — Resumo Executivo',
+        'categories': tab_chart_categories or [],
+        'series': tab_chart_series,
+    } if tab_chart_series else None
+
     summary_panels = [
         _build_summary_panel(
             'presenca_digital',
             'Presença Digital',
-            'Soma de redes sociais com tráfego pago para leitura consolidada de alcance digital.',
+            'Soma de presença digital com tráfego pago para leitura consolidada de alcance digital.',
             [
                 ('presenca_digital_visualizacoes_totais', 'Visualizações Totais', Decimal(previous_traffic_summary.get('impressoes') or 0) + (previous_social_summary.get('visualizacoes') or Decimal('0')), Decimal(traffic_summary.get('impressoes') or 0) + (social_summary.get('visualizacoes') or Decimal('0')), False, ''),
                 ('presenca_digital_alcance_total', 'Alcance Total', Decimal(previous_traffic_summary.get('alcance') or 0) + (previous_social_summary.get('alcance') or Decimal('0')), Decimal(traffic_summary.get('alcance') or 0) + (social_summary.get('alcance') or Decimal('0')), False, ''),
@@ -580,7 +677,6 @@ def build_complete_analysis_tab_from_configs(
                 ('atendimento_conversas_organicas', 'Conversas Orgânicas', previous_crm_summary.get('origem', {}).get('organico_conversas', Decimal('0')), crm_summary.get('origem', {}).get('organico_conversas', Decimal('0')), False, ''),
                 ('atendimento_taxa_conversao', 'Taxa de Conversão', previous_crm_summary.get('geral', {}).get('taxa_conversao', Decimal('0')), crm_summary.get('geral', {}).get('taxa_conversao', Decimal('0')), False, '%'),
             ],
-            chart_metric_keys=['atendimento_conversas_trafego_pago', 'atendimento_conversas_organicas'],
         ),
         _build_summary_panel(
             'resultado',
@@ -600,6 +696,7 @@ def build_complete_analysis_tab_from_configs(
         'configured': True,
         'ready': bool(traffic_queryset.exists() or crm_rows or leads_rows or social_rows or crm_config or social_configs or leads_configs),
         'description': 'Painel cruzado geral entre presença digital, atendimento e resultado.',
+        'tab_chart': tab_chart,
         'top_cards': [
             {
                 'label': 'Receita Marketing Consolidado',
@@ -622,7 +719,7 @@ def build_complete_analysis_tab_from_configs(
                     Decimal(traffic_summary.get('alcance') or 0) + (social_summary.get('alcance') or Decimal('0')),
                     decimals=0,
                 ),
-                'tooltip': 'Soma do alcance de Tráfego Pago com o alcance do painel de Redes Sociais.',
+                'tooltip': 'Soma do alcance de Tráfego Pago com o alcance dos painéis de Presença Digital.',
             },
         ],
         'summary_panels': summary_panels,
@@ -630,12 +727,8 @@ def build_complete_analysis_tab_from_configs(
     }
 
 
-def _build_summary_panel(key, title, description, metrics, chart_metric_keys=None):
+def _build_summary_panel(key, title, description, metrics):
     rows = []
-    categories = []
-    previous_data = []
-    current_data = []
-    chart_metric_keys = set(chart_metric_keys or [metric_key for metric_key, *_ in metrics])
     for metric_key, label, previous_value, current_value, currency, suffix in metrics:
         previous_decimal = _to_decimal(previous_value)
         current_decimal = _to_decimal(current_value)
@@ -644,36 +737,19 @@ def _build_summary_panel(key, title, description, metrics, chart_metric_keys=Non
         rows.append(
             {
                 'label': label,
+                'current_value': _format_summary_metric(current_decimal, currency, suffix),
+                'previous_value': _format_summary_metric(previous_decimal, currency, suffix),
                 'period_value': f"{_format_summary_metric(previous_decimal, currency, suffix)} / {_format_summary_metric(current_decimal, currency, suffix)}",
                 'variation_value': _format_variation(variation_absolute, variation_percent, metric_key),
                 'variation_class': _resolve_crm_variation_class(metric_key, variation_absolute, variation_percent),
             }
         )
-        if metric_key in chart_metric_keys:
-            categories.append(label)
-            previous_data.append(_decimal_to_float(previous_decimal))
-            current_data.append(_decimal_to_float(current_decimal))
-
-    chart = None
-    if categories:
-        chart = {
-            'key': f'executive_{key}',
-            'title': title,
-            'categories': categories,
-            'series': [
-                {'name': 'Período anterior', 'data': previous_data},
-                {'name': 'Período atual', 'data': current_data},
-            ],
-        }
 
     return {
         'key': key,
         'title': title,
         'description': description,
         'rows': rows,
-        'chart': chart,
-        'chart_type': 'bar_compare',
-        'filter_options': [],
     }
 
 
@@ -738,81 +814,21 @@ def _leads_event_period_summary(entries):
     }
 
 
-def _build_social_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None):
+def _build_social_category_blocks(digital_type, selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None):
     filter_enabled_map = filter_enabled_map or {}
     blocks = []
-    definitions = [
-        (
-            'visao_geral',
-            'Visão Geral',
-            'Bloco principal consolidado do desempenho social.',
-            [
-                ('quantidade_publicacoes', 'Quantidade de Publicações', False, ''),
-                ('visualizacoes', 'Visualizações', False, ''),
-                ('alcance', 'Alcance', False, ''),
-                ('curtidas', 'Curtidas', False, ''),
-                ('compartilhamentos', 'Compartilhamentos', False, ''),
-            ],
-            ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
-        ),
-        (
-            'posts',
-            'Posts',
-            'Desempenho consolidado apenas dos conteúdos do tipo post.',
-            [
-                ('quantidade_posts', 'Quantidade de Posts', False, ''),
-                ('visualizacoes_posts', 'Visualizações dos Posts', False, ''),
-                ('alcance_posts', 'Alcance dos Posts', False, ''),
-                ('curtidas_posts', 'Curtidas dos Posts', False, ''),
-                ('compartilhamentos_posts', 'Compartilhamentos dos Posts', False, ''),
-            ],
-            ['quantidade_posts', 'visualizacoes_posts', 'alcance_posts'],
-        ),
-        (
-            'stories',
-            'Stories',
-            'Desempenho consolidado apenas dos conteúdos do tipo story.',
-            [
-                ('quantidade_stories', 'Quantidade de Stories', False, ''),
-                ('visualizacoes_stories', 'Visualizações dos Stories', False, ''),
-                ('alcance_stories', 'Alcance dos Stories', False, ''),
-                ('curtidas_stories', 'Curtidas dos Stories', False, ''),
-                ('compartilhamentos_stories', 'Compartilhamentos dos Stories', False, ''),
-            ],
-            ['quantidade_stories', 'visualizacoes_stories', 'alcance_stories'],
-        ),
-        (
-            'engajamento',
-            'Engajamento',
-            'Indicadores complementares de interação.',
-            [
-                ('curtidas', 'Curtidas', False, ''),
-                ('compartilhamentos', 'Compartilhamentos', False, ''),
-                ('comentarios', 'Comentários', False, ''),
-                ('salvamentos', 'Salvamentos', False, ''),
-                ('respostas', 'Respostas', False, ''),
-                ('cliques_link', 'Cliques no Link', False, ''),
-                ('visitas_perfil', 'Visitas ao Perfil', False, ''),
-            ],
-            ['curtidas', 'compartilhamentos', 'comentarios'],
-        ),
-    ]
+    definitions = _get_social_block_definitions(digital_type)
     for key, title, description, metric_defs, chart_defaults in definitions:
         rows = _social_comparison_rows(metric_defs, current_summary, previous_summary, selected_table_keys)
-        metric_keys = {item[0] for item in metric_defs}
-        chart_keys = [item for item in chart_defaults if item in selected_chart_keys]
-        if not chart_keys:
-            chart_keys = [key_item for key_item, _, _, _ in metric_defs if key_item in selected_table_keys]
-        chart = _social_comparison_chart(f'social_{key}', title, metric_defs, current_summary, previous_summary, chart_keys)
-        if rows or chart:
+        if rows:
             blocks.append(
                 {
                     'key': key,
                     'title': title,
                     'description': description,
                     'rows': rows,
-                    'chart': chart,
-                    'chart_type': 'bar_compare',
+                    'chart': None,
+                    'chart_type': None,
                     'filter_options': [row['label'] for row in rows] if filter_enabled_map.get(key) else [],
                 }
             )
@@ -831,6 +847,8 @@ def _social_comparison_rows(metric_defs, current_values, previous_values, select
         rows.append(
             {
                 'label': label,
+                'current_value': _format_social_metric(current_value, currency, suffix),
+                'previous_value': _format_social_metric(previous_value, currency, suffix),
                 'period_value': f"{_format_social_metric(previous_value, currency, suffix)} / {_format_social_metric(current_value, currency, suffix)}",
                 'variation_value': _format_variation(variation_absolute, variation_percent, key),
                 'variation_class': _resolve_social_variation_class(key, variation_absolute, variation_percent),
@@ -862,7 +880,7 @@ def _social_comparison_chart(key, title, metric_defs, current_values, previous_v
     }
 
 
-def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None):
+def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current_summary, previous_summary, filter_enabled_map=None, all_rows=None, config=None):
     blocks = []
     selected_chart_keys = set(selected_chart_keys or [])
     selected_table_keys = set(selected_table_keys or [])
@@ -877,20 +895,15 @@ def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current
         ('ticket_medio', 'Ticket Médio', True, ''),
     ]
     resultado_rows = _crm_comparison_rows(resultado_metrics, current_summary['geral'], previous_summary['geral'], selected_table_keys)
-    resultado_metric_keys = {item[0] for item in resultado_metrics}
-    resultado_chart_keys = {key for key in selected_chart_keys if key in resultado_metric_keys}
-    if not resultado_chart_keys:
-        resultado_chart_keys = {key for key in selected_table_keys if key in resultado_metric_keys}
-    resultado_chart = _crm_comparison_chart('crm_resultado', 'Resultado', resultado_metrics, current_summary['geral'], previous_summary['geral'], resultado_chart_keys)
-    if resultado_rows or resultado_chart:
+    if resultado_rows:
         blocks.append(
             {
                 'key': 'resultado',
                 'title': 'Resultado',
                 'description': 'Comparativo principal entre os períodos do comercial.',
                 'rows': resultado_rows,
-                'chart': resultado_chart,
-                'chart_type': 'bar_compare',
+                'chart': None,
+                'chart_type': None,
                 'filter_options': [row['label'] for row in resultado_rows] if filter_enabled_map.get('resultado') else [],
             }
         )
@@ -908,47 +921,16 @@ def _build_crm_category_blocks(selected_table_keys, selected_chart_keys, current
         selected_chart_keys.update(origem_metric_keys)
     origem_rows = _crm_comparison_rows(origem_metrics, current_summary['origem'], previous_summary['origem'], selected_table_keys)
     origem_chart_enabled = bool({key for key in selected_chart_keys if key in origem_metric_keys} or {key for key in selected_table_keys if key in origem_metric_keys})
-    origem_chart = _crm_distribution_pie_chart(
-        {
-            'Marketing Pago': current_summary['origem'].get('receita_marketing_pago', Decimal('0')),
-            'Marketing Orgânico': current_summary['origem'].get('receita_marketing_organico', Decimal('0')),
-            'Operacional': current_summary['origem'].get('receita_operacional', Decimal('0')),
-            'Sem categoria': current_summary['origem'].get('receita_sem_categoria', Decimal('0')),
-        },
-        'crm_origem',
-        'Origem',
-        _crm_origin_color,
-    ) if origem_chart_enabled else None
-    if origem_rows or origem_chart:
+    if origem_rows:
         blocks.append(
             {
                 'key': 'origem',
                 'title': 'Origem',
-                'description': 'Distribuição da receita entre marketing pago, marketing orgânico, operação e itens sem categoria.',
+                'description': 'Composição da receita por origem: marketing pago, orgânico, operacional e sem categoria.',
                 'rows': origem_rows,
-                'chart': origem_chart,
-                'chart_type': 'pie',
+                'chart': None,
+                'chart_type': None,
                 'filter_options': [row['label'] for row in origem_rows] if filter_enabled_map.get('origem') else [],
-            }
-        )
-
-    status_rows = _crm_status_comparison_rows(
-        current_summary['status_counts'],
-        previous_summary['status_counts'],
-        'status_fechamento' in selected_table_keys,
-    )
-    status_chart_enabled = 'status_fechamento' in selected_chart_keys or ('status_fechamento' in selected_table_keys and 'status_fechamento' not in selected_chart_keys)
-    status_chart = _crm_status_pie_chart(current_summary['status']) if status_chart_enabled else None
-    if status_rows or status_chart:
-        blocks.append(
-            {
-                'key': 'status',
-                'title': 'Status',
-                'description': 'Distribuição atual em pizza e comparação por status na tabela.',
-                'rows': status_rows,
-                'chart': status_chart,
-                'chart_type': 'pie',
-                'filter_options': [row['label'] for row in status_rows] if filter_enabled_map.get('status') else [],
             }
         )
 
@@ -1061,6 +1043,53 @@ def _crm_distribution_pie_chart(current_distribution, key, title, color_fn):
 
 def _crm_status_pie_chart(current_status):
     return _crm_distribution_pie_chart(current_status, 'crm_status', 'Status', _crm_status_color)
+
+
+def _build_origem_stacked_area_chart(all_rows, config):
+    """Build mixed chart: Receita Total as line + stacked area by origem category."""
+    if not all_rows:
+        return None
+    closed_status = {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}
+    groups = _group_rows_by_month(all_rows, 'data_contato')
+    month_keys = _last_n_months(12)
+    active = [mk for mk in month_keys if mk in groups]
+    if not active:
+        return None
+    categories = [_short_month_label(y, m) for y, m in active]
+    origem_defs = [
+        ('receita_marketing_pago', 'Marketing Pago', '#175cd3'),
+        ('receita_marketing_organico', 'Marketing Orgânico', '#2d6a4f'),
+        ('receita_operacional', 'Operacional', '#c67a1a'),
+        ('receita_sem_categoria', 'Sem categoria', '#94a3b8'),
+    ]
+    # Pre-compute summaries once per month
+    monthly_summaries = {mk: _crm_period_summary(groups[mk], closed_status, config) for mk in active}
+    # Receita Total as line series
+    total_data = [
+        _decimal_to_float(_to_decimal(monthly_summaries[mk]['geral'].get('receita_total', Decimal('0'))))
+        for mk in active
+    ]
+    series = [{'name': 'Receita Total', 'type': 'line', 'data': total_data}]
+    colors = ['#0f172a']
+    # Origem breakdown as stacked area series
+    for field_key, label, color in origem_defs:
+        data = [
+            _decimal_to_float(_to_decimal(monthly_summaries[mk]['origem'].get(field_key, Decimal('0'))))
+            for mk in active
+        ]
+        if any(v > 0 for v in data):
+            series.append({'name': label, 'type': 'area', 'data': data})
+            colors.append(color)
+    if len(series) == 1:
+        return None
+    return {
+        'key': 'crm_origem_stacked',
+        'title': 'Evolução Mensal — Resultado por Origem',
+        'categories': categories,
+        'series': series,
+        'colors': colors,
+        'chart_type': 'mixed_area',
+    }
 
 
 def _format_crm_metric(value, currency=False, suffix=''):
@@ -1274,6 +1303,207 @@ def _decimal_to_float(value):
         return 0.0
 
 
+_MESES_PT_SHORT = {
+    1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr', 5: 'Mai', 6: 'Jun',
+    7: 'Jul', 8: 'Ago', 9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez',
+}
+
+
+def _short_month_label(year, month):
+    return f"{_MESES_PT_SHORT[month]}/{str(year)[2:]}"
+
+
+def _last_n_months(n=12):
+    """Returns list of (year, month) tuples for last n months, oldest first."""
+    from datetime import date as _date
+    today = _date.today()
+    months = []
+    for i in range(n - 1, -1, -1):
+        y, m = today.year, today.month - i
+        while m <= 0:
+            m += 12
+            y -= 1
+        months.append((y, m))
+    return months
+
+
+def _group_rows_by_month(rows, date_key):
+    """Groups rows into a dict {(year, month): [rows]} based on a date field."""
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for row in rows:
+        d = _parse_date(row.get(date_key))
+        if d:
+            groups[(d.year, d.month)].append(row)
+    return groups
+
+
+def _build_monthly_traffic_data(empresa):
+    """Queries CampanhaMetric for empresa grouped by month. Returns {(year, month): metric_dict}."""
+    from .models import CampanhaMetric
+    from django.db.models.functions import TruncMonth
+    from django.db.models import Sum as OrmSum
+    monthly_qs = (
+        CampanhaMetric.objects
+        .filter(upload__empresa=empresa)
+        .annotate(mes=TruncMonth('data'))
+        .values('mes')
+        .annotate(
+            s_investimento=OrmSum('investimento'),
+            s_impressoes=OrmSum('impressoes'),
+            s_alcance=OrmSum('alcance'),
+            s_cliques=OrmSum('cliques'),
+            s_resultados=OrmSum('resultados'),
+        )
+        .order_by('mes')
+    )
+    result = {}
+    for row in monthly_qs:
+        if not row['mes']:
+            continue
+        key = (row['mes'].year, row['mes'].month)
+        inv = Decimal(row['s_investimento'] or 0)
+        imp = int(row['s_impressoes'] or 0)
+        alc = int(row['s_alcance'] or 0)
+        cli = int(row['s_cliques'] or 0)
+        res = Decimal(row['s_resultados'] or 0)
+        ctr = (Decimal(cli) / Decimal(imp) * Decimal('100')) if imp else Decimal('0')
+        cpc = (inv / Decimal(cli)) if cli else Decimal('0')
+        cpm = (inv / Decimal(imp) * Decimal('1000')) if imp else Decimal('0')
+        cpl = (inv / res) if res else Decimal('0')
+        freq = (Decimal(imp) / Decimal(alc)) if alc else Decimal('0')
+        taxa_conv = (res / Decimal(cli) * Decimal('100')) if cli else Decimal('0')
+        result[key] = {
+            'investimento': inv,
+            'impressoes': Decimal(imp),
+            'alcance': Decimal(alc),
+            'resultado_principal': res,
+            'ctr': ctr,
+            'cpc': cpc,
+            'cpm': cpm,
+            'cpl': cpl,
+            'frequencia': freq,
+            'taxa_conversao': taxa_conv,
+            'score_relevancia': _calculate_relevance_score(ctr, cpc, cpm, freq, taxa_conv),
+        }
+    return result
+
+
+def _build_traffic_line_chart(empresa, block_key, chart_metric_keys, metric_definitions):
+    """Build line chart showing monthly evolution for traffic metrics."""
+    if not empresa or not chart_metric_keys:
+        return None
+    monthly_data = _build_monthly_traffic_data(empresa)
+    month_keys = _last_n_months(12)
+    active_months = [mk for mk in month_keys if mk in monthly_data]
+    if not active_months:
+        return None
+    categories = [_short_month_label(y, m) for y, m in active_months]
+    series = []
+    for metric_key in chart_metric_keys:
+        if metric_key not in metric_definitions:
+            continue
+        label = metric_definitions[metric_key]['label']
+        data = [_decimal_to_float(_to_decimal(monthly_data[mk].get(metric_key, 0))) for mk in active_months]
+        series.append({'name': label, 'data': data})
+    if not series:
+        return None
+    return {
+        'key': block_key,
+        'title': 'Evolução Mensal',
+        'categories': categories,
+        'series': series,
+    }
+
+
+def _build_crm_monthly_line_chart(all_rows, config, chart_key, metric_defs, selected_chart_keys):
+    """Build line chart showing monthly evolution of CRM metrics."""
+    if not all_rows:
+        return None
+    closed_status = {'ganho', 'fechado', 'fechada', 'venda', 'vendido'}
+    groups = _group_rows_by_month(all_rows, 'data_contato')
+    month_keys = _last_n_months(12)
+    active_months = [mk for mk in month_keys if mk in groups]
+    if not active_months:
+        return None
+    categories = [_short_month_label(y, m) for y, m in active_months]
+    metric_key_set = {item[0] for item in metric_defs}
+    keys_to_chart = [key for key in selected_chart_keys if key in metric_key_set]
+    if not keys_to_chart:
+        keys_to_chart = [item[0] for item in metric_defs if item[0] in metric_key_set][:3]
+    label_map = {item[0]: item[1] for item in metric_defs}
+    series = []
+    for metric_key in keys_to_chart:
+        monthly_values = []
+        for mk in active_months:
+            monthly_summary = _crm_period_summary(groups[mk], closed_status, config)
+            val = _decimal_to_float(_to_decimal(monthly_summary['geral'].get(metric_key, 0)))
+            monthly_values.append(val)
+        series.append({'name': label_map.get(metric_key, metric_key), 'data': monthly_values})
+    if not series:
+        return None
+    return {
+        'key': chart_key,
+        'title': 'Evolução Mensal',
+        'categories': categories,
+        'series': series,
+    }
+
+
+def _build_social_monthly_line_chart(all_rows, digital_type, chart_key, metric_defs, selected_chart_keys):
+    """Build line chart showing monthly evolution of social metrics."""
+    if not all_rows:
+        return None
+    groups = _group_rows_by_month(all_rows, 'data_publicacao')
+    month_keys = _last_n_months(12)
+    active_months = [mk for mk in month_keys if mk in groups]
+    if not active_months:
+        return None
+    categories = [_short_month_label(y, m) for y, m in active_months]
+    metric_key_set = {item[0] for item in metric_defs}
+    keys_to_chart = [key for key in selected_chart_keys if key in metric_key_set]
+    if not keys_to_chart:
+        keys_to_chart = [item[0] for item in metric_defs if item[0] in metric_key_set][:2]
+    label_map = {item[0]: item[1] for item in metric_defs}
+    series = []
+    for metric_key in keys_to_chart:
+        monthly_values = []
+        for mk in active_months:
+            summary = _social_period_summary(groups[mk], digital_type=digital_type)
+            val = _decimal_to_float(_to_decimal(summary.get(metric_key, 0)))
+            monthly_values.append(val)
+        series.append({'name': label_map.get(metric_key, metric_key), 'data': monthly_values})
+    if not series:
+        return None
+    return {
+        'key': chart_key,
+        'title': 'Evolução Mensal',
+        'categories': categories,
+        'series': series,
+    }
+
+
+def _build_leads_monthly_line_chart(config, key='leads_mensal'):
+    """Build line chart showing monthly evolution of leads/event participants."""
+    from collections import defaultdict
+    groups = defaultdict(int)
+    for entry in config.eventos_painel.all():
+        mk = (entry.data_evento.year, entry.data_evento.month)
+        groups[mk] += entry.leads_media
+    month_keys = _last_n_months(12)
+    active_months = [mk for mk in month_keys if mk in groups]
+    if not active_months:
+        return None
+    categories = [_short_month_label(y, m) for y, m in active_months]
+    data = [float(groups[mk]) for mk in active_months]
+    return {
+        'key': key,
+        'title': 'Evolução Mensal',
+        'categories': categories,
+        'series': [{'name': 'Pessoas alcançadas', 'data': data}],
+    }
+
+
 def _top_values(rows, key):
     counts = {}
     for row in rows:
@@ -1344,13 +1574,258 @@ def _crm_period_summary(rows, closed_status, config):
     }
 
 
-def _social_period_summary(rows):
+def _get_social_digital_type(config):
+    if not config:
+        return 'instagram'
+    return str((config.configuracao_analise_json or {}).get('digital_type', 'instagram')).strip() or 'instagram'
+
+
+def _social_tab_description(digital_type):
+    descriptions = {
+        'instagram': 'Comparativo do desempenho orgânico do Instagram entre período atual e anterior, baseado apenas em uploads reais.',
+        'facebook': 'Comparativo do desempenho orgânico do Facebook entre período atual e anterior, baseado apenas em uploads reais.',
+        'tiktok': 'Comparativo do desempenho orgânico do TikTok entre período atual e anterior, baseado apenas em uploads reais.',
+        'x': 'Comparativo do desempenho orgânico do X / Twitter entre período atual e anterior, baseado apenas em uploads reais.',
+        'website': 'Comparativo de tráfego e conversão do website com base nos uploads reais do Google Analytics.',
+        'outro': 'Comparativo do desempenho do canal digital entre período atual e anterior, baseado apenas em uploads reais.',
+    }
+    return descriptions.get(digital_type, descriptions['outro'])
+
+
+def _get_social_block_definitions(digital_type):
+    if digital_type == 'website':
+        return [
+            (
+                'visao_geral',
+                'Visão Geral',
+                'Leitura consolidada do tráfego do website no período.',
+                [
+                    ('usuarios', 'Usuários', False, ''),
+                    ('sessoes', 'Sessões', False, ''),
+                    ('visualizacoes_pagina', 'Visualizações de Página', False, ''),
+                ],
+                ['usuarios', 'sessoes', 'visualizacoes_pagina'],
+            ),
+            (
+                'aquisicao',
+                'Aquisição',
+                'Indicadores de aquisição e qualidade de sessão.',
+                [
+                    ('novos_usuarios', 'Novos Usuários', False, ''),
+                    ('sessoes_engajadas', 'Sessões Engajadas', False, ''),
+                    ('taxa_engajamento', 'Taxa de Engajamento', False, '%'),
+                ],
+                ['novos_usuarios', 'sessoes_engajadas', 'taxa_engajamento'],
+            ),
+            (
+                'conversao',
+                'Conversão',
+                'Indicadores de resultado do website.',
+                [
+                    ('conversoes', 'Conversões', False, ''),
+                ],
+                ['conversoes'],
+            ),
+        ]
+    if digital_type == 'instagram':
+        return [
+            (
+                'visao_geral',
+                'Visão Geral',
+                'Bloco principal consolidado do desempenho social.',
+                [
+                    ('quantidade_publicacoes', 'Quantidade de Publicações', False, ''),
+                    ('visualizacoes', 'Visualizações', False, ''),
+                    ('alcance', 'Alcance', False, ''),
+                    ('curtidas', 'Curtidas', False, ''),
+                    ('compartilhamentos', 'Compartilhamentos', False, ''),
+                ],
+                ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+            ),
+            (
+                'posts',
+                'Posts',
+                'Desempenho consolidado apenas dos conteúdos do tipo post.',
+                [
+                    ('quantidade_posts', 'Quantidade de Posts', False, ''),
+                    ('visualizacoes_posts', 'Visualizações dos Posts', False, ''),
+                    ('alcance_posts', 'Alcance dos Posts', False, ''),
+                    ('curtidas_posts', 'Curtidas dos Posts', False, ''),
+                    ('compartilhamentos_posts', 'Compartilhamentos dos Posts', False, ''),
+                ],
+                ['quantidade_posts', 'visualizacoes_posts', 'alcance_posts'],
+            ),
+            (
+                'stories',
+                'Stories',
+                'Desempenho consolidado apenas dos conteúdos do tipo story.',
+                [
+                    ('quantidade_stories', 'Quantidade de Stories', False, ''),
+                    ('visualizacoes_stories', 'Visualizações dos Stories', False, ''),
+                    ('alcance_stories', 'Alcance dos Stories', False, ''),
+                    ('curtidas_stories', 'Curtidas dos Stories', False, ''),
+                    ('compartilhamentos_stories', 'Compartilhamentos dos Stories', False, ''),
+                ],
+                ['quantidade_stories', 'visualizacoes_stories', 'alcance_stories'],
+            ),
+            (
+                'engajamento',
+                'Engajamento',
+                'Indicadores complementares de interação.',
+                [
+                    ('curtidas', 'Curtidas', False, ''),
+                    ('compartilhamentos', 'Compartilhamentos', False, ''),
+                    ('comentarios', 'Comentários', False, ''),
+                    ('salvamentos', 'Salvamentos', False, ''),
+                    ('respostas', 'Respostas', False, ''),
+                    ('cliques_link', 'Cliques no Link', False, ''),
+                    ('visitas_perfil', 'Visitas ao Perfil', False, ''),
+                ],
+                ['curtidas', 'compartilhamentos', 'comentarios'],
+            ),
+        ]
+    if digital_type == 'tiktok':
+        return [
+            (
+                'visao_geral',
+                'Visão Geral',
+                'Desempenho consolidado do conteúdo publicado no TikTok.',
+                [
+                    ('quantidade_publicacoes', 'Quantidade de Conteúdos', False, ''),
+                    ('visualizacoes', 'Visualizações', False, ''),
+                    ('alcance', 'Alcance', False, ''),
+                ],
+                ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+            ),
+            (
+                'engajamento',
+                'Engajamento',
+                'Interações do conteúdo com a audiência.',
+                [
+                    ('curtidas', 'Curtidas', False, ''),
+                    ('compartilhamentos', 'Compartilhamentos', False, ''),
+                    ('comentarios', 'Comentários', False, ''),
+                    ('salvamentos', 'Salvamentos', False, ''),
+                ],
+                ['curtidas', 'compartilhamentos', 'comentarios'],
+            ),
+            (
+                'audiencia',
+                'Audiência',
+                'Sinais de interesse pela conta e crescimento.',
+                [
+                    ('visitas_perfil', 'Visitas ao Perfil', False, ''),
+                    ('seguimentos', 'Seguimentos', False, ''),
+                ],
+                ['visitas_perfil', 'seguimentos'],
+            ),
+        ]
+    if digital_type == 'x':
+        return [
+            (
+                'visao_geral',
+                'Visão Geral',
+                'Desempenho consolidado do conteúdo publicado no X.',
+                [
+                    ('quantidade_publicacoes', 'Quantidade de Posts', False, ''),
+                    ('visualizacoes', 'Impressões', False, ''),
+                    ('alcance', 'Alcance', False, ''),
+                ],
+                ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+            ),
+            (
+                'interacao',
+                'Interação',
+                'Respostas e compartilhamentos do conteúdo.',
+                [
+                    ('curtidas', 'Curtidas', False, ''),
+                    ('compartilhamentos', 'Reposts / Compartilhamentos', False, ''),
+                    ('comentarios', 'Respostas', False, ''),
+                ],
+                ['curtidas', 'compartilhamentos', 'comentarios'],
+            ),
+            (
+                'trafego',
+                'Tráfego',
+                'Sinais de tráfego gerado e interesse no perfil.',
+                [
+                    ('cliques_link', 'Cliques no Link', False, ''),
+                    ('visitas_perfil', 'Visitas ao Perfil', False, ''),
+                    ('seguimentos', 'Seguimentos', False, ''),
+                ],
+                ['cliques_link', 'visitas_perfil', 'seguimentos'],
+            ),
+        ]
+    return [
+        (
+            'visao_geral',
+            'Visão Geral',
+            'Desempenho consolidado do canal digital no período.',
+            [
+                ('quantidade_publicacoes', 'Quantidade de Conteúdos', False, ''),
+                ('visualizacoes', 'Visualizações', False, ''),
+                ('alcance', 'Alcance', False, ''),
+            ],
+            ['quantidade_publicacoes', 'visualizacoes', 'alcance'],
+        ),
+        (
+            'engajamento',
+            'Engajamento',
+            'Interações principais do conteúdo.',
+            [
+                ('curtidas', 'Curtidas', False, ''),
+                ('compartilhamentos', 'Compartilhamentos', False, ''),
+                ('comentarios', 'Comentários', False, ''),
+            ],
+            ['curtidas', 'compartilhamentos', 'comentarios'],
+        ),
+        (
+            'audiencia',
+            'Audiência',
+            'Sinais de tráfego e crescimento do canal.',
+            [
+                ('cliques_link', 'Cliques no Link', False, ''),
+                ('visitas_perfil', 'Visitas ao Perfil', False, ''),
+                ('seguimentos', 'Seguimentos', False, ''),
+            ],
+            ['cliques_link', 'visitas_perfil', 'seguimentos'],
+        ),
+    ]
+
+
+def _aggregate_social_summaries(summaries):
+    aggregate = {'visualizacoes': Decimal('0'), 'alcance': Decimal('0')}
+    for summary in summaries or []:
+        aggregate['visualizacoes'] += _to_decimal((summary or {}).get('visualizacoes', Decimal('0')))
+        aggregate['alcance'] += _to_decimal((summary or {}).get('alcance', Decimal('0')))
+    return aggregate
+
+
+def _social_period_summary(rows, digital_type='instagram'):
     def sum_key(dataset, field):
         return sum((_to_decimal(item.get(field)) for item in dataset), Decimal('0'))
 
+    if digital_type == 'website':
+        usuarios = sum_key(rows, 'usuarios')
+        visualizacoes_pagina = sum_key(rows, 'visualizacoes_pagina')
+        sessoes = sum_key(rows, 'sessoes')
+        sessoes_engajadas = sum_key(rows, 'sessoes_engajadas')
+        taxa_engajamento = (sessoes_engajadas / sessoes * Decimal('100')) if sessoes else Decimal('0')
+        return {
+            'usuarios': usuarios,
+            'novos_usuarios': sum_key(rows, 'novos_usuarios'),
+            'sessoes': sessoes,
+            'sessoes_engajadas': sessoes_engajadas,
+            'visualizacoes_pagina': visualizacoes_pagina,
+            'taxa_engajamento': taxa_engajamento,
+            'conversoes': sum_key(rows, 'conversoes'),
+            'visualizacoes': visualizacoes_pagina,
+            'alcance': usuarios,
+        }
+
     posts = [row for row in rows if row.get('tipo_conteudo_normalizado') == 'post']
     stories = [row for row in rows if row.get('tipo_conteudo_normalizado') == 'story']
-    return {
+    summary = {
         'quantidade_publicacoes': Decimal(len(rows)),
         'visualizacoes': sum_key(rows, 'visualizacoes'),
         'alcance': sum_key(rows, 'alcance'),
@@ -1371,7 +1846,9 @@ def _social_period_summary(rows):
         'respostas': sum_key(rows, 'respostas'),
         'cliques_link': sum_key(rows, 'cliques_link'),
         'visitas_perfil': sum_key(rows, 'visitas_perfil'),
+        'seguimentos': sum_key(rows, 'seguimentos'),
     }
+    return summary
 
 
 def _crm_is_paid_row(row, config):
@@ -1711,6 +2188,8 @@ def _format_variation(absolute, percent, key):
         absolute_text = _format_currency_br(absolute)
     elif key in {'ctr', 'taxa_conversao', 'taxa_resposta', 'atendimento_taxa_conversao'}:
         absolute_text = f'{_format_number_br(absolute, decimals=2)}pp'
+    elif key == 'taxa_engajamento':
+        absolute_text = f'{_format_number_br(absolute, decimals=2)}pp'
     elif key == 'cpm_relativo':
         absolute_text = f'{_format_number_br(absolute, decimals=2)}x'
     elif key == 'score_relevancia':
@@ -1742,6 +2221,13 @@ def _format_variation(absolute, percent, key):
         'respostas',
         'cliques_link',
         'visitas_perfil',
+        'seguimentos',
+        'usuarios',
+        'novos_usuarios',
+        'sessoes',
+        'sessoes_engajadas',
+        'visualizacoes_pagina',
+        'conversoes',
         'presenca_digital_visualizacoes_totais',
         'presenca_digital_alcance_total',
         'presenca_digital_visualizacoes_redes',
