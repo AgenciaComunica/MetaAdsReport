@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Empresa;
 use App\Models\ConfiguracaoUploadEmpresa;
+use App\Models\User;
 use App\Services\EmpresaService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class EmpresaController extends Controller
 {
@@ -29,6 +31,7 @@ class EmpresaController extends Controller
             'observacoes' => 'nullable|string',
             'ativo' => 'nullable|boolean',
         ]);
+        $data['ativo'] = $request->boolean('ativo');
         $empresa = Empresa::create($data);
         return redirect()->route('empresas.detail', $empresa->id)->with('status', 'Empresa criada com sucesso.');
     }
@@ -46,7 +49,8 @@ class EmpresaController extends Controller
 
     public function edit(Empresa $empresa)
     {
-        return view('empresas.edit', compact('empresa'));
+        $usuarios = User::query()->orderBy('id')->get();
+        return view('empresas.edit', compact('empresa', 'usuarios'));
     }
 
     public function update(Request $request, Empresa $empresa)
@@ -58,6 +62,7 @@ class EmpresaController extends Controller
             'observacoes' => 'nullable|string',
             'ativo' => 'nullable|boolean',
         ]);
+        $data['ativo'] = $request->boolean('ativo');
         $empresa->update($data);
         return redirect()->route('empresas.detail', $empresa->id)->with('status', 'Empresa atualizada com sucesso.');
     }
@@ -66,6 +71,23 @@ class EmpresaController extends Controller
     {
         $empresa->delete();
         return redirect()->route('empresas.list')->with('status', 'Empresa removida com sucesso.');
+    }
+
+    public function userStore(Request $request, Empresa $empresa)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6|confirmed',
+        ]);
+
+        User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
+
+        return redirect()->route('empresas.update', $empresa->id)->with('status', 'Usuário criado com sucesso.');
     }
 
     public function uploadConfigCreate(Request $request, Empresa $empresa)

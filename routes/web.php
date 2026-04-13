@@ -18,6 +18,7 @@ Route::prefix('empresas')->name('empresas.')->group(function () {
     Route::get('/{empresa}/editar', [EmpresaController::class, 'edit'])->name('update');
     Route::put('/{empresa}/editar', [EmpresaController::class, 'update'])->name('update.put');
     Route::delete('/{empresa}/excluir', [EmpresaController::class, 'destroy'])->name('delete');
+    Route::post('/{empresa}/usuarios', [EmpresaController::class, 'userStore'])->name('user_store');
     Route::post('/{empresa}/uploads/adicionar', [EmpresaController::class, 'uploadConfigCreate'])->name('upload_config_create');
     Route::get('/{empresa}/uploads/{config}/configurar', [EmpresaController::class, 'uploadConfigEdit'])->name('upload_config_update');
     Route::put('/{empresa}/uploads/{config}/configurar', [EmpresaController::class, 'uploadConfigUpdate'])->name('upload_config_update.put');
