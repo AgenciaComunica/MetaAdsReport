@@ -1,6 +1,31 @@
 @php($empresa = $empresa ?? null)
 
 <div class="row g-3">
+
+    {{-- Logo --}}
+    <div class="col-12">
+        <label class="form-label">Logo da Empresa</label>
+        <div class="logo-upload-wrap">
+            <div class="logo-preview" id="logoPreview">
+                @if ($empresa?->logo_path)
+                    <img src="{{ Storage::url($empresa->logo_path) }}" alt="Logo atual" id="logoPreviewImg">
+                @else
+                    <img src="" alt="" id="logoPreviewImg" style="display:none">
+                    <span class="logo-preview-placeholder" id="logoPreviewPlaceholder">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </span>
+                @endif
+            </div>
+            <div class="logo-upload-actions">
+                <label class="btn btn-outline-secondary btn-sm" for="logoInput">
+                    {{ $empresa?->logo_path ? 'Trocar logo' : 'Carregar logo' }}
+                </label>
+                <input type="file" name="logo" id="logoInput" accept="image/*" class="d-none">
+                <p class="logo-upload-hint">PNG, JPG ou SVG. Máx. 2 MB. Recomendado fundo transparente.</p>
+            </div>
+        </div>
+    </div>
+
     <div class="col-md-6">
         <label class="form-label">Nome</label>
         <input type="text" name="nome" class="form-control" value="{{ old('nome', $empresa->nome ?? '') }}" required>
@@ -62,3 +87,19 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('logoInput')?.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = document.getElementById('logoPreviewImg');
+        const placeholder = document.getElementById('logoPreviewPlaceholder');
+        img.src = e.target.result;
+        img.style.display = '';
+        if (placeholder) placeholder.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+});
+</script>

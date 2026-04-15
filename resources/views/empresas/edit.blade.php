@@ -9,7 +9,7 @@
 </div>
 
 <div class="panel mt-4">
-    <form method="post" action="{{ route('empresas.update.put', $empresa->id) }}">
+    <form method="post" action="{{ route('empresas.update.put', $empresa->id) }}" enctype="multipart/form-data">
         @csrf
         @method('PUT')
         @include('empresas._form')

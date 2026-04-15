@@ -44,6 +44,7 @@ class EmpresaController extends Controller
 
         $data = $request->validate([
             'nome' => 'required|string|max:255',
+            'logo' => 'nullable|image|max:2048',
             'cnpj' => 'nullable|string|max:50',
             'segmento' => 'nullable|string|max:100',
             'redes_sociais_texto' => 'nullable|string',
@@ -100,6 +101,7 @@ class EmpresaController extends Controller
     {
         $data = $request->validate([
             'nome' => 'required|string|max:255',
+            'logo' => 'nullable|image|max:2048',
             'cnpj' => 'nullable|string|max:50',
             'segmento' => 'nullable|string|max:100',
             'redes_sociais_texto' => 'nullable|string',
@@ -112,7 +114,7 @@ class EmpresaController extends Controller
             'observacoes' => 'nullable|string',
             'ativo' => 'nullable|boolean',
         ]);
-        $data = $this->prepareEmpresaPayload($data, $request, $service);
+        $data = $this->prepareEmpresaPayload($data, $request, $service, $empresa);
         $empresa->update($data);
         return redirect()->route('empresas.detail', $empresa->id)->with('status', 'Empresa atualizada com sucesso.');
     }
@@ -273,10 +275,18 @@ class EmpresaController extends Controller
         ];
     }
 
-    protected function prepareEmpresaPayload(array $data, Request $request, EmpresaService $service): array
+    protected function prepareEmpresaPayload(array $data, Request $request, EmpresaService $service, ?Empresa $existing = null): array
     {
         $data['redes_sociais_json'] = $service->socialLinksFromTextarea($data['redes_sociais_texto'] ?? '');
         unset($data['redes_sociais_texto']);
+
+        if ($request->hasFile('logo')) {
+            if ($existing?->logo_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($existing->logo_path);
+            }
+            $data['logo_path'] = $request->file('logo')->store('logos', 'public');
+        }
+        unset($data['logo']);
 
         $data['cnpj'] = trim((string) ($data['cnpj'] ?? ''));
         $data['segmento'] = trim((string) ($data['segmento'] ?? ''));

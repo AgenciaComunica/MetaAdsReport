@@ -6,7 +6,7 @@
     <title>@yield('title', 'Meta Competitive Report')</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v=20260405b">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v=20260415a">
 </head>
 <body>
     @auth
@@ -19,8 +19,9 @@
                     <span></span>
                 </span>
                 <div class="app-sidebar-body">
-                    <a href="{{ route('home') }}" class="app-sidebar-brand">Meta Competitive Report</a>
-                    <p class="app-sidebar-subtitle">Meta Ads + inteligência competitiva</p>
+                    <a href="{{ route('home') }}" class="app-sidebar-brand">
+                        <img src="{{ asset('images/logo.png') }}" alt="Logo" class="app-sidebar-logo" onerror="this.style.display='none'">
+                    </a>
                 </div>
             </div>
             <nav class="app-sidebar-nav">
@@ -31,8 +32,7 @@
         <main class="app-main">
             <header class="topbar">
                 <div>
-                    <h1 class="page-title">@yield('page_title', 'Meta Competitive Report')</h1>
-                    <p class="text-muted mb-0">Fluxo local estruturado para evoluir depois para produção.</p>
+                    <h1 class="page-title">@yield('page_title')</h1>
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     @yield('page_actions')
@@ -62,25 +62,19 @@
         </main>
     </div>
     @else
-    <main class="container py-5">
         @if (session('status'))
-            <div class="mt-3">
-                <div class="alert alert-info">{{ session('status') }}</div>
-            </div>
+            <div style="position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:9999" class="alert alert-info shadow">{{ session('status') }}</div>
         @endif
         @if ($errors->any())
-            <div class="mt-3">
-                <div class="alert alert-danger">
-                    <ul class="mb-0">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
+            <div style="position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:9999;min-width:320px" class="alert alert-danger shadow">
+                <ul class="mb-0">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
             </div>
         @endif
         @yield('content')
-    </main>
     @endauth
     <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
         <div class="loading-modal-card">
@@ -92,7 +86,7 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="{{ asset('js/app.js') }}?v=20260405b"></script>
+    <script src="{{ asset('js/app.js') }}?v=20260415a"></script>
     @yield('extra_js')
 </body>
 </html>

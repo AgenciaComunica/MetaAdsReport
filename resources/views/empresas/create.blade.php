@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="panel mt-4">
-    <form method="post" action="{{ route('empresas.store') }}">
+    <form method="post" action="{{ route('empresas.store') }}" enctype="multipart/form-data">
         @csrf
         @include('empresas._form')
         <div class="mt-3">

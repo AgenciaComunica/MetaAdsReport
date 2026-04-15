@@ -10,7 +10,7 @@ class Empresa extends Model
     protected $table = 'empresas';
 
     protected $fillable = [
-        'nome', 'cnpj', 'segmento', 'redes_sociais_json', 'instagram_profile_url',
+        'nome', 'logo_path', 'cnpj', 'segmento', 'redes_sociais_json', 'instagram_profile_url',
         'ads_biblioteca_ativo', 'ads_biblioteca_query', 'ads_biblioteca_sinal',
         'ads_biblioteca_consultado_em', 'seguidores', 'posts_total_publicos',
         'feed_posts_visiveis', 'feed_posts_detalhes', 'feed_datas_publicadas',
