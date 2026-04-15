@@ -529,14 +529,14 @@ class DashboardService
                 ],
                 [
                     'label' => 'Alcance Digital',
-                    'value' => br_number(($trafficSummary['alcance'] ?? 0) + ($socialSummary['alcance'] ?? 0), 0),
-                    'tooltip' => 'Soma do alcance de Ads Digital com Presença Digital.',
+                    'value' => br_number(($socialSummary['alcance'] ?? 0), 0),
+                    'tooltip' => 'Alcance consolidado dos painéis de Presença Digital no período.',
                 ],
             ],
             'summary_panels' => [
                 $this->buildSummaryPanel('presenca_digital', 'Presença Digital', 'Soma de presença digital com tráfego pago para leitura consolidada de alcance digital.', [
                     ['presenca_digital_visualizacoes_totais', 'Visualizações Totais', ($previousTrafficSummary['impressoes'] ?? 0) + ($previousSocialSummary['visualizacoes'] ?? 0), ($trafficSummary['impressoes'] ?? 0) + ($socialSummary['visualizacoes'] ?? 0), false, ''],
-                    ['presenca_digital_alcance_total', 'Alcance Total', ($previousTrafficSummary['alcance'] ?? 0) + ($previousSocialSummary['alcance'] ?? 0), ($trafficSummary['alcance'] ?? 0) + ($socialSummary['alcance'] ?? 0), false, ''],
+                    ['presenca_digital_alcance_total', 'Alcance Total', ($previousSocialSummary['alcance'] ?? 0), ($socialSummary['alcance'] ?? 0), false, ''],
                     ['presenca_digital_visualizacoes_redes', 'Visualizações de Redes', $previousSocialSummary['visualizacoes'] ?? 0, $socialSummary['visualizacoes'] ?? 0, false, ''],
                     ['presenca_digital_impressoes_trafego', 'Impressões de Tráfego', $previousTrafficSummary['impressoes'] ?? 0, $trafficSummary['impressoes'] ?? 0, false, ''],
                 ]),

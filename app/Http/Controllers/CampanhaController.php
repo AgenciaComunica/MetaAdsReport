@@ -120,10 +120,6 @@ class CampanhaController extends Controller
 
     public function uploadDelete(UploadCampanha $upload)
     {
-        $empresa = $upload->empresa;
-        if ($upload->arquivo && Storage::exists($upload->arquivo)) {
-            Storage::delete($upload->arquivo);
-        }
         $upload->metricas()->delete();
         $upload->delete();
 
@@ -138,9 +134,6 @@ class CampanhaController extends Controller
     public function panelUploadDelete(UploadPainel $upload)
     {
         $config = $upload->configuracao;
-        if ($upload->arquivo && Storage::exists($upload->arquivo)) {
-            Storage::delete($upload->arquivo);
-        }
         $upload->delete();
 
         return redirect()->route('campanhas.dashboard', ['tab' => $this->configTabKey($config)])->with('status', 'Upload do painel removido com sucesso.');
