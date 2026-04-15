@@ -1,14 +1,27 @@
 {
+    "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Django",
-            "type": "debugpy",
+            "name": "Laravel: php artisan serve",
+            "type": "node-terminal",
             "request": "launch",
-            "program": "${workspaceFolder}/project/manage.py",
-            "args": [
-                "runserver"
+            "command": "php artisan serve --host=127.0.0.1 --port=8000"
+        },
+        {
+            "name": "Opera: abrir Laravel",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "snap run opera http://127.0.0.1:8000"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Laravel + Opera",
+            "configurations": [
+                "Laravel: php artisan serve",
+                "Opera: abrir Laravel"
             ],
-            "django": true
+            "stopAll": false
         }
     ]
 }
