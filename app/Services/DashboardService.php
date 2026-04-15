@@ -140,6 +140,28 @@ class DashboardService
         $previousStart = $ranges['previous_start'];
         $previousEnd = $ranges['previous_end'];
         $mesParam = $mesParam ?: $currentStart->format('Y-m');
+        $selectedMonth = (int) $currentStart->format('n');
+        $selectedYear = (int) $currentStart->format('Y');
+        $availableYears = collect($this->campanhaService->availableMonths())
+            ->map(fn (array $item) => (int) substr((string) $item['value'], 0, 4))
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+        $availableMonths = [
+            ['value' => 1, 'label' => 'Janeiro'],
+            ['value' => 2, 'label' => 'Fevereiro'],
+            ['value' => 3, 'label' => 'Março'],
+            ['value' => 4, 'label' => 'Abril'],
+            ['value' => 5, 'label' => 'Maio'],
+            ['value' => 6, 'label' => 'Junho'],
+            ['value' => 7, 'label' => 'Julho'],
+            ['value' => 8, 'label' => 'Agosto'],
+            ['value' => 9, 'label' => 'Setembro'],
+            ['value' => 10, 'label' => 'Outubro'],
+            ['value' => 11, 'label' => 'Novembro'],
+            ['value' => 12, 'label' => 'Dezembro'],
+        ];
 
         $empresa?->loadMissing([
             'configuracoes_upload.uploads_painel',
@@ -229,8 +251,11 @@ class DashboardService
             'active_upload_tab' => $activeUploadTab,
             'analise_completa_tab' => $analiseCompletaTab,
             'concorrentes_tab' => $concorrentesTab,
-            'meses_disponiveis' => $this->campanhaService->availableMonths(),
             'mes_param' => $mesParam,
+            'selected_month' => $selectedMonth,
+            'selected_year' => $selectedYear,
+            'available_months' => $availableMonths,
+            'available_years' => $availableYears,
             'periodo_anterior_resumo' => $previousStart->translatedFormat('F/Y'),
             'periodo_atual_resumo' => $currentStart->format('d/m/Y').' - '.$currentEnd->format('d/m/Y'),
             'current_start' => $currentStart,
@@ -391,19 +416,13 @@ class DashboardService
         $chartKeys = $this->enabledChartMetricKeys(self::REDES_SOCIAIS, $config->metricas_painel_json, $digitalType);
 
         $definitions = $this->socialBlockDefinitions($digitalType);
+        $overviewDefinition = collect($definitions)->firstWhere('key', 'visao_geral');
         $combinedChartKeys = [];
         $metricDefs = [];
-        foreach ($definitions as $definition) {
-            $keys = array_values(array_intersect($definition['chart_metrics'], $chartKeys));
-            if ($keys === []) {
-                $keys = array_values(array_intersect(array_column($definition['metrics'], 'key'), $tableKeys));
-            }
-            foreach ($keys as $key) {
-                if (! in_array($key, $combinedChartKeys, true)) {
-                    $combinedChartKeys[] = $key;
-                }
-            }
-            foreach ($definition['metrics'] as $metricDef) {
+
+        if (is_array($overviewDefinition)) {
+            $combinedChartKeys = array_values(array_intersect($overviewDefinition['chart_metrics'], $chartKeys));
+            foreach ($overviewDefinition['metrics'] as $metricDef) {
                 if (in_array($metricDef['key'], $combinedChartKeys, true)) {
                     $metricDefs[$metricDef['key']] = $metricDef;
                 }
@@ -491,7 +510,7 @@ class DashboardService
             'configured' => true,
             'ready' => $empresa !== null,
             'description' => 'Painel cruzado geral entre presença digital, atendimento e resultado.',
-            'tab_chart' => $this->buildExecutiveChart($empresa, $crmConfig),
+            'tab_chart' => $this->buildExecutiveChart($empresa, $crmConfig, $socialConfigs, $leadsConfigs),
             'top_cards' => [
                 [
                     'label' => 'Receita Marketing Consolidado',
@@ -602,6 +621,9 @@ class DashboardService
         $enabled = [];
         foreach ($this->metricGroups($tipoDocumento, $variant) as $group) {
             foreach ($group['metrics'] as $metric) {
+                if (! $this->metricAllowsChart($tipoDocumento, $group['key'], $metric['key'], $variant)) {
+                    continue;
+                }
                 $state = $config['metrics'][$metric['key']] ?? [];
                 if (($state['chart'] ?? true) === true) {
                     $enabled[] = $metric['key'];
@@ -610,6 +632,15 @@ class DashboardService
         }
 
         return array_values(array_unique($enabled));
+    }
+
+    private function metricAllowsChart(string $tipoDocumento, string $groupKey, string $metricKey, ?string $variant = null): bool
+    {
+        if ($tipoDocumento === self::REDES_SOCIAIS) {
+            return $groupKey === 'visao_geral';
+        }
+
+        return true;
     }
 
     private function categoryFilterEnabledMap(string $tipoDocumento, ?array $rawConfig, ?string $variant = null): array
@@ -701,6 +732,26 @@ class DashboardService
                 $row = [];
                 foreach ($mapping as $fieldKey => $columnName) {
                     $row[$fieldKey] = $sourceRow[$columnName] ?? '';
+                }
+                $resolvedPublishedAt = $this->parseSocialPublishedAt(
+                    $row['data_publicacao'] ?? null,
+                    $digitalType,
+                    (string) $upload->nome_arquivo
+                );
+                if (! $resolvedPublishedAt) {
+                    $fallbackDate = $sourceRow['Horário de publicação']
+                        ?? $sourceRow['Horario de publicacao']
+                        ?? $sourceRow['Data de Publicação']
+                        ?? $sourceRow['Data de Publicacao']
+                        ?? null;
+                    $resolvedPublishedAt = $this->parseSocialPublishedAt(
+                        $fallbackDate,
+                        $digitalType,
+                        (string) $upload->nome_arquivo
+                    );
+                }
+                if ($resolvedPublishedAt) {
+                    $row['data_publicacao'] = $resolvedPublishedAt->format('Y-m-d H:i:s');
                 }
                 $row['tipo_conteudo_normalizado'] = $this->normalizeSocialContentType(
                     (string) ($row['tipo_conteudo'] ?? ''),
@@ -917,7 +968,7 @@ class DashboardService
         $groups = collect($allRows)->groupBy(function (array $row) {
             $date = $this->parseDate($row['data_contato'] ?? null);
             return $date ? $date->format('Y-m') : null;
-        })->filter();
+        })->filter(fn (Collection $items, $key) => filled($key) && $items->isNotEmpty());
 
         $keys = $groups->keys()->sort()->take(-12)->values();
         if ($keys->isEmpty()) {
@@ -934,7 +985,8 @@ class DashboardService
         ];
 
         foreach ($keys as $month) {
-            $summary = $this->crmPeriodSummary($groups[$month]->values()->all(), ['ganho', 'fechado', 'fechada', 'venda', 'vendido'], $config);
+            $monthRows = $groups->get($month, collect());
+            $summary = $this->crmPeriodSummary($monthRows->values()->all(), ['ganho', 'fechado', 'fechada', 'venda', 'vendido'], $config);
             $series[0]['data'][] = round((float) ($summary['geral']['receita_total'] ?? 0), 2);
             $series[1]['data'][] = round((float) ($summary['origem']['receita_marketing_pago'] ?? 0), 2);
             $series[2]['data'][] = round((float) ($summary['origem']['receita_marketing_organico'] ?? 0), 2);
@@ -1243,7 +1295,7 @@ class DashboardService
         $groups = collect($allRows)->groupBy(function (array $row) {
             $date = $this->parseDate($row['data_publicacao'] ?? null);
             return $date ? $date->format('Y-m') : null;
-        })->filter();
+        })->filter(fn (Collection $items, $key) => filled($key) && $items->isNotEmpty());
 
         $keys = $groups->keys()->sort()->take(-12)->values();
         if ($keys->isEmpty()) {
@@ -1258,7 +1310,8 @@ class DashboardService
             $series[] = [
                 'name' => $label,
                 'data' => $keys->map(function (string $month) use ($groups, $digitalType, $key) {
-                    $summary = $this->socialPeriodSummary($groups[$month]->values()->all(), $digitalType);
+                    $monthRows = $groups->get($month, collect());
+                    $summary = $this->socialPeriodSummary($monthRows->values()->all(), $digitalType);
                     return round((float) ($summary[$key] ?? 0), 2);
                 })->all(),
             ];
@@ -1283,35 +1336,42 @@ class DashboardService
             'series' => [
                 [
                     'name' => 'Pessoas alcançadas',
-                    'data' => $keys->map(fn (string $month) => (int) $grouped[$month])->all(),
+                    'data' => $keys->map(fn (string $month) => (int) $grouped->get($month, 0))->all(),
                 ],
             ],
         ];
     }
 
-    private function buildExecutiveChart(?Empresa $empresa, ?ConfiguracaoUploadEmpresa $crmConfig): ?array
+    private function buildExecutiveChart(?Empresa $empresa, ?ConfiguracaoUploadEmpresa $crmConfig, Collection $socialConfigs = new Collection, Collection $leadsConfigs = new Collection): ?array
     {
         if (! $empresa) {
             return null;
         }
 
-        $trafficMonthly = CampanhaMetric::query()
-            ->selectRaw("DATE_FORMAT(data, '%Y-%m') as month_key")
-            ->selectRaw('SUM(alcance) as alcance')
-            ->selectRaw('SUM(investimento) as investimento')
-            ->whereHas('upload', fn ($query) => $query->where('empresa_id', $empresa->id))
-            ->groupBy('month_key')
-            ->orderBy('month_key')
-            ->get()
-            ->keyBy('month_key');
+        // Load all social rows per config once, then group by month
+        $socialMonthlyAlcance = [];
+        $socialRowsByConfig = [];
+        foreach ($socialConfigs as $config) {
+            $type = $this->getSocialDigitalType($config);
+            $allRows = $this->readSocialRows($config);
+            $socialRowsByConfig[] = ['type' => $type, 'rows' => $allRows];
+            $grouped = collect($allRows)->groupBy(function (array $row) {
+                $date = $this->parseDate($row['data_publicacao'] ?? null);
+                return $date ? $date->format('Y-m') : null;
+            })->filter(fn (Collection $items, $key) => filled($key));
+            foreach ($grouped as $month => $rows) {
+                $summary = $this->socialPeriodSummary($rows->values()->all(), $type);
+                $socialMonthlyAlcance[$month] = ($socialMonthlyAlcance[$month] ?? 0) + (float) ($summary['alcance'] ?? 0);
+            }
+        }
 
         $crmRows = $crmConfig ? $this->readMappedRows($crmConfig) : [];
         $crmGroups = collect($crmRows)->groupBy(function (array $row) {
             $date = $this->parseDate($row['data_contato'] ?? null);
             return $date ? $date->format('Y-m') : null;
-        })->filter();
+        })->filter(fn (Collection $items, $key) => filled($key) && $items->isNotEmpty());
 
-        $keys = collect([...$trafficMonthly->keys()->all(), ...$crmGroups->keys()->all()])->unique()->sort()->take(-12)->values();
+        $keys = collect([...array_keys($socialMonthlyAlcance), ...$crmGroups->keys()->all()])->unique()->sort()->take(-12)->values();
         if ($keys->isEmpty()) {
             return null;
         }
@@ -1319,15 +1379,45 @@ class DashboardService
         return [
             'categories' => $keys->map(fn (string $month) => Carbon::createFromFormat('Y-m', $month)->translatedFormat('M/y'))->all(),
             'series' => [
-                ['name' => 'Alcance (Tráfego)', 'data' => $keys->map(fn (string $month) => round((float) ($trafficMonthly[$month]->alcance ?? 0), 2))->all()],
-                ['name' => 'Investimento', 'data' => $keys->map(fn (string $month) => round((float) ($trafficMonthly[$month]->investimento ?? 0), 2))->all()],
-                ['name' => 'Receita Marketing', 'data' => $keys->map(function (string $month) use ($crmGroups, $crmConfig) {
-                    $summary = $this->crmPeriodSummary($crmGroups[$month]->values()->all() ?? [], ['ganho', 'fechado', 'fechada', 'venda', 'vendido'], $crmConfig);
-                    return round((float) (($summary['origem']['receita_marketing_pago'] ?? 0) + ($summary['origem']['receita_marketing_organico'] ?? 0)), 2);
+                ['name' => 'Alcance (Presença Digital)', 'data' => $keys->map(fn (string $month) => round((float) ($socialMonthlyAlcance[$month] ?? 0), 2))->all()],
+                ['name' => 'Receita Marketing', 'data' => $keys->map(function (string $month) use ($crmGroups, $crmConfig, $socialConfigs, $socialRowsByConfig, $leadsConfigs) {
+                    $monthStart = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+                    $monthEnd = Carbon::createFromFormat('Y-m', $month)->endOfMonth();
+
+                    // Per-month social summaries per config (mirrors how the card computes the share)
+                    $monthSocialSummaries = [];
+                    foreach ($socialRowsByConfig as $item) {
+                        $monthRows = collect($item['rows'])->filter(function (array $row) use ($monthStart, $monthEnd) {
+                            $date = $this->parseDate($row['data_publicacao'] ?? null);
+                            return $date && $date->betweenIncluded($monthStart, $monthEnd);
+                        })->values()->all();
+                        $monthSocialSummaries[] = $this->socialPeriodSummary($monthRows, $item['type']);
+                    }
+
+                    // Per-month leads entries
+                    $monthLeadsEntries = [];
+                    foreach ($leadsConfigs as $config) {
+                        foreach ($config->eventos_painel as $entry) {
+                            if ($entry->data_evento->betweenIncluded($monthStart, $monthEnd)) {
+                                $monthLeadsEntries[] = $entry;
+                            }
+                        }
+                    }
+
+                    $monthShare = $this->combinedMarketingShare($socialConfigs, $monthSocialSummaries, $leadsConfigs, $monthLeadsEntries);
+
+                    $monthRows = $crmGroups->get($month, collect())->values()->all();
+                    $marketingRevenue = collect(array_filter($monthRows, fn (array $row) => $this->isMarketingSale($row, $crmConfig)))
+                        ->sum(fn (array $row) => $this->toFloat($row['valor_venda'] ?? 0));
+                    $operacaoRevenue = collect(array_filter($monthRows, fn (array $row) => $this->isOperacaoOrSemCategoriaSale($row, $crmConfig)))
+                        ->sum(fn (array $row) => $this->toFloat($row['valor_venda'] ?? 0));
+
+                    return round($marketingRevenue + $operacaoRevenue * $monthShare, 2);
                 })->all()],
-                ['name' => 'Conversas', 'data' => $keys->map(function (string $month) use ($crmGroups, $crmConfig) {
-                    $summary = $this->crmPeriodSummary($crmGroups[$month]->values()->all() ?? [], ['ganho', 'fechado', 'fechada', 'venda', 'vendido'], $crmConfig);
-                    return round((float) ($summary['geral']['conversas'] ?? 0), 2);
+                ['name' => 'Conversas (Tráfego Pago)', 'data' => $keys->map(function (string $month) use ($crmGroups, $crmConfig) {
+                    $monthRows = $crmGroups->get($month, collect());
+                    $summary = $this->crmPeriodSummary($monthRows->values()->all(), ['ganho', 'fechado', 'fechada', 'venda', 'vendido'], $crmConfig);
+                    return round((float) ($summary['origem']['trafego_pago_conversas'] ?? 0), 2);
                 })->all()],
             ],
         ];
@@ -1660,17 +1750,75 @@ class DashboardService
                 return Carbon::parse($text)->startOfDay();
             }
             if (str_contains($text, '/')) {
-                foreach (['m/d/Y H:i:s', 'm/d/Y H:i', 'm/d/Y', 'd/m/Y H:i:s', 'd/m/Y H:i', 'd/m/Y'] as $format) {
-                    try {
-                        return Carbon::createFromFormat($format, $text)->startOfDay();
-                    } catch (\Throwable) {
-                    }
-                }
+                return $this->parseSlashDate($text, false)?->startOfDay();
             }
             return Carbon::parse($text)->startOfDay();
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function parseSocialPublishedAt(mixed $value, string $digitalType, string $fileName = ''): ?Carbon
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $text = trim((string) $value);
+        if ($text === '' || strcasecmp($text, 'total') === 0) {
+            return null;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $text)) {
+            try {
+                return Carbon::parse($text);
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        $preferUs = in_array($digitalType, ['instagram', 'facebook', 'tiktok'], true);
+        if ($preferUs && str_contains($text, '/')) {
+            return $this->parseSlashDate($text, true);
+        }
+
+        return $this->parseDate($text);
+    }
+
+    private function parseSlashDate(string $text, bool $preferUs): ?Carbon
+    {
+        if (! preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/', $text, $matches)) {
+            return null;
+        }
+
+        $first = (int) $matches[1];
+        $second = (int) $matches[2];
+        $year = (int) $matches[3];
+        $hour = isset($matches[4]) ? (int) $matches[4] : 0;
+        $minute = isset($matches[5]) ? (int) $matches[5] : 0;
+        $secondValue = isset($matches[6]) ? (int) $matches[6] : 0;
+
+        $candidates = [];
+        if ($preferUs) {
+            $candidates[] = [$second, $first];
+            $candidates[] = [$first, $second];
+        } else {
+            $candidates[] = [$first, $second];
+            $candidates[] = [$second, $first];
+        }
+
+        foreach ($candidates as [$day, $month]) {
+            if (! checkdate($month, $day, $year)) {
+                continue;
+            }
+
+            try {
+                return Carbon::create($year, $month, $day, $hour, $minute, $secondValue);
+            } catch (\Throwable) {
+            }
+        }
+
+        return null;
     }
 
     private function toFloat(mixed $value): float

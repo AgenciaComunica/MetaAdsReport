@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v=20260405b">
 </head>
 <body>
+    @auth
     <div class="app-layout" data-app-layout>
         <aside class="app-sidebar" data-app-sidebar>
             <div class="app-sidebar-head">
@@ -24,7 +25,7 @@
             </div>
             <nav class="app-sidebar-nav">
                 <a class="app-sidebar-link" href="{{ route('campanhas.dashboard') }}">Dashboard</a>
-                <a class="app-sidebar-link" href="{{ route('home') }}">Configurações</a>
+                <a class="app-sidebar-link" href="{{ route('empresas.list') }}">Empresas</a>
             </nav>
         </aside>
         <main class="app-main">
@@ -33,7 +34,13 @@
                     <h1 class="page-title">@yield('page_title', 'Meta Competitive Report')</h1>
                     <p class="text-muted mb-0">Fluxo local estruturado para evoluir depois para produção.</p>
                 </div>
-                @yield('page_actions')
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    @yield('page_actions')
+                    <form method="post" action="{{ route('logout') }}">
+                        @csrf
+                        <button class="btn btn-outline-secondary" type="submit">Sair</button>
+                    </form>
+                </div>
             </header>
             @if (session('status'))
                 <div class="mt-3">
@@ -54,6 +61,27 @@
             @yield('content')
         </main>
     </div>
+    @else
+    <main class="container py-5">
+        @if (session('status'))
+            <div class="mt-3">
+                <div class="alert alert-info">{{ session('status') }}</div>
+            </div>
+        @endif
+        @if ($errors->any())
+            <div class="mt-3">
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        @endif
+        @yield('content')
+    </main>
+    @endauth
     <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
         <div class="loading-modal-card">
             <div class="spinner-border text-light" role="status" aria-hidden="true"></div>

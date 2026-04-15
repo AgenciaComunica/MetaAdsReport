@@ -4,7 +4,7 @@
 
 @section('page_actions')
     @if ($empresa)
-        <a href="{{ route('empresas.detail', $empresa->id) }}" class="btn btn-outline-dark">Configurar Painéis</a>
+        <a href="{{ route('empresas.panels', $empresa->id) }}" class="btn btn-outline-dark">Configurar Painéis</a>
     @endif
 @endsection
 
@@ -18,12 +18,18 @@
 
 <div class="panel mt-4 form-panel">
     <div class="d-flex align-items-center gap-3 flex-wrap">
-        <form method="get" id="monthSelectorForm" class="d-flex align-items-center gap-2">
+        <form method="get" id="monthSelectorForm" class="d-flex align-items-center gap-2 flex-wrap">
             <input type="hidden" name="tab" value="{{ $dashboard_tab }}">
-            <label for="monthSelect" class="form-label mb-0 fw-semibold text-nowrap">Período</label>
+            <label for="monthSelect" class="form-label mb-0 fw-semibold text-nowrap">Mês</label>
             <select id="monthSelect" name="mes" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
-                @foreach ($meses_disponiveis as $mes)
-                    <option value="{{ $mes['value'] }}" @selected($mes['value'] === $mes_param)>{{ $mes['label'] }}</option>
+                @foreach ($available_months as $month)
+                    <option value="{{ $month['value'] }}" @selected($month['value'] === $selected_month)>{{ $month['label'] }}</option>
+                @endforeach
+            </select>
+            <label for="yearSelect" class="form-label mb-0 fw-semibold text-nowrap">Ano</label>
+            <select id="yearSelect" name="ano" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                @foreach ($available_years as $year)
+                    <option value="{{ $year }}" @selected($year === $selected_year)>{{ $year }}</option>
                 @endforeach
             </select>
         </form>
@@ -35,7 +41,7 @@
     <ul class="nav nav-tabs dashboard-data-tabs" role="tablist">
         @foreach ($visible_dashboard_tabs as $tab)
             <li class="nav-item" role="presentation">
-                <a href="{{ route('campanhas.dashboard', ['tab' => $tab['key'], 'mes' => $mes_param]) }}" class="nav-link {{ $dashboard_tab === $tab['key'] ? 'active' : '' }}">
+                <a href="{{ route('campanhas.dashboard', ['tab' => $tab['key'], 'mes' => $selected_month, 'ano' => $selected_year]) }}" class="nav-link {{ $dashboard_tab === $tab['key'] ? 'active' : '' }}">
                     {{ $tab['title'] }}
                 </a>
             </li>
@@ -49,7 +55,7 @@
                     <h3 class="mb-1">{{ $active_upload_tab['title'] }}</h3>
                     <p class="text-muted mb-0">{{ $active_upload_tab['description'] }}</p>
                 </div>
-                <a href="{{ route('campanhas.upload_create') }}" class="btn btn-outline-dark btn-sm">Novo upload</a>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#uploadPainelModal">Novo upload</button>
             </div>
 
             @if (! empty($active_upload_tab['tab_chart']))
@@ -191,7 +197,10 @@
                     <h3 class="mb-1">{{ $active_upload_tab['title'] }}</h3>
                     <p class="text-muted mb-0">{{ $active_upload_tab['description'] }}</p>
                 </div>
-                <span class="text-muted small">{{ $active_upload_tab['config_name'] }}</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">{{ $active_upload_tab['config_name'] }}</span>
+                    <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#uploadPainelModal">Importar arquivo</button>
+                </div>
             </div>
 
             @if (! empty($active_upload_tab['tab_chart']))
@@ -314,7 +323,10 @@
                     <h3 class="mb-1">{{ $active_upload_tab['title'] }}</h3>
                     <p class="text-muted mb-0">{{ $active_upload_tab['description'] }}</p>
                 </div>
-                <span class="text-muted small">{{ $active_upload_tab['config_name'] }}</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">{{ $active_upload_tab['config_name'] }}</span>
+                    <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#uploadPainelModal">Novo upload</button>
+                </div>
             </div>
             <div class="panel mt-4">
                 <h3 class="mb-1">Evolução Mensal — Pessoas Alcançadas</h3>
@@ -376,7 +388,10 @@
                     <h3 class="mb-1">{{ $active_upload_tab['title'] }}</h3>
                     <p class="text-muted mb-0">{{ $active_upload_tab['description'] }}</p>
                 </div>
-                <span class="text-muted small">{{ $active_upload_tab['config_name'] }}</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">{{ $active_upload_tab['config_name'] }}</span>
+                    <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#uploadPainelModal">{{ $active_upload_tab['panel_type'] === 'leads_eventos' ? 'Importar arquivo' : 'Novo upload' }}</button>
+                </div>
             </div>
 
             @if (! empty($active_upload_tab['tab_chart']))
@@ -651,6 +666,64 @@
         @endif
     </div>
 </div>
+
+@if ($upload_modal)
+<div class="modal fade" id="uploadPainelModal" tabindex="-1" aria-labelledby="uploadPainelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="{{ route('campanhas.upload_store') }}" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" name="config_id" value="{{ $upload_modal['config_id'] }}">
+                <input type="hidden" name="tab" value="{{ $upload_modal['tab'] }}">
+                <input type="hidden" name="mes" value="{{ $upload_modal['month'] }}">
+                <input type="hidden" name="ano" value="{{ $upload_modal['year'] }}">
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadPainelModalLabel">
+                        {{ $upload_modal['panel_type'] === 'leads_eventos' ? 'Importar arquivo' : 'Novo upload' }} - {{ $upload_modal['config_name'] }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    @if (count($upload_modal['upload_type_options']) > 1)
+                        <div class="mb-3">
+                            <label for="uploadTipo" class="form-label fw-semibold">Tipo de arquivo</label>
+                            <select name="tipo_upload" id="uploadTipo" class="form-select">
+                                @foreach ($upload_modal['upload_type_options'] as $option)
+                                    <option value="{{ $option['key'] }}">{{ $option['label'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @else
+                        <input type="hidden" name="tipo_upload" value="{{ $upload_modal['upload_type_options'][0]['key'] ?? 'principal' }}">
+                    @endif
+
+                    <div>
+                        <label for="uploadArquivo" class="form-label fw-semibold">Arquivo</label>
+                        <input type="file" name="arquivo" id="uploadArquivo" class="form-control @error('arquivo') is-invalid @enderror" accept=".csv,.txt,.xls,.xlsx" required>
+                        @error('arquivo')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    @if ($upload_modal['panel_type'] === 'trafego_pago')
+                        <div class="form-text mt-2">O período será inferido automaticamente pelo arquivo, usando as colunas mapeadas no painel.</div>
+                    @elseif ($upload_modal['panel_type'] === 'leads_eventos')
+                        <div class="form-text mt-2">
+                            Colunas esperadas: Nome do Evento, Data, Impacto e Leads Alcançados em Média.
+                            <a href="{{ route('campanhas.evento_painel_template_download') }}">Baixar template</a>
+                        </div>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-dark">Enviar upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 @endsection
 
 @section('extra_js')
