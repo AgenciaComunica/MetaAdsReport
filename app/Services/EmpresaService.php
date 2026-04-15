@@ -47,6 +47,69 @@ class EmpresaService
         return trim(implode("\n", $cleaned));
     }
 
+    public function socialLinksToTextarea(array|string|null $socialLinks): string
+    {
+        if (is_string($socialLinks)) {
+            return trim($socialLinks);
+        }
+
+        if (!is_array($socialLinks) || empty($socialLinks)) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($socialLinks as $item) {
+            if (is_array($item)) {
+                $network = trim((string) ($item['rede'] ?? ''));
+                $url = trim((string) ($item['url'] ?? ''));
+                if ($network !== '' && $url !== '') {
+                    $lines[] = $network . ' | ' . $url;
+                    continue;
+                }
+                if ($url !== '') {
+                    $lines[] = $url;
+                    continue;
+                }
+            }
+
+            $value = trim((string) $item);
+            if ($value !== '') {
+                $lines[] = $value;
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    public function socialLinksFromTextarea(?string $text): array
+    {
+        $raw = trim((string) $text);
+        if ($raw === '') {
+            return [];
+        }
+
+        $items = [];
+        foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
+            $value = trim($line);
+            if ($value === '') {
+                continue;
+            }
+
+            if (str_contains($value, '|')) {
+                [$network, $url] = array_pad(array_map('trim', explode('|', $value, 2)), 2, '');
+                $items[] = [
+                    'rede' => $network,
+                    'url' => $url,
+                ];
+                continue;
+            }
+
+            $items[] = $value;
+        }
+
+        return $items;
+    }
+
     public function refreshEmpresaProfileRecord(Empresa $empresa): array
     {
         $empresa->observacoes = $this->stripEmpresaLegacyDigitalNotes($empresa->observacoes);

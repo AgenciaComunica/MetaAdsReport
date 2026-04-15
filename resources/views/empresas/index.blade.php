@@ -10,18 +10,19 @@
     </div>
     <div class="table-responsive mt-3">
         <table class="table align-middle">
-            <thead><tr><th>Nome</th><th>CNPJ</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Nome</th><th>CNPJ</th><th>Segmento</th><th>Ações</th></tr></thead>
             <tbody>
                 @forelse ($empresas as $empresa)
                     <tr>
                         <td>{{ $empresa->nome }}</td>
                         <td>{{ $empresa->cnpj }}</td>
+                        <td>{{ $empresa->segmento ?: '-' }}</td>
                         <td>
                             <a href="{{ route('empresas.detail', $empresa->id) }}" class="btn btn-sm btn-outline-dark">Abrir</a>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="3">Nenhuma empresa cadastrada.</td></tr>
+                    <tr><td colspan="4">Nenhuma empresa cadastrada.</td></tr>
                 @endforelse
             </tbody>
         </table>

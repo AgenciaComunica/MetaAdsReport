@@ -4,21 +4,13 @@
 
 @section('content')
 <div class="panel mt-4">
-    <form method="post" action="{{ route('empresas.store') }}">
+    <form method="post" action="{{ route('empresas.store') }}" enctype="multipart/form-data">
         @csrf
-        <div class="mb-3">
-            <label class="form-label">Nome</label>
-            <input type="text" name="nome" class="form-control" required>
+        @include('empresas._form')
+        <div class="mt-3">
+            <button class="btn btn-dark" type="submit">Salvar</button>
+            <a href="{{ route('empresas.list') }}" class="btn btn-outline-secondary">Cancelar</a>
         </div>
-        <div class="mb-3">
-            <label class="form-label">CNPJ</label>
-            <input type="text" name="cnpj" class="form-control">
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Segmento</label>
-            <input type="text" name="segmento" class="form-control">
-        </div>
-        <button class="btn btn-dark" type="submit">Salvar</button>
     </form>
 </div>
 @endsection

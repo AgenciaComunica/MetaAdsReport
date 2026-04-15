@@ -1,0 +1,62 @@
+name: Deploy Locaweb
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-locaweb
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_mysql, zip, fileinfo, gd
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Validate required secrets
+        run: |
+          test -n "${{ secrets.LOCAWEB_HOST }}"
+          test -n "${{ secrets.LOCAWEB_USER }}"
+          test -n "${{ secrets.LOCAWEB_PASSWORD }}"
+          test -n "${{ secrets.LOCAWEB_DEPLOY_PATH }}"
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.LOCAWEB_HOST }}
+          username: ${{ secrets.LOCAWEB_USER }}
+          password: ${{ secrets.LOCAWEB_PASSWORD }}
+          protocol: ftp
+          port: 21
+          server-dir: ${{ secrets.LOCAWEB_DEPLOY_PATH }}/
+          local-dir: ./
+          exclude: |
+            **/.git*
+            **/.github/**
+            **/.env
+            **/.env.*
+            **/node_modules/**
+            **/storage/logs/**
+            **/storage/framework/cache/**
+            **/storage/framework/sessions/**
+            **/storage/framework/views/**
+            **/storage/app/private/**
+            **/storage/app/public/**
+            **/tests/**
+            **/.vscode/**
+            **/README.md

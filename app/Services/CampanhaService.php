@@ -194,10 +194,29 @@ class CampanhaService
         if (!file_exists($path)) {
             throw new RuntimeException('Arquivo não encontrado.');
         }
+
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        if (in_array($extension, ['xlsx', 'xls'])) {
+        $readerType = null;
+
+        if (in_array($extension, ['xlsx', 'xls', 'ods'], true)) {
+            $readerType = 'spreadsheet';
+        } elseif (in_array($extension, ['csv', 'txt'], true)) {
+            $readerType = 'csv';
+        } else {
+            try {
+                $identifiedType = IOFactory::identify($path);
+                $readerType = in_array(strtolower($identifiedType), ['xlsx', 'xls', 'ods'], true)
+                    ? 'spreadsheet'
+                    : 'csv';
+            } catch (\Throwable) {
+                $readerType = 'csv';
+            }
+        }
+
+        if ($readerType === 'spreadsheet') {
             $spreadsheet = IOFactory::load($path);
             $sheet = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+
             return collect($this->normalizeSheetRows($sheet));
         }
 
@@ -206,6 +225,7 @@ class CampanhaService
         $csv->setDelimiter($this->detectDelimiter($path));
         $spreadsheet = $csv->load($path);
         $sheet = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+
         return collect($this->normalizeSheetRows($sheet));
     }
 
@@ -482,6 +502,14 @@ class CampanhaService
             return null;
         }
         try {
+            if (str_contains($text, '/')) {
+                foreach (['d/m/Y H:i:s', 'd/m/Y H:i', 'd/m/Y', 'm/d/Y H:i:s', 'm/d/Y H:i', 'm/d/Y'] as $format) {
+                    try {
+                        return Carbon::createFromFormat($format, $text);
+                    } catch (\Throwable) {
+                    }
+                }
+            }
             return Carbon::parse($text);
         } catch (\Throwable $ex) {
             return null;
