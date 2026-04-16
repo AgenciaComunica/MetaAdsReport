@@ -52,12 +52,10 @@ jobs:
           test -n "${{ secrets.LOCAWEB_HOST }}"
           test -n "${{ secrets.LOCAWEB_USER }}"
           test -n "${{ secrets.LOCAWEB_PASSWORD }}"
-          test -n "${{ secrets.LOCAWEB_APP_PATH }}"
-          test -n "${{ secrets.LOCAWEB_PUBLIC_PATH }}"
 
       - name: Build deployment structure
         env:
-          PUBLIC_TO_APP_RELATIVE: ${{ vars.LOCAWEB_PUBLIC_TO_APP_RELATIVE || '../dashboard' }}
+          PUBLIC_TO_APP_RELATIVE: ../../dashboard
         run: |
           rm -rf build
           mkdir -p build/dashboard build/public_html
@@ -96,7 +94,7 @@ jobs:
           password: ${{ secrets.LOCAWEB_PASSWORD }}
           protocol: ftp
           port: 21
-          server-dir: ${{ secrets.LOCAWEB_APP_PATH }}/
+          server-dir: dashboard/
           local-dir: ./build/dashboard/
           exclude: |
             **/.git*
@@ -121,7 +119,7 @@ jobs:
           password: ${{ secrets.LOCAWEB_PASSWORD }}
           protocol: ftp
           port: 21
-          server-dir: ${{ secrets.LOCAWEB_PUBLIC_PATH }}/
+          server-dir: public_html/dashboard/
           local-dir: ./build/public_html/
           exclude: |
             **/.DS_Store
