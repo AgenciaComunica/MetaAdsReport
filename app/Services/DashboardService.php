@@ -1248,6 +1248,7 @@ class DashboardService
             ->selectRaw('SUM(cliques) as cliques')
             ->selectRaw('SUM(resultados) as resultados')
             ->whereHas('upload', fn ($query) => $query->where('empresa_id', $empresaId))
+            ->whereNotNull('data')
             ->groupBy('month_key')
             ->orderBy('month_key')
             ->get();
@@ -1295,7 +1296,7 @@ class DashboardService
         $groups = collect($allRows)->groupBy(function (array $row) {
             $date = $this->parseDate($row['data_publicacao'] ?? null);
             return $date ? $date->format('Y-m') : null;
-        })->filter(fn (Collection $items, $key) => filled($key) && $items->isNotEmpty());
+        })->filter(fn (Collection $items, $key) => is_string($key) && preg_match('/^\d{4}-\d{2}$/', $key) && $items->isNotEmpty());
 
         $keys = $groups->keys()->sort()->take(-12)->values();
         if ($keys->isEmpty()) {
