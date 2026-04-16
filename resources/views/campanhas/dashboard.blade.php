@@ -506,6 +506,8 @@
                         <input type="hidden" name="data_fim" value="{{ $current_end_iso }}">
                         <input type="hidden" name="data_inicio_anterior" value="{{ $previous_start_iso }}">
                         <input type="hidden" name="data_fim_anterior" value="{{ $previous_end_iso }}">
+                        <input type="hidden" name="mes" value="{{ $selected_month }}">
+                        <input type="hidden" name="ano" value="{{ $selected_year }}">
                         <input type="hidden" name="titulo" value="Relatório {{ $empresa->nome }} {{ $mes_label }}">
                         <button type="submit" class="btn btn-dark">Gerar Relatório</button>
                     </form>
