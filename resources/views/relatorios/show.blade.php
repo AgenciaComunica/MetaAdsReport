@@ -7,7 +7,7 @@
     <h3 class="mb-2">{{ $relatorio->titulo }}</h3>
     <div class="text-muted">{{ $relatorio->created_at?->format('d/m/Y H:i') }}</div>
     <div class="mt-3">
-        {!! $relatorio->html !!}
+        {!! $relatorio->html_renderizado !!}
     </div>
 </div>
 @endsection

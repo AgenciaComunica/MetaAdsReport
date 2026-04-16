@@ -2,6 +2,11 @@ name: Deploy Locaweb
 
 on:
   workflow_dispatch:
+    inputs:
+      force_vendor:
+        description: 'Forçar envio do vendor neste deploy'
+        required: false
+        default: 'false'
   push:
     branches:
       - main
@@ -17,8 +22,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect vendor changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            vendor:
+              - 'composer.json'
+              - 'composer.lock'
+              - '.github/workflows/deploy.yaml'
 
       - name: Setup PHP
+        if: steps.changes.outputs.vendor == 'true' || github.event.inputs.force_vendor == 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -26,6 +44,7 @@ jobs:
           coverage: none
 
       - name: Install PHP dependencies
+        if: steps.changes.outputs.vendor == 'true' || github.event.inputs.force_vendor == 'true'
         run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
       - name: Validate required secrets
@@ -33,9 +52,41 @@ jobs:
           test -n "${{ secrets.LOCAWEB_HOST }}"
           test -n "${{ secrets.LOCAWEB_USER }}"
           test -n "${{ secrets.LOCAWEB_PASSWORD }}"
-          test -n "${{ secrets.LOCAWEB_DEPLOY_PATH }}"
+          test -n "${{ secrets.LOCAWEB_APP_PATH }}"
+          test -n "${{ secrets.LOCAWEB_PUBLIC_PATH }}"
 
-      - name: Deploy via FTP
+      - name: Build deployment structure
+        run: |
+          rm -rf build
+          mkdir -p build/dashboard build/public_html
+
+          rsync -a ./ build/dashboard/ \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude ".env" \
+            --exclude ".env.*" \
+            --exclude "build" \
+            --exclude "node_modules" \
+            --exclude "tests" \
+            --exclude ".vscode" \
+            --exclude "storage/logs/*" \
+            --exclude "storage/framework/cache/*" \
+            --exclude "storage/framework/sessions/*" \
+            --exclude "storage/framework/views/*" \
+            --exclude "storage/app/private/*" \
+            --exclude "storage/app/public/*" \
+            --exclude "public/storage"
+
+          rsync -a public/ build/public_html/ \
+            --exclude "storage"
+
+          perl -0pi -e "s#__DIR__\\.'/\\.\\./vendor/autoload\\.php'#__DIR__.'/../dashboard/vendor/autoload.php'#g; s#__DIR__\\.'/\\.\\./bootstrap/app\\.php'#__DIR__.'/../dashboard/bootstrap/app.php'#g; s#__DIR__\\.'/\\.\\./storage/framework/maintenance\\.php'#__DIR__.'/../dashboard/storage/framework/maintenance.php'#g" build/public_html/index.php
+
+      - name: Remove vendor from dashboard package when not needed
+        if: steps.changes.outputs.vendor != 'true' && github.event.inputs.force_vendor != 'true'
+        run: rm -rf build/dashboard/vendor
+
+      - name: Deploy application outside public_html
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.LOCAWEB_HOST }}
@@ -43,20 +94,32 @@ jobs:
           password: ${{ secrets.LOCAWEB_PASSWORD }}
           protocol: ftp
           port: 21
-          server-dir: ${{ secrets.LOCAWEB_DEPLOY_PATH }}/
-          local-dir: ./
+          server-dir: ${{ secrets.LOCAWEB_APP_PATH }}/
+          local-dir: ./build/dashboard/
           exclude: |
             **/.git*
             **/.github/**
             **/.env
             **/.env.*
             **/node_modules/**
+            **/tests/**
+            **/.vscode/**
             **/storage/logs/**
             **/storage/framework/cache/**
             **/storage/framework/sessions/**
             **/storage/framework/views/**
             **/storage/app/private/**
             **/storage/app/public/**
-            **/tests/**
-            **/.vscode/**
-            **/README.md
+
+      - name: Deploy public entrypoint
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.LOCAWEB_HOST }}
+          username: ${{ secrets.LOCAWEB_USER }}
+          password: ${{ secrets.LOCAWEB_PASSWORD }}
+          protocol: ftp
+          port: 21
+          server-dir: ${{ secrets.LOCAWEB_PUBLIC_PATH }}/
+          local-dir: ./build/public_html/
+          exclude: |
+            **/.DS_Store
