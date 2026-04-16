@@ -56,6 +56,8 @@ jobs:
           test -n "${{ secrets.LOCAWEB_PUBLIC_PATH }}"
 
       - name: Build deployment structure
+        env:
+          PUBLIC_TO_APP_RELATIVE: ${{ vars.LOCAWEB_PUBLIC_TO_APP_RELATIVE || '../dashboard' }}
         run: |
           rm -rf build
           mkdir -p build/dashboard build/public_html
@@ -80,7 +82,7 @@ jobs:
           rsync -a public/ build/public_html/ \
             --exclude "storage"
 
-          perl -0pi -e "s#__DIR__\\.'/\\.\\./vendor/autoload\\.php'#__DIR__.'/../dashboard/vendor/autoload.php'#g; s#__DIR__\\.'/\\.\\./bootstrap/app\\.php'#__DIR__.'/../dashboard/bootstrap/app.php'#g; s#__DIR__\\.'/\\.\\./storage/framework/maintenance\\.php'#__DIR__.'/../dashboard/storage/framework/maintenance.php'#g" build/public_html/index.php
+          perl -0pi -e "s#__DIR__\\.'/\\.\\./vendor/autoload\\.php'#__DIR__.'/$ENV{PUBLIC_TO_APP_RELATIVE}/vendor/autoload.php'#g; s#__DIR__\\.'/\\.\\./bootstrap/app\\.php'#__DIR__.'/$ENV{PUBLIC_TO_APP_RELATIVE}/bootstrap/app.php'#g; s#__DIR__\\.'/\\.\\./storage/framework/maintenance\\.php'#__DIR__.'/$ENV{PUBLIC_TO_APP_RELATIVE}/storage/framework/maintenance.php'#g" build/public_html/index.php
 
       - name: Remove vendor from dashboard package when not needed
         if: steps.changes.outputs.vendor != 'true' && github.event.inputs.force_vendor != 'true'
